@@ -1,0 +1,9 @@
+[Unit]
+Description=Refresh pump.fun graduated tokens data
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=20min
+
+[Install]
+WantedBy=timers.target

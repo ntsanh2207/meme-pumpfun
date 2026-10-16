@@ -1,0 +1,16 @@
+[Unit]
+Description=Backtest the saved token-selection rules
+
+[Service]
+Type=oneshot
+User=pumpgrad
+WorkingDirectory=/opt/pump-graduated
+ExecStart=/usr/bin/python3 -u /opt/pump-graduated/analyze.py --rules-only --db /opt/pump-graduated/data/pump.db --out /opt/pump-graduated/data/report.json
+TimeoutStartSec=30min
+MemoryMax=450M
+Nice=10
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/pump-graduated/data

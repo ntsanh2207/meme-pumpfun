@@ -1,0 +1,23 @@
+[Unit]
+Description=Trade the live watch's buy signals (dry run unless switched to live)
+After=network-online.target pump-graduated-watch.service
+Wants=network-online.target
+
+[Service]
+User=pumpgrad
+WorkingDirectory=/opt/pump-graduated
+# the Solana signing library lives in its own folder, outside the system Python
+Environment=PYTHONPATH=/opt/pump-graduated/lib
+ExecStart=/usr/bin/python3 -u /opt/pump-graduated/trader.py --data /opt/pump-graduated/data
+Restart=always
+RestartSec=10
+MemoryMax=250M
+Nice=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/pump-graduated/data
+
+[Install]
+WantedBy=multi-user.target

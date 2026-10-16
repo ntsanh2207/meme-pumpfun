@@ -1,0 +1,21 @@
+[Unit]
+Description=Paper-trade the automatic rule on freshly graduated pump.fun tokens
+After=network-online.target pump-graduated-holders.service
+Wants=network-online.target
+
+[Service]
+User=pumpgrad
+WorkingDirectory=/opt/pump-graduated
+ExecStart=/usr/bin/python3 -u /opt/pump-graduated/watch.py --data /opt/pump-graduated/data
+Restart=always
+RestartSec=10
+MemoryMax=400M
+Nice=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/pump-graduated/data
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,15 @@
+# never committed: the trading wallet (its key and seed phrase)
+wallet/
+*wallet*.json
+seed*
+# runtime data: databases, reports, settings with tokens and password hashes
+data/
+*.db
+*.db-shm
+*.db-wal
+settings/
+# local environment
+.venv/
+__pycache__/
+*.pyc
+.DS_Store

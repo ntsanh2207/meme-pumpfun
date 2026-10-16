@@ -1,0 +1,1426 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Pump.fun Graduated Tokens</title>
+<style>
+:root {
+  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --ink-3: #85847f;
+  --line: #e4e3df; --series: #2a78d6; --hover: #f0efec; --accent: #1c5cab;
+  --neg: #eb6834; --pos-bg: #e3eefb; --neg-bg: #fbe9e1; --band: #f0efec;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --ink-3: #8b8a83;
+    --line: #2e2e2c; --series: #3987e5; --hover: #262624; --accent: #86b6ef;
+    --neg: #d95926; --pos-bg: #16304f; --neg-bg: #4a2413; --band: #232321;
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }   /* a class that sets display must not un-hide an element */
+body { margin: 0; background: var(--page); color: var(--ink);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 1280px; margin: 0 auto; padding: 20px 16px 48px; }
+h1 { font-size: 22px; margin: 0 0 2px; }
+.sub { color: var(--ink-2); margin: 0 0 18px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.tile { padding: 14px 16px; }
+.tile .k { color: var(--ink-2); font-size: 12px; }
+.tile .v { font-size: 26px; font-weight: 650; font-variant-numeric: tabular-nums; margin-top: 2px; }
+.tile .n { color: var(--ink-3); font-size: 12px; }
+.chart { margin-top: 12px; padding: 14px 16px 10px; position: relative; }
+.chart h2, .table-head h2 { font-size: 14px; margin: 0; font-weight: 600; }
+.chart .cap { color: var(--ink-2); font-size: 12px; margin-bottom: 6px; }
+svg { display: block; width: 100%; height: 190px; }
+svg text { fill: var(--ink-2); font-size: 11px; }
+.grid { stroke: var(--line); stroke-width: 1; }
+.bar { fill: var(--series); }
+.hit { fill: transparent; cursor: default; }
+.hit:hover + .bar, .bar.on { opacity: .8; }
+#tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--page);
+  padding: 5px 8px; border-radius: 6px; font-size: 12px; white-space: nowrap; display: none;
+  transform: translate(-50%, -100%); }
+.table-card { margin-top: 12px; }
+.table-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 12px 16px; }
+.table-head h2 { margin-right: auto; }
+input, select, button, a.btn { font: inherit; color: var(--ink); background: var(--page);
+  border: 1px solid var(--line); border-radius: 7px; padding: 6px 10px; }
+input[type=search] { width: 260px; max-width: 100%; }
+button, a.btn { cursor: pointer; text-decoration: none; }
+button:disabled { opacity: .45; cursor: default; }
+label.chk { display: inline-flex; gap: 6px; align-items: center; color: var(--ink-2); }
+.scroll { overflow-x: auto; border-top: 1px solid var(--line); }
+table { border-collapse: collapse; width: 100%; min-width: 980px; }
+th, td { padding: 8px 12px; text-align: left; white-space: nowrap; border-bottom: 1px solid var(--line); }
+th { color: var(--ink-2); font-weight: 600; font-size: 12px; position: sticky; top: 0;
+  background: var(--surface); user-select: none; }
+th[data-k] { cursor: pointer; }
+th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+tbody tr:hover { background: var(--hover); }
+.tok { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.tok img, .tok .ph { width: 30px; height: 30px; border-radius: 6px; flex: none; object-fit: cover;
+  background: var(--hover); }
+.tok .nm { max-width: 220px; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.tok .sy { color: var(--ink-2); font-size: 12px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+a { color: var(--accent); }
+.tok a { color: inherit; text-decoration: none; }
+.tok a:hover { text-decoration: underline; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+.muted { color: var(--ink-3); }
+.links a { margin-right: 8px; }
+.copy { border: 0; background: none; padding: 0 2px; color: var(--ink-3); }
+.pager { display: flex; gap: 10px; align-items: center; justify-content: flex-end; padding: 10px 16px; color: var(--ink-2); }
+#status { padding: 40px 16px; text-align: center; color: var(--ink-2); }
+nav.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin: 0 0 16px;
+  position: sticky; top: 0; z-index: 20; background: var(--page); overflow-x: auto; }
+nav.tabs a { white-space: nowrap; }
+nav.tabs a { padding: 8px 14px; color: var(--ink-2); text-decoration: none; border-bottom: 2px solid transparent; margin-bottom: -1px; font-weight: 600; }
+nav.tabs a.on { color: var(--ink); border-bottom-color: var(--series); }
+/* tabs inside a card: not pinned, and no gap below */
+nav.tabs.sub { position: static; margin: 6px 0 0; background: none; border-bottom: 0; }
+.rep h2 { font-size: 16px; margin: 26px 0 8px; }
+.rep p { margin: 6px 0; max-width: 78ch; }
+.rep .card { padding: 14px 16px; margin-top: 12px; }
+.rep .card h2 { margin-top: 0; }
+.verdict { border-left: 4px solid var(--ink-3); }
+.verdict.pass, .verdict.rule_profit { border-left-color: var(--series); }
+.verdict.rule_loss, .verdict.rule_none { border-left-color: var(--neg); }
+.verdict.fail, .verdict.no_rule, .verdict.none { border-left-color: var(--neg); }
+.verdict .big { font-size: 18px; font-weight: 650; }
+ol.steps { margin: 8px 0 0; padding-left: 22px; max-width: 78ch; }
+ol.steps li { margin: 7px 0; }
+ol.steps b { font-weight: 650; }
+.rep table { min-width: 0; width: auto; }
+.rep .scroll { border: 1px solid var(--line); border-radius: 8px; display: inline-block; max-width: 100%; }
+.rep td, .rep th { padding: 6px 12px; }
+.rep th { position: static; }
+td.p { background: var(--pos-bg); } td.n { background: var(--neg-bg); }
+td.pick { outline: 2px solid var(--ink); outline-offset: -2px; }
+.rep td.wrap { white-space: normal; min-width: 240px; max-width: 420px; }
+.tag { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; font-weight: 650; }
+.tag.p { background: var(--pos-bg); } .tag.n { background: var(--neg-bg); }
+.tile .v .tag { font-size: 13px; vertical-align: 4px; margin-left: 8px; }
+dl.gloss { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 8px 0 0; max-width: 90ch; }
+dl.gloss dt { font-weight: 650; } dl.gloss dd { margin: 0; color: var(--ink-2); }
+details { margin-top: 12px; } summary { cursor: pointer; font-weight: 600; }
+.small { font-size: 12px; color: var(--ink-2); }
+.rep svg { height: 220px; }
+.line { fill: none; stroke: var(--series); stroke-width: 2; }
+.band { fill: var(--band); }
+.barneg { fill: var(--neg); }
+.cross { stroke: var(--ink-3); stroke-width: 1; }
+.tipbox { position: absolute; pointer-events: none; background: var(--ink); color: var(--page); padding: 5px 8px;
+  border-radius: 6px; font-size: 12px; white-space: nowrap; display: none; transform: translate(-50%, -100%); }
+.chartbox { position: relative; }
+.legend { display: flex; gap: 16px; font-size: 12px; color: var(--ink-2); margin: 4px 0; }
+#watch { margin: 0 0 16px; }
+#watch .body { padding: 0 16px 12px; }
+#watch .body p { margin: 6px 0; max-width: 100ch; }
+#watch .tiles { margin: 10px 0 4px; }
+#watch tr.row { cursor: pointer; }
+/* the token name stays in view while a wide table is scrolled sideways */
+#watch > .scroll > table > thead > tr > th:first-child,
+#watch > .scroll > table > tbody > tr:not(.detail) > td:first-child,
+#history .scroll > table > thead > tr > th:first-child,
+#history .scroll > table > tbody > tr > td:first-child {
+  position: sticky; left: 0; z-index: 2; background: var(--surface); box-shadow: 1px 0 0 var(--line); }
+#history .scroll > table > thead > tr > th:first-child,
+#history .scroll > table > tbody > tr > td:first-child { background: var(--page); }
+#watch > .scroll > table > tbody > tr.row:hover > td:first-child,
+#history .scroll > table > tbody > tr:hover > td:first-child { background: var(--hover); }
+#watch td.why { white-space: normal; min-width: 280px; max-width: 480px; }
+#watch tr.detail td { white-space: normal; background: var(--page); padding: 12px 16px 16px; }
+#watch tr.detail table { min-width: 0; width: auto; margin: 6px 0 10px; }
+#watch tr.detail th { position: static; }
+#watch .kv { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 2px 24px; margin: 6px 0 10px; }
+#watch .kv div { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); padding: 3px 0; }
+#watch .kv span { color: var(--ink-2); }
+#watch h3 { font-size: 13px; margin: 10px 0 2px; }
+#watch .body h3 { margin-top: 14px; }
+#watch .body .scroll { border: 1px solid var(--line); border-radius: 8px; }
+#watch .body table { min-width: 0; }
+#watch .body th { position: static; }
+#watch td.wrap { white-space: normal; min-width: 180px; max-width: 300px; }
+#watch .pnl { max-width: 900px; }
+#watch .pnl svg { height: auto; }
+.sites { display: inline-flex; gap: 6px; }
+a.btn.site { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; }
+svg.ico { width: 18px; height: 18px; display: block; flex: none; }
+#watch .pnl svg.ico, #watch tr.detail svg.ico { height: 18px; }
+.tgt { stroke: var(--series); stroke-width: 1; stroke-dasharray: 5 4; }
+.alt1 { fill: none; stroke: #8a5cd6; stroke-width: 2; } .alt2 { fill: none; stroke: #2a9d6f; stroke-width: 2; }
+.alt1.thin, .alt2.thin { stroke-width: 1; stroke-dasharray: 5 4; }
+.altdot1 { fill: #8a5cd6; } .altdot2 { fill: #2a9d6f; }
+.ghost { fill: none; stroke: var(--ink-3); stroke-width: 1.5; stroke-dasharray: 2 3; }
+.stp { stroke: var(--neg); stroke-width: 1; stroke-dasharray: 5 4; }
+.dot { fill: var(--series); }
+.end { fill: var(--series); stroke: var(--surface); stroke-width: 2; }
+.end.neg { fill: var(--neg); }
+.tag.w { border: 1px solid var(--line); color: var(--ink-2); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+</style>
+</head>
+<body>
+<main>
+  <h1 style="display:flex;align-items:baseline;gap:12px">Pump.fun graduated tokens <a href="/logout" style="font-size:13px;font-weight:400;margin-left:auto">Sign out</a></h1>
+  <nav class="tabs"><a href="#tokens" data-tab="tokens">Record live</a><a href="#report" data-tab="report">Strategy report</a><a href="#history" data-tab="history">Strategy history</a><a href="#settings" data-tab="settings">Rule settings</a><a href="#telegram" data-tab="telegram">Telegram</a><a href="#trading" data-tab="trading">Trading</a></nav>
+  <section id="tab-tokens">
+  <p class="sub" id="sub" hidden>Tokens that completed the bonding curve and migrated to PumpSwap in the last 7 days.</p>
+
+  <div class="card table-card" id="watch" hidden></div>
+
+  <div class="tiles" id="tiles" hidden></div>
+
+  <div class="card chart" hidden>
+    <h2>Graduations per day</h2>
+    <div class="cap" id="chartcap">By UTC day. The first and last bars are partial days.</div>
+    <svg id="chart" role="img" aria-label="Bar chart of graduations per UTC day"></svg>
+    <div id="tip"></div>
+  </div>
+
+  <div class="card table-card" hidden>
+    <div class="table-head">
+      <h2 id="count">Tokens</h2>
+      <input type="search" id="q" placeholder="Search name, symbol, mint, creator" aria-label="Search">
+      <select id="mcap" aria-label="Minimum market cap">
+        <option value="0">Any market cap</option>
+        <option value="10000">≥ $10K</option>
+        <option value="50000">≥ $50K</option>
+        <option value="100000">≥ $100K</option>
+        <option value="1000000">≥ $1M</option>
+      </select>
+      <label class="chk"><input type="checkbox" id="soc"> Has socials</label>
+      <a class="btn" href="/api/tokens.csv">Download CSV</a>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr>
+          <th data-k="name">Token</th>
+          <th data-k="graduated_timestamp">Graduated</th>
+          <th data-k="ttg" class="num">Time to graduate</th>
+          <th data-k="usd_market_cap" class="num">Market cap</th>
+          <th data-k="ath_market_cap" class="num">ATH market cap</th>
+          <th data-k="last_trade_timestamp">Last trade</th>
+          <th data-k="reply_count" class="num">Replies</th>
+          <th>Mint</th>
+          <th>Links</th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <div id="status">Loading…</div>
+    <div class="pager">
+      <span id="pageinfo"></span>
+      <button id="prev">Previous</button>
+      <button id="next">Next</button>
+    </div>
+  </div>
+  </section>
+  <section id="tab-report" class="rep" hidden><div id="report">Loading report…</div></section>
+  <section id="tab-history" class="rep" hidden><div id="history">Loading history…</div></section>
+  <section id="tab-settings" class="rep" hidden><div id="settings">Loading rules…</div></section>
+  <section id="tab-telegram" class="rep" hidden><div id="telegram">Loading…</div></section>
+  <section id="tab-trading" class="rep" hidden><div id="trading">Loading…</div></section>
+</main>
+<script>
+const PAGE = 50;
+const $ = id => document.getElementById(id);
+let all = [], view = [], page = 0, sortKey = 'graduated_timestamp', sortDir = -1;
+
+const el = (tag, props, ...kids) => {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(props || {})) k.includes('-') ? n.setAttribute(k, v) : (n[k] = v);
+  for (const k of kids) n.append(k);
+  return n;
+};
+const usd = v => v == null ? '–' : '$' + (v >= 1e9 ? (v / 1e9).toFixed(2) + 'B' : v >= 1e6 ? (v / 1e6).toFixed(2) + 'M'
+  : v >= 1e3 ? (v / 1e3).toFixed(1) + 'K' : v.toFixed(0));
+const ago = ms => {
+  if (!ms) return '–';
+  const s = Math.max(0, (Date.now() - ms) / 1000);
+  return s < 3600 ? Math.floor(s / 60) + 'm ago' : s < 86400 ? Math.floor(s / 3600) + 'h ago' : Math.floor(s / 86400) + 'd ago';
+};
+const dur = ms => {
+  if (ms == null) return '–';
+  const m = Math.max(0, ms / 60000);
+  return m < 1 ? '<1m' : m < 60 ? Math.round(m) + 'm' : m < 1440 ? (m / 60).toFixed(1) + 'h' : (m / 1440).toFixed(1) + 'd';
+};
+const when = ms => ms ? new Date(ms).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '–';
+// token metadata is user-supplied: only ever link to plain http(s) URLs
+const safeUrl = u => { try { const p = new URL(u); return /^https?:$/.test(p.protocol) ? p.href : null; } catch { return null; } };
+
+function tiles(meta) {
+  const now = meta.generated_at;
+  const last24 = all.filter(t => (t.graduated_timestamp || t.created_timestamp) >= now - 864e5).length;
+  const ttg = all.map(t => t.ttg).filter(v => v != null).sort((a, b) => a - b);
+  const median = ttg.length ? ttg[Math.floor(ttg.length / 2)] : null;
+  const alive = all.filter(t => (t.usd_market_cap || 0) >= 50000).length;
+  const data = [
+    ['Graduated, last 7 days', all.length.toLocaleString(), Math.round(all.length / meta.days) + ' per day on average' + (meta.without_graduation_time ? `; ${meta.without_graduation_time.toLocaleString()} with no known graduation time` : '')],
+    ['Graduated, last 24 hours', last24.toLocaleString(), ''],
+    ['Median time to graduate', dur(median), 'from creation to migration'],
+    ['Market cap ≥ $50K now', alive.toLocaleString(), (all.length ? (alive / all.length * 100).toFixed(1) : 0) + '% of graduates'],
+  ];
+  $('tiles').replaceChildren(...data.map(([k, v, n]) =>
+    el('div', { className: 'card tile' }, el('div', { className: 'k', textContent: k }),
+      el('div', { className: 'v', textContent: v }), el('div', { className: 'n', textContent: n }))));
+}
+
+function chart() {
+  const days = new Map();
+  for (const t of all) {
+    const d = new Date(t.graduated_timestamp || t.created_timestamp).toISOString().slice(0, 10);
+    days.set(d, (days.get(d) || 0) + 1);
+  }
+  const pts = [...days].sort();
+  const svg = $('chart'), W = svg.clientWidth || 800, H = 190, L = 40, B = 24, T = 8;
+  const max = Math.max(1, ...pts.map(p => p[1]));
+  const step = Math.pow(10, Math.floor(Math.log10(max))), top = Math.ceil(max / step) * step;
+  const y = v => T + (H - T - B) * (1 - v / top), slot = (W - L) / pts.length, bw = Math.min(56, slot - 2);
+  const ns = 'http://www.w3.org/2000/svg';
+  const s = (tag, attrs, text) => { const n = document.createElementNS(ns, tag);
+    for (const k in attrs) n.setAttribute(k, attrs[k]); if (text != null) n.textContent = text; return n; };
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.replaceChildren();
+  for (const f of [0, .5, 1]) {
+    svg.append(s('line', { class: 'grid', x1: L, x2: W, y1: y(top * f), y2: y(top * f) }),
+      s('text', { x: L - 6, y: y(top * f) + 4, 'text-anchor': 'end' }, (top * f).toLocaleString()));
+  }
+  pts.forEach(([d, n], i) => {
+    const x = L + slot * i + (slot - bw) / 2, h = Math.max(1, y(0) - y(n)), r = Math.min(4, h);
+    const bar = s('path', { class: 'bar', d: `M${x},${y(0)}v${-(h - r)}q0,${-r} ${r},${-r}h${bw - 2 * r}q${r},0 ${r},${r}v${h - r}z` });
+    const hit = s('rect', { class: 'hit', x: L + slot * i, y: T, width: slot, height: H - T - B });
+    const label = new Date(d + 'T00:00:00Z').toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' });
+    hit.addEventListener('mousemove', () => {
+      const tip = $('tip'), box = svg.getBoundingClientRect(), host = svg.parentElement.getBoundingClientRect();
+      tip.textContent = `${label}: ${n.toLocaleString()} graduated`;
+      tip.style.display = 'block';
+      tip.style.left = (box.left - host.left + (x + bw / 2) * box.width / W) + 'px';
+      tip.style.top = (box.top - host.top + y(n) * box.height / H - 6) + 'px';
+      bar.classList.add('on');
+    });
+    hit.addEventListener('mouseleave', () => { $('tip').style.display = 'none'; bar.classList.remove('on'); });
+    svg.append(hit, bar, s('text', { x: x + bw / 2, y: H - 7, 'text-anchor': 'middle' }, label));
+  });
+}
+
+function apply() {
+  const q = $('q').value.trim().toLowerCase(), min = +$('mcap').value, soc = $('soc').checked;
+  view = all.filter(t =>
+    (!q || t.search.includes(q)) && (!min || (t.usd_market_cap || 0) >= min) &&
+    (!soc || t.twitter || t.telegram || t.website));
+  view.sort((a, b) => {
+    const x = a[sortKey], y = b[sortKey];
+    if (x == null || y == null) return (x == null) - (y == null);  // blanks always last
+    return (typeof x === 'string' ? x.localeCompare(y) : x - y) * sortDir;
+  });
+  page = 0;
+  render();
+}
+
+function row(t) {
+  const img = safeUrl(t.image_uri);
+  const pic = img ? el('img', { src: img, alt: '', loading: 'lazy', referrerPolicy: 'no-referrer' }) : el('div', { className: 'ph' });
+  if (img) pic.onerror = () => pic.replaceWith(el('div', { className: 'ph' }));
+  const href = 'https://pump.fun/coin/' + encodeURIComponent(t.mint);
+  const tok = el('div', { className: 'tok' }, pic, el('div', {},
+    el('div', { className: 'nm' }, el('a', { href, target: '_blank', rel: 'noopener noreferrer', textContent: t.name || '(no name)' })),
+    el('div', { className: 'sy', textContent: t.symbol || '' })));
+  const copy = el('button', { className: 'copy', title: 'Copy mint address', textContent: '⧉' });
+  copy.onclick = () => navigator.clipboard && navigator.clipboard.writeText(t.mint).then(() => { copy.textContent = '✓'; setTimeout(() => copy.textContent = '⧉', 1000); });
+  const links = el('td', { className: 'links' });
+  for (const [k, label] of [['twitter', 'X'], ['telegram', 'TG'], ['website', 'Web']]) {
+    const u = safeUrl(t[k]);
+    if (u) links.append(el('a', { href: u, target: '_blank', rel: 'noopener noreferrer nofollow', textContent: label }));
+  }
+  links.append(el('a', { href: 'https://solscan.io/token/' + encodeURIComponent(t.mint), target: '_blank', rel: 'noopener noreferrer', textContent: 'Solscan' }));
+  return el('tr', {},
+    el('td', {}, tok),
+    el('td', { title: t.graduated_timestamp ? new Date(t.graduated_timestamp).toISOString() : 'pump.fun lists this token as graduated, but the moment could not be determined' },
+      t.graduated_timestamp ? when(t.graduated_timestamp) : 'time unknown', el('span', { className: 'muted', textContent: t.graduated_timestamp ? '  ' + ago(t.graduated_timestamp) : '' })),
+    el('td', { className: 'num', textContent: dur(t.ttg) }),
+    el('td', { className: 'num', textContent: usd(t.usd_market_cap) }),
+    el('td', { className: 'num', textContent: usd(t.ath_market_cap) }),
+    el('td', { textContent: ago(t.last_trade_timestamp) }),
+    el('td', { className: 'num', textContent: (t.reply_count || 0).toLocaleString() }),
+    el('td', { className: 'mono', title: t.mint }, t.mint.slice(0, 4) + '…' + t.mint.slice(-4) + ' ', copy),
+    links);
+}
+
+function render() {
+  const pages = Math.max(1, Math.ceil(view.length / PAGE));
+  page = Math.min(page, pages - 1);
+  $('rows').replaceChildren(...view.slice(page * PAGE, (page + 1) * PAGE).map(row));
+  $('count').textContent = view.length === all.length ? `${all.length.toLocaleString()} tokens`
+    : `${view.length.toLocaleString()} of ${all.length.toLocaleString()} tokens`;
+  $('status').style.display = view.length ? 'none' : 'block';
+  $('status').textContent = all.length ? 'No tokens match these filters.' : 'No data yet.';
+  $('pageinfo').textContent = `Page ${page + 1} of ${pages}`;
+  $('prev').disabled = page === 0;
+  $('next').disabled = page >= pages - 1;
+  document.querySelectorAll('th[data-k]').forEach(th => {
+    th.textContent = th.textContent.replace(/ [▲▼]$/, '') + (th.dataset.k === sortKey ? (sortDir > 0 ? ' ▲' : ' ▼') : '');
+  });
+}
+
+async function load() {
+  try {
+    const res = await fetch('/api/tokens');
+    if (!res.ok) throw new Error(res.status === 503 ? 'The first data collection is still running. Check back in a few minutes.' : 'HTTP ' + res.status);
+    const { meta, columns, rows } = await res.json();
+    all = rows.map(r => {
+      const t = {};
+      columns.forEach((c, i) => t[c] = r[i]);
+      t.ttg = t.graduated_timestamp ? Math.max(0, t.graduated_timestamp - t.created_timestamp) : null;
+      t.search = [t.name, t.symbol, t.mint, t.creator].join(' ').toLowerCase();
+      return t;
+    });
+    $('sub').textContent = `Tokens that completed the bonding curve and migrated to PumpSwap between ${when(meta.window_start)} and ${when(meta.window_end)}. Updated ${ago(meta.generated_at)}.` + (meta.partial ? ' Graduation times are still being filled in; reload in a few minutes.' : '');
+    tiles(meta); chart(); apply();
+  } catch (e) {
+    $('status').style.display = 'block';
+    $('status').textContent = 'Could not load data: ' + e.message;
+  }
+}
+
+let timer;
+$('q').addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(apply, 150); });
+$('mcap').addEventListener('change', apply);
+$('soc').addEventListener('change', apply);
+$('prev').onclick = () => { page--; render(); };
+$('next').onclick = () => { page++; render(); };
+document.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => {
+  const k = th.dataset.k;
+  sortDir = k === sortKey ? -sortDir : (k === 'name' ? 1 : -1);
+  sortKey = k;
+  apply();
+});
+window.addEventListener('resize', () => all.length && chart());
+load();
+
+// ---------- Strategy report tab ----------
+let report = null, reportLoaded = false;
+// USD per SOL, sent with every data file: trades are sized in SOL and results are shown in SOL
+let SOL_USD = 0;
+// a token price in USD with four significant digits, never in exponent form: $0.0001286
+const price = p => p == null ? '–' : '$' + (p >= 1 ? p.toFixed(4) : p > 0 ? p.toFixed(Math.min(12, 3 - Math.floor(Math.log10(p)))) : '0');
+const stakeText = usd => SOL_USD ? (+(usd / SOL_USD).toFixed(3)) + ' SOL' : '$' + Math.round(usd);
+const pc = (v, d = 1) => v == null ? 'n/a' : (v >= 0 ? '+' : '') + (v * 100).toFixed(d) + '%';
+const share = v => v == null ? 'n/a' : (v * 100).toFixed(0) + '%';
+const signed = v => 'num' + (v == null ? '' : v > 0 ? ' p' : v < 0 ? ' n' : '');
+const fmtVal = (v, kind) => v == null ? 'no data' : kind === 'usd' && Math.abs(v) < 100 ? '$' + (+v.toFixed(2)) : kind === 'pct' ? pc(v, Math.abs(v) < 0.00095 ? 3 : Math.abs(v) < 0.095 ? 1 : 0).replace(/^[-+]0(\.0+)?%$/, '0%') : kind === 'usd' ? usd(v) : kind === 'sol' ? (+v.toFixed(2)) + ' SOL'
+  : kind === 'min' ? (+v.toFixed(1)) + ' min' : Math.round(v).toLocaleString();
+const condText = c => c.kind === 'flag' ? c.label : `${c.label} is ${c.op === '>=' ? 'at least' : 'at most'} ${fmtVal(c.value, c.kind)}`;
+const table = (head, rows) => el('div', { className: 'scroll' }, el('table', {},
+  el('thead', {}, el('tr', {}, ...head.map(h => el('th', { textContent: h.replace(/^#/, ''), className: h[0] === '#' ? 'num' : '' })))),
+  el('tbody', {}, ...rows.map(r => el('tr', {}, ...r.map(c => c instanceof Node ? c : el('td', typeof c === 'object' && c ? c : { textContent: c })))))));
+const statLine = s => !s || !s.trades ? 'no trades' : `${s.trades} trades, average ${pc(s.mean)} per trade, ${share(s.win)} winners`;
+const svgEl = (tag, attrs, text) => { const n = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const k in attrs) n.setAttribute(k, attrs[k]); if (text != null) n.textContent = text; return n; };
+const niceTicks = (lo, hi) => { const span = hi - lo || 1, step = Math.pow(10, Math.floor(Math.log10(span / 3)));
+  const st = [1, 2, 5, 10].map(m => m * step).find(x => span / x <= 4) || step * 10, out = [];
+  for (let v = Math.ceil(lo / st) * st; v <= hi + 1e-9; v += st) out.push(+v.toFixed(6)); return out; };
+
+function equityChart(st) {
+  const box = el('div', { className: 'chartbox' }), tip = el('div', { className: 'tipbox' });
+  const svg = svgEl('svg', { role: 'img', 'aria-label': 'Cumulative result of the strategy, trade by trade' });
+  box.append(svg, tip);
+  const draw = () => {
+    const pts = st.equity, W = box.clientWidth || 800, H = 220, L = 46, B = 24, T = 10, R = 8;
+    const n = pts[pts.length - 1].i, ys = pts.map(p => p.total), lo = Math.min(0, ...ys), hi = Math.max(0, ...ys);
+    const x = i => L + (W - L - R) * (i - 1) / Math.max(1, n - 1), y = v => T + (H - T - B) * (1 - (v - lo) / (hi - lo || 1));
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.replaceChildren();
+    const firstTest = st.plain ? null : pts.find(p => p.is_test);
+    if (firstTest) svg.append(svgEl('rect', { class: 'band', x: x(firstTest.i), y: T, width: W - R - x(firstTest.i), height: H - T - B }),
+      svgEl('text', { x: x(firstTest.i) + 6, y: T + 13 }, W - x(firstTest.i) > 230 ? 'Test: trades the search never saw' : 'Test'));
+    for (const v of niceTicks(lo, hi)) svg.append(svgEl('line', { class: 'grid', x1: L, x2: W - R, y1: y(v), y2: y(v) }),
+      svgEl('text', { x: L - 6, y: y(v) + 4, 'text-anchor': 'end' }, (v > 0 ? '+' : '') + v));
+    svg.append(svgEl('path', { class: 'line', d: pts.map((p, k) => (k ? 'L' : 'M') + x(p.i).toFixed(1) + ',' + y(p.total).toFixed(1)).join('') }),
+      svgEl('text', { x: L, y: H - 6 }, 'trade 1'), svgEl('text', { x: W - R, y: H - 6, 'text-anchor': 'end' }, 'trade ' + n));
+    const cross = svgEl('line', { class: 'cross', y1: T, y2: H - B, visibility: 'hidden' });
+    const hit = svgEl('rect', { class: 'hit', x: L, y: T, width: W - L - R, height: H - T - B });
+    hit.addEventListener('mousemove', ev => {
+      const r = svg.getBoundingClientRect(), i = 1 + (ev.clientX - r.left - L * r.width / W) / ((W - L - R) * r.width / W) * (n - 1);
+      const p = pts.reduce((a, b) => Math.abs(b.i - i) < Math.abs(a.i - i) ? b : a);
+      cross.setAttribute('x1', x(p.i)); cross.setAttribute('x2', x(p.i)); cross.setAttribute('visibility', 'visible');
+      tip.textContent = `After trade ${p.i} (${when(p.ts)}): ${(p.total > 0 ? '+' : '') + p.total.toFixed(1)} stakes`;
+      tip.style.display = 'block'; tip.style.left = (x(p.i) * r.width / W) + 'px'; tip.style.top = (y(p.total) * r.height / H - 6) + 'px';
+    });
+    hit.addEventListener('mouseleave', () => { tip.style.display = 'none'; cross.setAttribute('visibility', 'hidden'); });
+    svg.append(cross, hit);
+  };
+  return [box, draw];
+}
+
+function dayChart(st) {
+  const box = el('div', { className: 'chartbox' }), tip = el('div', { className: 'tipbox' });
+  const svg = svgEl('svg', { role: 'img', 'aria-label': 'Result per day' });
+  box.append(svg, tip);
+  const draw = () => {
+    const d = st.per_day, W = box.clientWidth || 800, H = 220, L = 46, B = 36, T = 10;
+    const lo = Math.min(0, ...d.map(p => p.total)), hi = Math.max(0, ...d.map(p => p.total));
+    const y = v => T + (H - T - B) * (1 - (v - lo) / (hi - lo || 1)), slot = (W - L) / d.length, bw = Math.min(56, slot - 2);
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.replaceChildren();
+    for (const v of niceTicks(lo, hi)) svg.append(svgEl('line', { class: 'grid', x1: L, x2: W, y1: y(v), y2: y(v) }),
+      svgEl('text', { x: L - 6, y: y(v) + 4, 'text-anchor': 'end' }, (v > 0 ? '+' : '') + v));
+    d.forEach((p, i) => {
+      const x = L + slot * i + (slot - bw) / 2, top = Math.min(y(p.total), y(0)), h = Math.max(1, Math.abs(y(p.total) - y(0)));
+      const label = new Date(p.day).toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' });
+      const bar = svgEl('rect', { class: p.total >= 0 ? 'bar' : 'barneg', x, y: top, width: bw, height: h, rx: Math.min(4, h / 2) });
+      const hit = svgEl('rect', { class: 'hit', x: L + slot * i, y: T, width: slot, height: H - T - B });
+      hit.addEventListener('mousemove', () => { const r = svg.getBoundingClientRect();
+        tip.textContent = `${label}: ${p.trades} trades, ${(p.total > 0 ? '+' : '') + p.total.toFixed(1)} stakes, average ${pc(p.mean)}`;
+        tip.style.display = 'block'; tip.style.left = ((x + bw / 2) * r.width / W) + 'px'; tip.style.top = (top * r.height / H - 6) + 'px'; });
+      hit.addEventListener('mouseleave', () => tip.style.display = 'none');
+      svg.append(hit, bar, svgEl('text', { x: x + bw / 2, y: H - 20, 'text-anchor': 'middle' }, label),
+        svgEl('text', { x: x + bw / 2, y: H - 6, 'text-anchor': 'middle' }, st.plain ? '' : p.is_test ? 'test' : 'train'));
+    });
+  };
+  return [box, draw];
+}
+
+let redraws = [];
+function renderReport(r) {
+  const root = $('report'), st = r.strategy, a = r.assumptions, out = [];
+  // a rule ticked "Record live" is the one the report is about; it is shown on every recorded token, with no train/test split
+  const F = r.featured || null, fname = F ? F.name : '';
+  const h2 = t => el('h2', { textContent: t }), p = t => el('p', { textContent: t });
+  const card = (...k) => el('div', { className: 'card' }, ...k);
+  redraws = [];
+  out.push(el('p', { className: 'sub', textContent: `Backtest run #${r.run_id}, ${when(r.generated_at)}. ${r.sample.coins.toLocaleString()} graduated tokens from ${when(r.sample.from)} to ${when(r.sample.to)}. This is research on past data, not financial advice.` }));
+
+  const verdicts = {
+    pass: ['The rule made money on tokens it had never seen.', 'It was chosen using the first 70% of tokens only, then checked on the last 30%. The check was positive, and stayed positive across 90% of resampled versions of those trades. That is encouraging, not proof: it is a few days of one market.'],
+    weak: ['The rule was positive on unseen tokens, but the evidence is thin.', 'The average on the unseen 30% was above zero, yet a plausible range for that average includes losing money. Treat it as a lead to keep testing as more data arrives, not as something to trade size on.'],
+    fail: ['The best rule found did not hold up on unseen tokens.', 'It looked good on the first 70% of tokens and lost money (or had too few trades) on the last 30%. On this data there is no edge worth trading. More days of data may change that; the report updates as data accumulates.'],
+    no_rule: ['No rule had enough trades to evaluate.', 'More data is needed.'],
+    rule_profit: [`${fname} made money on the tokens recorded so far.`, `This is your own rule, backtested on every recorded token it applies to: ${st ? st.test.trades : 0} round trips, and the average stayed above zero in 90% of resampled versions of those trades. It was written after looking at this same data, so these figures flatter it. The fair test is the live record on the Record live tab, on tokens that graduated after the rule existed.`],
+    rule_thin: [`${fname} is ahead so far, on too few trades to trust.`, `This is your own rule, backtested on every recorded token it applies to: ${st ? st.test.trades : 0} round trips, average ${st ? pc(st.test.mean) : ''} each. That is positive, but ${st && st.test.trades < 40 ? 'fewer than 40 round trips is too few to tell skill from luck' : 'a plausible range for the average still includes losing money'}, and the rule was written after looking at this same data. Judge it by the live record on the Record live tab as new tokens arrive.`],
+    rule_loss: [`${fname} lost money on the tokens recorded so far.`, `This is your own rule, backtested on every recorded token it applies to: ${st ? st.test.trades : 0} round trips, average ${st ? pc(st.test.mean) : ''} each, after fees and slippage.`],
+    rule_none: [`${fname} has not bought any recorded token yet.`, 'No recorded token met all of its conditions. Conditions that use holder data only exist for tokens that graduated after that recording started.'],
+    none: ['No profitable strategy was found for buying 10 to 30 minutes after graduation.', `${r.search.rule_sets_tested.toLocaleString()} combinations of entry minute, entry conditions, take profit, stop loss and time stop were tried. ${r.search.positive_on_train ? `${r.search.positive_on_train.toLocaleString()} of them (${(r.search.positive_on_train / r.search.rule_sets_tested * 100).toFixed(2)}%) showed any profit on the data they were fitted to, and the most reliable one still lost.` : 'Not one made money, even on the data it was fitted to.'} The reason is in the next section: tokens that look healthy collapse within a second or two, faster than any stop loss can sell.`],
+  }[r.verdict];
+  out.push(el('div', { className: 'card verdict ' + r.verdict }, el('div', { className: 'big', textContent: verdicts[0] }), p(verdicts[1])));
+
+  const cr = r.market.crashes;
+  if (cr) out.push(card(h2('Why stop losses do not protect you here'),
+    p('A "collapse" below means a single minute that ends at least 70% lower than it started. Checked second by second on a sample, these drops take 0 to 3 seconds: one party sells a huge holding in a single transaction. A stop loss only sells after the price has already fallen, so it sells near the bottom.'),
+    table(['If you buy this long after graduation', '#Collapses within 30 min', '#Within 1 hour', '#Within 4 hours'], cr.map(x =>
+      [x.entry + ' min', { className: 'num', textContent: share(x.within_30) }, { className: 'num', textContent: share(x.within_60) }, { className: 'num', textContent: share(x.within_240) }])),
+    p('Counted over tokens that were still tradable at the moment of entry. In the backtest a stop that fires during such a minute is filled at that minute\'s closing price.')));
+  if (r.clusters) {
+    const C = r.clusters, mid = C.entries.indexOf(15) >= 0 ? C.entries.indexOf(15) : 0, exitText = x => `${pc(x[0], 0)} / ${pc(-x[1], 0)} / ${x[2]} min`;
+    const cell = s => !s || !s.trades ? { className: 'num muted', textContent: 'none' } : { className: signed(s.mean), textContent: `${pc(s.mean)} (${s.trades.toLocaleString()})`, title: `${share(s.win)} winners` };
+    const tags = { profit: ['p', 'Profitable so far'], lead: ['p', 'Lead, not proven'], loses: ['n', 'Avoid'] };
+    const good = C.clusters.filter(c => c.by_entry.some(x => x.verdict !== 'loses'));
+    out.push(card(h2('Token clusters: which kinds of token to avoid'),
+      p(`Every tradable token belongs to exactly one cluster, decided by what it looks like at the moment of buying: the first cluster in the list whose conditions all hold. Average result per trade is shown for a neutral exit (${exitText(C.exit)}: take profit / stop loss / time limit), number of trades in brackets.`),
+      table(['Cluster', 'Conditions', `#Share of tokens at minute ${C.entries[mid]}`, '#Collapse within 30 min', ...C.entries.map(m => `#Buy at minute ${m}`), '#Days with a profit', 'Best sell rule: earlier tokens, then recent tokens', 'Verdict'], C.clusters.map(c => {
+        const x = c.by_entry[mid], b = x.best_exit, v = c.by_entry.some(y => y.verdict === 'profit') ? 'profit' : c.by_entry.some(y => y.verdict === 'lead') ? 'lead' : 'loses';
+        return [{ className: 'wrap', textContent: c.name, title: c.note }, { className: 'wrap', textContent: c.conditions.length ? c.conditions.map(condText).join('; ') : 'Not in any cluster above' },
+          { className: 'num', textContent: share(x.share) }, { className: 'num', textContent: share(x.collapse_30) }, ...c.by_entry.map(y => cell(y.all)),
+          { className: 'num', textContent: `${x.days_positive} of ${x.days}` },
+          { className: 'wrap', textContent: b ? `${exitText([b.tp, b.sl, b.hold])}: ${pc(b.train.mean)}, then ${pc(b.test.mean)} (${b.test.trades})` : 'too few trades' },
+          el('td', {}, el('span', { className: 'tag ' + tags[v][0], textContent: tags[v][1] }))]; })),
+      p(good.length ? `${good.map(c => c.name).join('; ')}: positive on both the earlier and the recent tokens with the sell rule that suited it best. "Lead" means the recent result could still be luck; judge it by the backtests that follow, not by this table.`
+        : `No cluster is profitable. "Best sell rule" is the take profit, stop loss and time limit (out of ${C.exits_tried} tried) that did best for that cluster on the earlier 70% of tokens; even that loses on the recent 30% in every cluster. The useful reading of this table is which clusters to keep out of a rule, starting with the ones that collapse most often: no stop loss can sell into those drops.`),
+      el('p', { className: 'small', textContent: 'Days are UTC days of graduation, at minute ' + C.entries[mid] + '. Hover a cluster name for what it is, and a result for its share of winners. A cluster\'s conditions can be typed into a rule on the Rule settings tab; the Strategy history tab splits every rule\'s round trips by cluster.' })));
+  }
+  const none = r.verdict === 'none';
+  if (st && F && !st.test.trades) out.push(card(h2(`${fname}: the rule`), p(`${st.entry} minutes after graduation, buy if ${st.conditions.map(condText).join(' and ') || 'the token is tradable'}; sell at ${pc(st.tp, 0)}, ${pc(-st.sl, 0)} or after ${st.hold} minutes.`)));
+  if (st && (!F || st.test.trades)) {
+    out.push(card(h2(F ? `${fname}, step by step` : none ? 'The least-bad rule found (do not trade this)' : 'The strategy, step by step'),
+      none ? p('Shown so you can see what was tested and how the numbers are read. It loses money.') : '', el('ol', { className: 'steps' },
+      el('li', {}, el('b', { textContent: `Wait ${st.entry} minutes after a token graduates. ` }), 'Do nothing before that; the first minutes are the most chaotic.'),
+      el('li', {}, el('b', { textContent: 'Check the token at that moment. ' }), 'Buy only if all of these are true:',
+        el('ul', {}, ...st.conditions.map(c => el('li', { textContent: condText(c) })),
+          el('li', { textContent: `It traded in the last 5 minutes and its market cap is above about ${usd(a.min_mcap_usd)} (below that the pool is too thin for a ${stakeText(a.stake_usd)} order)` }),
+          el('li', { textContent: 'It launched on the standard pump.fun bonding curve' }))),
+      el('li', {}, el('b', { textContent: `Buy a fixed amount (${stakeText(a.stake_usd)} in this backtest). ` }), 'Same size every time, so one trade cannot sink you.'),
+      el('li', {}, el('b', { textContent: 'Sell everything at whichever comes first:' }),
+        el('ul', {}, el('li', { textContent: `Take profit: price is ${(st.tp * 100).toFixed(0)}% above your buy price` }),
+          el('li', { textContent: `Stop loss: price is ${(st.sl * 100).toFixed(0)}% below your buy price` }),
+          el('li', { textContent: `Time stop: ${st.hold} minutes have passed` }))))));
+
+    const tile = (k, v, n) => el('div', { className: 'card tile' }, el('div', { className: 'k', textContent: k }), el('div', { className: 'v', textContent: v }), el('div', { className: 'n', textContent: n }));
+    const tr = (f, v) => F ? '' : `train: ${f(v)}`;
+    out.push(h2(F ? `Results of ${fname} on every recorded token` : none ? 'Results of the least-bad rule on unseen tokens (test)' : 'Results on unseen tokens (test)'), el('div', { className: 'tiles' },
+      tile('Average per trade', pc(st.test.mean), F ? `${money(st.test.mean * a.stake_usd)} on a ${stakeText(a.stake_usd)} trade` : tr(pc, st.train.mean)),
+      tile('Winning trades', share(st.test.win), tr(share, st.train.win)),
+      tile('Typical trade (median)', pc(st.test.median), tr(pc, st.train.median)),
+      tile('Trades', st.test.trades.toLocaleString(), F ? `about ${st.trades_per_day < 10 ? st.trades_per_day.toFixed(1) : Math.round(st.trades_per_day)} per day` : `train: ${st.train.trades.toLocaleString()}, about ${Math.round(st.trades_per_day)} per day`)));
+    out.push(p(`Plausible range for the ${F ? '' : 'test '}average: ${pc(st.test_range[0])} to ${pc(st.test_range[1])} (90% of resamples).${st.test_without_top3 == null ? '' : ` Without its 3 best trades the ${F ? '' : 'test '}average is ${pc(st.test_without_top3)}.`} All figures are after fees and estimated slippage.`));
+
+    if (r.latency && r.latency.trades.length) {
+      const Lt = r.latency, sol = x => money(x * a.stake_usd), row = (label, x, note) => [label, { className: 'num', textContent: x.trades }, { className: 'num', textContent: share(x.win) },
+        { className: signed(x.mean), textContent: pc(x.mean) }, { className: signed(x.total), textContent: sol(x.total) }, { className: 'wrap', textContent: note }];
+      const s1 = Lt.summary.find(x => x.lag === 1), s2 = Lt.summary.find(x => x.lag === 2);
+      out.push(card(h2('With a real execution delay'),
+        p(`A real transaction lands a second or two after the bot decides. Each of these ${Lt.trades.length} trades${Lt.missing ? ` (of ${Lt.trades.length + Lt.missing})` : ''} was replayed on 1-second prices: the buy fills at the last traded price that many seconds after the entry minute, the take profit and stop loss are set from that fill, and each sale fills at the last traded price that many seconds after the level was touched, so a falling price sells lower and a spike can sell above the target.`),
+        table(['Model', '#Trades', '#Winners', '#Average', '#Total', 'Note'], [
+          row('Backtest on 1-minute bars', Lt.backtest, 'the figures above'),
+          ...Lt.summary.map(x => row(x.lag ? `${x.lag} second${x.lag > 1 ? 's' : ''} of delay` : 'No delay, 1-second prices', x, x.lag ? `${pc(x.mean - Lt.backtest.mean)} against the backtest` : 'same timing as the backtest; a stop can differ because the 1-minute backtest sells it at the minute\'s close'))]),
+        p((s1 && s2 ? `With the 1 to 2 seconds your transactions take, these trades come out at ${pc(Math.min(s1.mean, s2.mean))} to ${pc(Math.max(s1.mean, s2.mean))} per trade, against ${pc(Lt.backtest.mean)} in the backtest. ` : '') + (Lt.missing ? `${Lt.missing} of the strategy's trades are not replayed yet: pump.fun refused their 1-second prices, which are asked for again at the next backtest (every 6 hours) and kept once received.` : '')),
+        el('details', {}, el('summary', { textContent: 'Each trade with each delay' }), table(['Token', 'Bought', '#Backtest', ...Lt.lags.map(l => `#${l} s`)], Lt.trades.map(t =>
+          [t.symbol || t.mint.slice(0, 6), when(t.entry_ts), { className: signed(t.backtest), textContent: pc(t.backtest) },
+            ...Lt.lags.map(l => { const x = t.by_lag[String(l)]; return { className: signed(x.net), textContent: `${pc(x.net)} (${{ target: 'target', stop: 'stop', time: 'time' }[x.exit]}, ${x.seconds < 120 ? x.seconds + ' s' : Math.round(x.seconds / 60) + ' min'})` }; })])))));
+    }
+    out.push(card(h2('How to read these numbers'), el('dl', { className: 'gloss' },
+      ...(F ? [el('dt', { textContent: 'Backtest and live record' }), el('dd', { textContent: 'These figures replay the rule on past tokens. The rule was shaped by looking at those same tokens, so the backtest flatters it. The live record on the Record live tab only counts tokens that graduated afterwards: that is the honest one.' })]
+        : [el('dt', { textContent: 'Train and test' }), el('dd', { textContent: 'The rule was searched for on the earlier 70% of tokens (train). The later 30% (test) were kept aside and used once, to check it. Train numbers always flatter a rule; test numbers are the honest ones.' })]),
+      el('dt', { textContent: 'Average per trade' }), el('dd', { textContent: `Add up every trade's result and divide by the number of trades. ${pc(st.test.mean)} means that on average each ${stakeText(a.stake_usd)} trade ${st.test.mean < 0 ? 'lost' : 'made'} ${money(Math.abs(st.test.mean * a.stake_usd)).slice(1)}.` }),
+      el('dt', { textContent: 'Winning trades' }), el('dd', { textContent: 'Share of trades that ended above zero after costs. A strategy can win less than half the time and still make money if winners are much bigger than losers, which is the usual shape here.' }),
+      el('dt', { textContent: 'Typical trade (median)' }), el('dd', { textContent: 'The middle trade when sorted from worst to best. If this is negative while the average is positive, most trades lose a little and a few winners pay for them. Expect long losing streaks.' }),
+      el('dt', { textContent: 'Stake' }), el('dd', { textContent: `One trade's size (${stakeText(a.stake_usd)} here). "+10 stakes" means a profit of 10 times that.` }))));
+
+    st.plain = !!F;
+    const [eq, d1] = equityChart(st), [dc, d2] = dayChart(st);
+    redraws.push(d1, d2);
+    out.push(card(h2('Running total, trade by trade'), el('div', { className: 'cap', textContent: `In stakes: +1 means one full stake of profit. Worst drop from a peak: ${st.max_drawdown.toFixed(1)} stakes.` }), eq));
+    out.push(card(h2('Result per day'), el('div', { className: 'legend' }, el('span', {}, el('i', { style: 'background:var(--series)' }), 'Profit'), el('span', {}, el('i', { style: 'background:var(--neg)' }), 'Loss')), el('div', { className: 'cap', textContent: 'In stakes, by UTC day of graduation.' }), dc));
+
+    out.push(h2('How trades ended'), table(['Exit', '#Share of trades', '#Average result'],
+      [['target', 'Take profit hit'], ['stop', 'Stop loss hit'], ['time', 'Time stop']].map(([k, label]) =>
+        [label, { className: 'num', textContent: share(st.exit_mix[k]) }, { className: signed(st.exit_mean[k]), textContent: pc(st.exit_mean[k]) }])));
+    out.push(p(`A stop at ${pc(-st.sl, 0)} loses more than that in practice. Fees and slippage are included, and when a token dumps within a single minute the stop is filled at that minute's closing price, not at ${pc(-st.sl, 0)}.`));
+    if (st.worst_case_stops) out.push(p(`Worst case: if every stop filled at the very lowest price of its minute, the ${F ? '' : 'test '}average would be ${pc(st.worst_case_stops.test.mean)} per trade${F ? '' : ` (train ${pc(st.worst_case_stops.train.mean)})`}. The truth lies between this and the main figure, depending on how fast your orders execute.`));
+
+    out.push(h2('Does it survive a bigger order?'), p('Bigger orders move the price against you in these small pools.'),
+      F ? table(['Order size', '#Average per trade', '#Trades'], st.stakes.map(x => [stakeText(x.stake), { className: signed(x.test.mean), textContent: pc(x.test.mean) }, { className: 'num', textContent: x.test.trades }]))
+      : table(['Order size', '#Train average', '#Test average', '#Test trades'], st.stakes.map(x =>
+        [stakeText(x.stake), { className: signed(x.train.mean), textContent: pc(x.train.mean) }, { className: signed(x.test.mean), textContent: pc(x.test.mean) }, { className: 'num', textContent: x.test.trades }])));
+
+    out.push(h2('Would nearby targets and stops also work?'), p(`${F ? 'Average' : 'Test average'} for the same entry rule and ${st.hold}-minute time stop, with other take-profit and stop-loss levels. The outlined cell is the pick. ${F ? 'This is where a higher take profit or a different stop can be compared at a glance.' : 'A pick surrounded by similar values is more trustworthy than a lone spike.'}`),
+      table(['Take profit \\ Stop loss', ...st.neighbours.sls.map(s => '#' + pc(-s, 0))], st.neighbours.tps.map((tp, i) =>
+        [pc(tp, 0), ...st.neighbours.test_mean[i].map((v, j) => ({ className: signed(v) + (tp === st.tp && st.neighbours.sls[j] === st.sl ? ' pick' : ''), textContent: pc(v) }))])));
+
+    out.push(h2('Example trades'), table(['Token', 'Bought', '#Held', 'Exit', '#Result'], st.examples.map(x =>
+      [el('td', {}, el('a', { href: 'https://pump.fun/coin/' + encodeURIComponent(x.mint), target: '_blank', rel: 'noopener noreferrer', textContent: x.symbol || x.mint.slice(0, 6) })),
+        when(x.entry_ts), { className: 'num', textContent: x.minutes_held + ' min' }, { target: 'take profit', stop: 'stop loss', time: 'time stop' }[x.reason], { className: signed(x.net), textContent: pc(x.net) }])),
+      el('p', { className: 'small', textContent: 'The 4 worst, 4 middle and 4 best trades of the whole sample.' }));
+  }
+
+  out.push(h2('What graduated tokens do on their own'), p(`Price compared with the graduation price (market cap about ${usd(a.grad_mcap_usd)}), all tokens, no rules.`),
+    table(['Minutes after graduation', '#Typical token', '#Share above graduation price', '#Share down 90% or more'], r.market.after_graduation.map(x =>
+      [x.minute + ' min', { className: signed(x.median), textContent: pc(x.median, 0) }, { className: 'num', textContent: share(x.share_up) }, { className: 'num', textContent: share(x.share_down_90) }])),
+    p(`Only ${share(r.market.tradable[0].share)} of graduates are still tradable ${r.market.tradable[0].entry} minutes in (about ${Math.round(r.market.tradable[0].per_day)} a day), falling to ${share(r.market.tradable[r.market.tradable.length - 1].share)} at ${r.market.tradable[r.market.tradable.length - 1].entry} minutes. Buying every tradable graduate with no filter was profitable in ${share(r.unfiltered.share_positive_test)} of the ${r.unfiltered.combos} entry/exit combinations on test.`));
+
+  if (r.early) {
+    const E = r.early, mins = E.entries.map(m => `#Buy at minute ${m}`), exitText = x => `${pc(x[0], 0)} / ${pc(-x[1], 0)} / ${x[2]} min`;
+    const cell = s => !s || !s.trades ? { className: 'num muted', textContent: 'none' } : { className: signed(s.mean), textContent: `${pc(s.mean)} (${s.trades.toLocaleString()})`, title: `${share(s.win)} winners` };
+    const row = (label, pick) => [label, ...E.overview.map(pick)];
+    out.push(h2('Buying within 15 minutes of graduation'),
+      p('What happens when a token is bought 5, 10 or 15 minutes after it graduates. Every token in the backtest sample that was still tradable at that minute is counted, so this describes the past; it is not a tested rule. At minute 5, "the last 5 minutes" means since the graduation minute.'),
+      table(['', ...mins], [
+        row('Tokens still tradable', x => ({ className: 'num', textContent: `${x.tradable.toLocaleString()} (${share(x.share)})` })),
+        row('Typical price 30 minutes after buying', x => ({ className: signed(x.median_30), textContent: pc(x.median_30, 0) })),
+        row('Share that fall 70% or more within 30 minutes', x => ({ className: 'num', textContent: share(x.down_70) })),
+        row('Typical best gain available in those 30 minutes', x => ({ className: signed(x.best_30), textContent: pc(x.best_30, 0) })),
+        row(`Average result, exit ${exitText(E.slow)}`, x => cell(x.slow)),
+        row(`Average result, exit ${exitText(E.quick)}`, x => cell(x.quick))]),
+      el('h3', { textContent: 'Which kinds of token lose least' }),
+      p(`Average result per trade for tokens in each group at the moment of buying, with number of trades in brackets. Exit: ${exitText(E.slow)} (take profit / stop loss / time limit).`),
+      table(['Token at the moment of buying', ...mins], E.groups.map(g => [g.label, ...g.by_entry.map(cell)])),
+      el('h3', { textContent: 'Plain rules in this window' }),
+      table(['Rule', 'Conditions', 'Exit', ...mins], E.rules.map(g => [g.name, g.conditions, exitText(g.exit), ...g.by_entry.map(cell)])),
+      el('p', { className: 'small', textContent: 'Results are after fees and price impact for one order of the usual size; a stop that fires in a collapsing minute sells at that minute\'s closing price. Hover a cell for the share of winners. ' + ([...E.groups, ...E.rules].some(g => g.by_entry.some(x => x.trades && x.mean > 0)) ? 'A positive cell here is a description of past tokens, not a tested rule; small groups swing by chance.' : 'No group and no rule here is profitable: the list shows where losses are smallest.') }));
+  }
+
+  const det = (title, ...k) => el('details', {}, el('summary', { textContent: title }), ...k);
+  out.push(det('Which conditions at entry mattered', p(`Tokens split into five equal groups by each condition, lowest to highest. Average result per trade for a neutral exit (${pc(r.conditions.tp, 0)} / ${pc(-r.conditions.sl, 0)} / ${r.conditions.hold} min, entry at minute ${r.conditions.entry}), train tokens.`),
+    table(['Condition', 'Group 1 (lowest)', 'Group 2', 'Group 3', 'Group 4', 'Group 5 (highest)'], r.conditions.features.map(f =>
+      [f.label, ...[0, 1, 2, 3, 4].map(i => { const b = f.buckets[i]; return b ? { className: signed(b.mean), textContent: `${pc(b.mean)}  (${f.kind === 'flag' ? (b.from ? 'yes' : 'no') : 'from ' + fmtVal(b.from, f.kind)})` } : { textContent: '' }; })]))));
+  if (F && r.search_pick) { const k = r.search_pick;
+    out.push(det('What the automatic search found on its own', p(`Best rule found on the earlier 70% of tokens: ${k.entry} minutes after graduation, buy if ${k.conditions.map(condText).join(' and ')}; sell at ${pc(k.tp, 0)}, ${pc(-k.sl, 0)} or after ${k.hold} minutes.`),
+      p(`Earlier 70% of tokens: ${statLine(k.train)}. Most recent 30%, which the search never saw: ${statLine(k.test)}. ${{ pass: 'It held up on unseen tokens.', weak: 'Positive on unseen tokens, but the evidence is thin.', fail: 'It did not hold up on unseen tokens.', none: 'It lost even on the tokens it was fitted to.', no_rule: 'Too few trades to evaluate.' }[k.verdict] || ''}`))); }
+  out.push(det('Other rules the search ranked highly', p(`${r.search.rule_sets_tested.toLocaleString()} rule sets were tried on train. Of the 200 best, ${share(r.search.top200_share_positive_test)} were still profitable on test.`),
+    table(['Entry', 'Conditions', 'Take profit', 'Stop', 'Time stop', 'Train', 'Test'], r.search.top.map(x =>
+      [x.entry + ' min', x.conditions.map(condText).join('; '), pc(x.tp, 0), pc(-x.sl, 0), x.hold + ' min', statLine(x.train), statLine(x.test)]))));
+  out.push(card(h2('What could improve this'), el('ul', {},
+    el('li', { textContent: 'Who holds the supply. The collapses come from one party holding most of the tokens. Holder concentration and bundled-wallet detection at entry time are the most likely signals to separate the few real tokens from the rest. They are recorded live since 11 October 2026 and can be used as rule conditions; the automatic search will use them once enough tokens have them.' }),
+    el('li', { textContent: 'More history. This is about one week. The database grows every 20 minutes and the backtest re-runs every 6 hours, each run is saved, and earlier runs are listed at the bottom of this page.' }),
+    el('li', { textContent: 'A different market, not a different minute. Buying 1 to 4 minutes after graduation, buying at any minute of the first 3 hours, and holding the tokens still alive after 5 hours for days were each checked on 12 October 2026, and each lost. Tokens are only recorded once they graduate, so buying before graduation cannot be tested with this data: that needs tokens recorded while still on the bonding curve, including the ones that never graduate.' }))));
+  out.push(det('Assumptions and what could go wrong', el('ul', {},
+    el('li', { textContent: `Costs: ${(a.fee_per_side * 100).toFixed(2)}% per side in fees, price impact of a ${stakeText(a.stake_usd)} order estimated from the pool size, and ${(a.stop_slippage * 100).toFixed(0)}% extra slippage when a stop fires.` }),
+    el('li', { textContent: 'Prices are 1-minute bars. Inside one minute the backtest assumes the stop is hit before the target, and that a stop fills no better than the minute close. Real fills in a fast market can still be worse.' }),
+    el('li', { textContent: 'Only a few days of data. Meme coin behaviour changes week to week; a rule that worked last week can stop working.' }),
+    el('li', { textContent: 'Many graduates are launched by one party buying the whole curve. Those insiders can sell at any moment; no stop loss protects against a single block that drains the pool.' }),
+    el('li', { textContent: 'Only standard bonding-curve launches are tested. Graduation time for older tokens is the first minute the completion price traded.' }))));
+  if (r.history && r.history.length > 1) out.push(det('Earlier backtest runs', p('Runs with a different backtest model are not comparable with each other. The first run assumed a stop loss always sells at the stop price; that was wrong for these tokens and is why it looked profitable.'), table(['Run', 'When', '#Tokens', 'Backtest model', 'Rule', 'Test', 'Verdict'], r.history.map(x =>
+    ['#' + x.run_id, when(x.ran_ts), { className: 'num', textContent: x.coins.toLocaleString() }, x.model || 'unknown',
+      x.rule ? `${x.rule.entry} min; ${x.rule.conditions.map(condText).join('; ')}; ${pc(x.rule.tp, 0)} / ${pc(-x.rule.sl, 0)} / ${x.rule.hold} min` : 'none', statLine(x.test),
+      /superseded/.test(x.model || '') ? 'not valid' : { pass: 'profitable on unseen tokens', weak: 'weak', fail: 'lost on unseen tokens', none: 'no profitable rule', no_rule: 'too few trades' }[x.verdict] || x.verdict]))));
+  root.replaceChildren(...out);
+  redraws.forEach(f => f());
+}
+
+async function loadReport() {
+  reportLoaded = true;
+  try {
+    const res = await fetch('/api/report');
+    if (!res.ok) throw new Error(res.status === 503 ? 'The first backtest has not finished yet. Check back in a few minutes.' : 'HTTP ' + res.status);
+    report = await res.json();
+    SOL_USD = report.assumptions.sol_usd || SOL_USD;
+    renderReport(report);
+  } catch (e) { $('report').textContent = 'Could not load the report: ' + e.message; reportLoaded = false; }
+}
+// ---------- Live watch on the Record live tab ----------
+// Every strategy checked against every new graduate at its entry minute; nothing is bought.
+let watchReports = {};   // date -> what the day's report file holds
+let watch = null, watchOpen = new Set(), watchFilter = 'all', watchTab = 'all', watchPage = 0;
+// the list carries one short row per token; a token's full record is fetched when it is opened
+const watchFull = {}, WATCH_PAGE = 100;
+async function loadToken(mint) {
+  try { const res = await fetch('/api/watch/token/' + encodeURIComponent(mint));
+    if (res.ok) { const t = await res.json(), ids = new Set((watch.strategies || []).map(x => x.id));
+      t.decisions = t.decisions.filter(d => ids.has(d.s)); watchFull[mint] = t; }
+    else watchFull[mint] = { error: true };
+  } catch (e) { watchFull[mint] = { error: true }; }
+  renderWatch();
+}
+// which of the tabs above the token table a token belongs to
+const wGroup = r => wBought(r).length ? 'buy' : r.decisions.length ? 'nobuy' : r.status === 'unchecked' || r.status === 'done' ? 'unchecked' : 'wait';
+const wVal = (v, kind) => v == null ? 'no data' : kind === 'flag' ? (v ? 'yes' : 'no') : fmtVal(v, kind);
+// a measured value and its threshold that round to the same text get as many decimals as it takes to tell them apart
+const wExact = (v, kind, d) => kind === 'usd' ? (v < 0 ? '-$' : '$') + Math.abs(v).toFixed(d) : kind === 'pct' ? (v >= 0 ? '+' : '') + (v * 100).toFixed(d) + '%'
+  : v.toFixed(d) + (kind === 'sol' ? ' SOL' : kind === 'min' ? ' min' : '');
+const wPair = c => { const a = wVal(c.actual, c.kind), word = c.op === '>=' ? 'at least' : 'at most';
+  if (c.actual == null || c.actual === c.value || a !== fmtVal(c.value, c.kind)) return [a, wNeed(c)];
+  let d = 2; while (d < 12 && wExact(c.actual, c.kind, d) === wExact(c.value, c.kind, d)) d++;
+  return [wExact(c.actual, c.kind, d), `${word} ${wExact(c.value, c.kind, d)}`]; };
+const wNeed = c => c.kind === 'flag' ? 'yes' : `${c.op === '>=' ? 'at least' : 'at most'} ${fmtVal(c.value, c.kind)}`;
+const wChecks = d => d.checks.map(c => ({ ...c, ...(watch.features[c.feature] || { label: c.feature, kind: 'num' }) }));
+const wExit = { target: 'take profit', stop: 'stop loss', time: 'time stop' };
+const wBought = r => r.decisions.filter(d => d.pick);
+// opens the token's own page on pump.fun (its live chart and trades) in a new tab
+// small marks for the two chart sites: pump.fun's green-and-white pill, DexScreener's light mark on black
+const siteIcon = which => { const svg = svgEl('svg', { viewBox: '0 0 20 20', class: 'ico', 'aria-hidden': 'true' });
+  if (which === 'pump') svg.append(svgEl('rect', { x: 6, y: 1.5, width: 8, height: 17, rx: 4, fill: '#fff', stroke: '#111', 'stroke-width': 1.4, transform: 'rotate(45 10 10)' }),
+    svgEl('path', { d: 'M6 10V5.5a4 4 0 0 1 8 0V10Z', fill: '#53d08a', stroke: '#111', 'stroke-width': 1.4, transform: 'rotate(45 10 10)' }));
+  else svg.append(svgEl('rect', { x: 1, y: 1, width: 18, height: 18, rx: 4, fill: '#111' }),
+    svgEl('path', { d: 'M5 13.5l3-4 2.5 2.5L15 6', fill: 'none', stroke: '#fff', 'stroke-width': 1.8, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }),
+    svgEl('circle', { cx: 15, cy: 6, r: 1.6, fill: '#fff' }));
+  return svg; };
+// buttons that open the token's live chart on pump.fun and on DexScreener in a new tab
+const chartLinks = (mint, withText) => { const m = encodeURIComponent(mint), box = el('span', { className: 'sites' });
+  for (const [which, site, href] of [['pump', 'pump.fun', 'https://pump.fun/coin/' + m], ['dex', 'DexScreener', 'https://dexscreener.com/solana/' + m]]) {
+    const a = el('a', { className: 'btn site', href, target: '_blank', rel: 'noopener noreferrer', title: `Open the live chart on ${site}`, 'aria-label': `Open the live chart on ${site}` }, siteIcon(which), withText ? `Live chart on ${site}` : '');
+    a.onclick = ev => ev.stopPropagation();   // in the table, the click must not also open the row
+    box.append(a); }
+  return box; };
+// one strategy's verdict on one token: [tag class, tag text, why]
+function wVerdict(r, d) {
+  const m = r.measures[d.entry] || {};
+  if (!m.tradable) return ['w', 'Not tradable', m.traded ? `A ${stakeText(watch.stake_usd)} buy would move the price ${pc(m.impact)}, more than 5%: the pool is too thin` : 'No trade in the last 5 minutes'];
+  const bad = wChecks(d).filter(c => !c.ok);
+  if (d.pick) return ['p', 'Bought', d.checks.length ? `All ${d.checks.length} conditions met` : 'No conditions: buys every tradable token'];
+  return ['n', 'Passed', bad.map(c => c.kind === 'flag' ? c.label + ': no' : `${c.label}: ${wPair(c)[0]}, needs ${wPair(c)[1]}`).join('; ')];
+}
+const wNet = (d, bought) => d.net == null ? { className: 'num muted', textContent: d.status === 'open' ? 'open' : '–' }
+  : { className: signed(d.net), textContent: `${pc(d.net)}${d.status === 'open' ? ' so far' : bought ? '' : ' if bought'}`, title: d.status === 'open' ? `${d.held} min held` : `${wExit[d.exit]} after ${d.held} min` };
+
+// what simply holding a bought token would have returned, from the price followed after the buy
+const wHeldAt = (d, m) => { const p = (d.full || []).find(p => p[0] === m); return p && p[1] != null ? p[1] : null; };
+function wHeld(d) {
+  const f = (d.full || []).filter(p => p[1] != null);
+  if (d.status !== 'closed' || f.length < 2 || f[f.length - 1][0] <= d.held) return '';
+  const best = f.reduce((a, b) => b[1] > a[1] ? b : a), end = f[f.length - 1], at = wHeldAt(d, d.hold);
+  return ` The lighter line is the same buy simply held instead of sold: its best point was ${pc(best[1])} at minute ${best[0]}` + (at != null && d.held < d.hold ? `, it stood at ${pc(at)} at the ${d.hold}-minute time stop` : '')
+    + (end[0] > d.hold ? `, and at ${pc(end[1])} after ${end[0]} minutes` : '') + '.' + (d.full[d.full.length - 1][1] != null && end[0] < 120 ? ' It is still being followed, up to 120 minutes after the buy.' : '');
+}
+
+// the same buy with a higher take profit, as recorded by the watch
+function wAlts(d) {
+  const a = (d.alts || []).filter(a => a.tp > d.tp && a.net != null);
+  if (!a.length) return '';
+  return ' Aiming higher with the same stop loss and up to 120 minutes: ' + a.map(x => `a ${pc(x.tp, 0)} target ` + (x.done ? `ended ${pc(x.net)} (${wExit[x.exit]} after ${x.held} min)` : `is still open at ${pc(x.net)} after ${x.held} min`)).join('; ') + '.';
+}
+
+// profit or loss of one buy, minute by minute while it was held
+// the wallet's SOL over time, from just before its first trade; the last point is now
+function balanceChart(pts, withOpen) {
+  const W = 900, H = 200, L = 62, R = 120, T = 14, B = 26;
+  const svg = svgEl('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Wallet balance in SOL over time, from before the first trade' });
+  if (pts.length < 2) return svg;
+  const ys = pts.map(p => p[1]).concat(withOpen != null ? [withOpen] : []), t0 = pts[0][0], t1 = pts[pts.length - 1][0];
+  let lo = Math.min(...ys), hi = Math.max(...ys); const pad = Math.max((hi - lo) * 0.15, hi * 0.01); lo -= pad; hi += pad;
+  const x = t => L + (W - L - R) * (t - t0) / Math.max(t1 - t0, 1), y = v => T + (H - T - B) * (1 - (v - lo) / (hi - lo));
+  for (const v of niceTicks(lo, hi)) svg.append(svgEl('line', { class: 'grid', x1: L, x2: W - R, y1: y(v), y2: y(v) }), svgEl('text', { x: L - 6, y: y(v) + 4, 'text-anchor': 'end' }, v.toFixed(3)));
+  const start = pts[0][1];
+  svg.append(svgEl('line', { class: 'cross', x1: L, x2: W - R, y1: y(start), y2: y(start) }), svgEl('text', { x: W - R + 4, y: y(start) + 4 }, 'start ' + start.toFixed(4)));
+  // the balance changes only at a transaction: drawn as steps
+  let d = '';
+  pts.forEach((p, k) => { d += k ? `H${x(p[0]).toFixed(1)}V${y(p[1]).toFixed(1)}` : `M${x(p[0]).toFixed(1)},${y(p[1]).toFixed(1)}`; });
+  svg.append(svgEl('path', { class: 'line', d }));
+  const last = pts[pts.length - 1];
+  svg.append(svgEl('circle', { class: last[1] >= start ? 'end' : 'end neg', cx: x(last[0]), cy: y(last[1]), r: 5 }),
+    svgEl('text', { x: W - R + 4, y: y(last[1]) + (Math.abs(y(last[1]) - y(start)) < 14 ? 16 : 4) }, 'now ' + last[1].toFixed(4)));
+  if (withOpen != null && withOpen !== last[1]) svg.append(svgEl('circle', { class: 'dot', cx: x(last[0]), cy: y(withOpen), r: 4 }),
+    svgEl('text', { x: W - R + 4, y: y(withOpen) + 4 }, 'with open ' + withOpen.toFixed(4)));
+  const day = t => new Date(t).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  svg.append(svgEl('text', { x: L, y: H - 6 }, day(t0)), svgEl('text', { x: W - R, y: H - 6, 'text-anchor': 'end' }, 'now'));
+  return svg;
+}
+
+function pnlChart(d) {
+  const W = 900, H = 190, L = 52, R = 70, T = 12, B = 26, pts = d.path || [], full = (d.full || []).filter(p => p[1] != null), alts = (d.alts || []).filter(a => a.tp > d.tp && a.path && a.path.length);
+  const svg = svgEl('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Profit or loss while the token was held, minute by minute' });
+  if (!pts.length) return svg;
+  const ys = [...pts, ...full, ...alts.flatMap(a => a.path)].map(p => p[1] ?? 0), showT = d.tp <= Math.max(0.6, Math.max(...ys) * 2);
+  const lo = Math.min(0, -d.sl, ...ys), hi = Math.max(0.05, showT ? d.tp : 0, ...ys), xmax = Math.max(d.hold, pts[pts.length - 1][0], full.length ? full[full.length - 1][0] : 0);
+  const x = m => L + (W - L - R) * m / xmax, y = v => T + (H - T - B) * (1 - (v - lo) / (hi - lo));
+  for (const v of niceTicks(lo, hi)) svg.append(svgEl('line', { class: 'grid', x1: L, x2: W - R, y1: y(v), y2: y(v) }), svgEl('text', { x: L - 6, y: y(v) + 4, 'text-anchor': 'end' }, pc(v, 0)));
+  svg.append(svgEl('line', { class: 'cross', x1: L, x2: W - R, y1: y(0), y2: y(0) }));
+  if (showT) svg.append(svgEl('line', { class: 'tgt', x1: L, x2: W - R, y1: y(d.tp), y2: y(d.tp) }), svgEl('text', { x: W - R + 4, y: y(d.tp) + 4 }, 'target ' + pc(d.tp, 0)));
+  svg.append(svgEl('line', { class: 'stp', x1: L, x2: W - R, y1: y(-d.sl), y2: y(-d.sl) }), svgEl('text', { x: W - R + 4, y: y(-d.sl) + 4 }, 'stop ' + pc(-d.sl, 0)));
+  const sold = d.status === 'closed' ? pts[pts.length - 1] : null;
+  // the same buy aiming for a higher take profit: it follows the solid line until that sells, then goes on alone
+  alts.forEach((a, k) => { const e = a.path[a.path.length - 1];
+    if (a.tp <= hi * 1.05) svg.append(svgEl('line', { class: 'alt' + (k + 1) + ' thin', x1: L, x2: W - R, y1: y(a.tp), y2: y(a.tp) }), svgEl('text', { x: W - R + 4, y: y(a.tp) + 4 }, 'target ' + pc(a.tp, 0)));
+    svg.append(svgEl('path', { class: 'alt' + (k + 1), d: a.path.map((p, i) => (i ? 'L' : 'M') + x(p[0]).toFixed(1) + ',' + y(p[1] ?? 0).toFixed(1)).join('') }),
+      svgEl('circle', { class: 'altdot' + (k + 1), cx: x(e[0]), cy: y(e[1] ?? 0), r: 4 })); });
+  // the lighter line is the price simply held, past the sale: what waiting longer would have returned
+  if (full.length > 1) svg.append(svgEl('path', { class: 'ghost', d: full.map((p, k) => (k ? 'L' : 'M') + x(p[0]).toFixed(1) + ',' + y(p[1]).toFixed(1)).join('') }));
+  if (d.hold < xmax) svg.append(svgEl('line', { class: 'grid', x1: x(d.hold), x2: x(d.hold), y1: T, y2: H - B }), svgEl('text', { x: x(d.hold), y: H - 6, 'text-anchor': 'middle' }, `${d.hold} min (time stop)`));
+  svg.append(svgEl('path', { class: 'line', d: pts.map((p, k) => (k ? 'L' : 'M') + x(p[0]).toFixed(1) + ',' + y(p[1] ?? 0).toFixed(1)).join('') }));
+  for (const p of pts) svg.append(svgEl('circle', { class: 'dot', cx: x(p[0]), cy: y(p[1] ?? 0), r: pts.length > 40 ? 1.5 : 2.5 }, null));
+  const last = pts[pts.length - 1];
+  svg.append(svgEl('circle', { class: last[1] >= 0 ? 'end' : 'end neg', cx: x(last[0]), cy: y(last[1] ?? 0), r: 5 }),
+    svgEl('text', { x: Math.min(x(last[0]) + 8, W - R - 40), y: y(last[1] ?? 0) - 8 }, `${sold ? 'sold ' : ''}${pc(last[1])} at ${last[0]} min`),
+    svgEl('text', { x: L, y: H - 6 }, 'bought'), svgEl('text', { x: W - R, y: H - 6, 'text-anchor': 'end' }, d.hold < xmax ? `${xmax} min` : `${xmax} min (time stop)`));
+  if (full.length && full[full.length - 1][0] > last[0]) { const e = full[full.length - 1];
+    svg.append(svgEl('circle', { class: 'dot', cx: x(e[0]), cy: y(e[1]), r: 4 }), svgEl('text', { x: Math.min(x(e[0]) + 6, W - R + 2), y: y(e[1]) - 6 }, `held ${pc(e[1])}`)); }
+  return svg;
+}
+
+function watchDetail(r) {
+  const W = watch, out = [], h3 = t => el('h3', { textContent: t }), p = t => el('p', { textContent: t });
+  const byId = Object.fromEntries(W.strategies.map(s => [s.id, s])), done = Object.fromEntries(r.decisions.map(d => [d.s, d]));
+  const name = id => byId[id] ? byId[id].name : id + ' (removed)';
+  if (!wBought(r).length) out.push(el('p', {}, chartLinks(r.mint, true)));
+  out.push(h3('Strategy by strategy'), table(['Strategy', '#Checked at', 'Decision', 'Why', '#Result'], [
+    ...r.decisions.map(d => { const [cls, tag, why] = wVerdict(r, d);
+      return [{ className: 'wrap', textContent: name(d.s) }, { className: 'num', textContent: d.entry + ' min' + (d.late ? ' (late)' : '') }, el('td', {}, el('span', { className: 'tag ' + cls, textContent: tag })), { className: 'why', textContent: why }, wNet(d, d.pick)]; }),
+    ...W.strategies.filter(s => !done[s.id]).map(s => [{ className: 'wrap', textContent: s.name }, { className: 'num', textContent: s.entry + ' min' }, el('td', {}, el('span', { className: 'tag w', textContent: 'Waiting' })), { className: 'why', textContent: r.status === 'done' ? 'Added after this token was finished' : `Decides ${s.entry} minutes after graduation` }, { className: 'num muted', textContent: '–' }])]));
+  if (r.decisions.some(d => d.late)) out.push(el('p', { className: 'small', textContent: '"Late" means the token was first seen after that entry minute, so the decision was worked out from its history, not live.' }));
+  for (const d of wBought(r)) {
+    const m = r.measures[d.entry] || {};
+    out.push(h3(`Bought by "${name(d.s)}": profit or loss while held`), el('p', {}, chartLinks(r.mint, true)), el('div', { className: 'pnl' }, pnlChart(d)),
+      el('div', { className: 'legend' }, el('span', {}, el('i', { style: 'background:var(--series)' }), `As traded: sell at ${pc(d.tp, 0)}`), ...(d.alts || []).filter(a => a.tp > d.tp && a.path && a.path.length).map((a, k) => el('span', {}, el('i', { style: 'background:' + ['#8a5cd6', '#2a9d6f'][k] }), `Same buy, sell at ${pc(a.tp, 0)}`)), (d.full || []).length ? el('span', {}, el('i', { style: 'background:var(--ink-3)' }), 'Simply held, never sold') : ''),
+      p(`Bought ${d.entry} minutes after graduation at ${price(m.price)} per token (${usd((m.price || 0) * 1e9)} market cap) with ${stakeText(W.stake_usd)}; take profit at ${price(m.price * (1 + d.tp))}, stop loss at ${price(m.price * (1 - d.sl))}. ` + (d.net == null ? 'No price yet.' : d.status === 'open'
+        ? `Still held after ${d.held} minutes: ${pc(d.net)} (${money(d.net * W.stake_usd)}) if sold now. Sells at ${pc(d.tp, 0)}, ${pc(-d.sl, 0)} or after ${d.hold} minutes.`
+        : `Sold by ${wExit[d.exit]} after ${d.held} minutes for ${pc(d.net)} (${money(d.net * W.stake_usd)}). Exit rule: ${pc(d.tp, 0)} / ${pc(-d.sl, 0)} / ${d.hold} min.`)
+        + ' Each point is what selling at the end of that minute would have returned, after fees and price impact.' + wHeld(d) + wAlts(d) + (d.exit === 'stop' && d.net < -d.sl - 0.15 ? ' The stop sold far below its level because the price fell through it inside one minute.' : '')));
+  }
+  const entries = Object.keys(r.measures).map(Number).sort((a, b) => a - b);
+  if (entries.length) {
+    out.push(h3('The token at each entry minute'), table(['Measured', ...entries.map(e => `#Minute ${e}`)], [
+      ['Could be bought', ...entries.map(e => ({ className: 'num', textContent: r.measures[e].tradable ? 'yes' : 'no' }))],
+      ['Kind of token', ...entries.map(e => ({ className: 'num', textContent: (W.clusters[r.measures[e].cluster] || {}).name || '' }))],
+      ...Object.entries(W.features).map(([k, f]) => [f.label, ...entries.map(e => ({ className: 'num', textContent: wVal((r.measures[e].f || {})[k], f.kind) }))])]));
+    const cl = W.clusters[r.measures[entries[0]].cluster];
+    if (cl) { const h = cl.history.slice().sort((a, b) => Math.abs(a.entry - entries[0]) - Math.abs(b.entry - entries[0]))[0];
+      out.push(p(`${cl.name}. ${cl.note}` + (h && h.trades ? ` In the backtest, ${h.trades.toLocaleString()} tokens of this kind bought at minute ${h.entry} averaged ${pc(h.mean)} per trade, and ${share(h.collapse_30)} collapsed within 30 minutes.` : ''))); }
+  }
+  const i = r.info || {}, links = [['pump.fun', 'https://pump.fun/coin/' + encodeURIComponent(r.mint)], ['X', safeUrl(i.twitter)], ['Website', safeUrl(i.website)], ['Telegram', safeUrl(i.telegram)]].filter(x => x[1]);
+  out.push(el('p', { className: 'small' }, ...links.flatMap(([t, u]) => [el('a', { href: u, target: '_blank', rel: 'noopener noreferrer', textContent: t }), '  ']), el('span', { className: 'mono', textContent: r.mint }),
+    r.graduated_ts ? `  Graduated ${when(r.graduated_ts)} (${r.graduated_src === 'slot' ? "pump.fun's marker" : 'first minute the completion price traded'}).` : ''));
+  return out;
+}
+
+function renderWatch() {
+  const root = $('watch'), W = watch;
+  if (!W || !W.strategies || !W.strategies.length) { root.hidden = true; return; }
+  root.hidden = false;
+  const opts = [['all', 'All tokens'], ['buy', 'Bought by any strategy'], ...W.strategies.map(s => ['s:' + s.id, 'Bought by: ' + s.name])];
+  if (!opts.some(o => o[0] === watchFilter)) watchFilter = 'all';
+  const sel = el('select', { 'aria-label': 'Which tokens' }, ...opts.map(([v, t]) => el('option', { value: v, textContent: t, selected: v === watchFilter })));
+  sel.onchange = () => { watchFilter = sel.value; watchPage = 0; renderWatch(); };
+  const byStrategy = W.rows.filter(r => watchFilter === 'all' || (watchFilter === 'buy' ? wBought(r).length : wBought(r).some(d => 's:' + d.s === watchFilter)));
+  const groups = [['all', 'All'], ['buy', 'Bought'], ['nobuy', 'No buy'], ['unchecked', 'Not checked'], ['wait', 'Waiting']];
+  const rows = byStrategy.filter(r => watchTab === 'all' || wGroup(r) === watchTab);
+  const tabs = el('nav', { className: 'tabs sub', 'aria-label': 'Tokens by status' }, ...groups.map(([k, label]) => {
+    const n = k === 'all' ? byStrategy.length : byStrategy.filter(r => wGroup(r) === k).length;
+    const a = el('a', { href: '#tokens', className: k === watchTab ? 'on' : '', textContent: `${label} (${n})` });
+    a.onclick = ev => { ev.preventDefault(); watchTab = k; watchPage = 0; renderWatch(); };
+    return a; }));
+  const ruleText = s => `${s.entry} min after graduation` + (s.conditions.length ? ', if ' + s.conditions.map(condText).join(' and ') : ', every tradable token') + `; sell at ${pc(s.tp, 0)}, ${pc(-s.sl, 0)} or after ${s.hold} min`;
+  const strat = table(['Strategy', 'What it does', '#Backtest: average (trades)', '#Tokens checked', '#Bought', '#Finished', '#Total', '#Average', '#With a profit', '#Same buys, held to the time stop', '#Tokens it passed, if bought'], W.strategies.map(s => { const v = s.live, b = s.backtest;
+    const hm = v.held_n ? v.held_mean : null, hh = { length: v.held_n || 0 };
+    return [{ className: 'wrap', textContent: s.name }, { className: 'why', textContent: ruleText(s) },
+      b.trades ? { className: signed(b.mean), textContent: `${pc(b.mean)} (${b.trades.toLocaleString()})`, title: b.recent_trades ? `most recent 30% of tokens: ${pc(b.recent_mean)} over ${b.recent_trades}` : '' } : { className: 'num muted', textContent: 'none' },
+      { className: 'num', textContent: v.checked.toLocaleString() }, { className: 'num', textContent: v.picks.toLocaleString() }, { className: 'num', textContent: v.finished.toLocaleString() },
+      v.finished ? { className: signed(v.total), textContent: money(v.total * W.stake_usd) } : { className: 'num muted', textContent: '–' },
+      v.finished ? { className: signed(v.total), textContent: pc(v.total / v.finished) } : { className: 'num muted', textContent: '–' },
+      { className: 'num', textContent: v.finished ? `${v.wins} of ${v.finished}` : '–' },
+      hm == null ? { className: 'num muted', textContent: '–' } : { className: signed(hm), textContent: `${pc(hm)} (${hh.length})`, title: 'average result of the same buys if each had been held to its time stop, ignoring the take profit and the stop loss' },
+      v.skipped ? { className: signed(v.skip_mean), textContent: `${pc(v.skip_mean)} (${v.skipped.toLocaleString()})` } : { className: 'num muted', textContent: '–' }]; }));
+  const body = el('tbody', {});
+  const pages = Math.max(1, Math.ceil(rows.length / WATCH_PAGE)); watchPage = Math.min(watchPage, pages - 1);
+  const prev = el('button', { textContent: 'Previous', disabled: watchPage === 0 }), next = el('button', { textContent: 'Next', disabled: watchPage >= pages - 1 });
+  prev.onclick = () => { watchPage--; renderWatch(); }; next.onclick = () => { watchPage++; renderWatch(); };
+  for (const r of rows.slice(watchPage * WATCH_PAGE, (watchPage + 1) * WATCH_PAGE)) {
+    const i = r.info || {}, bought = wBought(r), e0 = Object.keys(r.measures).map(Number).sort((a, b) => a - b)[0], m = r.measures[e0] || {}, f = m.f || {}, cl = W.clusters[m.cluster];
+    const got = bought.filter(d => d.net != null), sum = got.reduce((a, d) => a + d.net, 0), open = bought.filter(d => d.status === 'open').length;
+    const state = r.status === 'unchecked' ? 'Not checked: not a standard bonding-curve launch' : r.status === 'new' ? 'Finding graduation time'
+      : !r.decisions.length ? (r.status === 'done' ? 'Finished before the shown strategy was added' : 'Waiting for the first entry minute') : `${r.decisions.length} of ${Math.max(W.strategies.length, r.decisions.length)} strategies decided`;
+    const tr = el('tr', { className: 'row' },
+      el('td', {}, el('div', { className: 'tok' }, el('div', {}, el('div', { className: 'nm', textContent: i.name || r.mint.slice(0, 8) }), el('div', { className: 'sy', textContent: i.symbol || '' })))),
+      el('td', { textContent: r.graduated_ts ? ago(r.graduated_ts) : 'seen ' + ago(r.first_seen_ts), title: r.graduated_ts ? when(r.graduated_ts) : '' }),
+      el('td', {}, bought.length ? el('span', { className: 'tag p', textContent: `Bought by ${bought.length}`, title: bought.map(d => (W.strategies.find(s => s.id === d.s) || { name: d.s }).name).join('; ') })
+        : el('span', { className: 'tag ' + (r.decisions.length ? 'n' : 'w'), textContent: r.decisions.length ? 'No buy' : r.status === 'unchecked' || r.status === 'done' ? 'Not checked' : 'Waiting' })),
+      got.length ? el('td', { className: signed(sum), textContent: money(sum * W.stake_usd) + (open ? ` (${open} open)` : ''), title: got.map(d => pc(d.net)).join(', ') }) : el('td', { className: 'num muted', textContent: bought.length ? 'open' : '–' }),
+      el('td', { textContent: cl ? cl.name : '', title: cl ? cl.note : '' }),
+      el('td', { className: 'num', textContent: f.mcap_usd == null ? '–' : usd(f.mcap_usd) }),
+      el('td', { className: 'num', textContent: f.vol_usd_last_5m == null ? '–' : usd(f.vol_usd_last_5m) }),
+      el('td', { className: 'num', textContent: f.holders == null ? '–' : Math.round(f.holders).toLocaleString() }),
+      el('td', { className: 'why', textContent: state }),
+      el('td', {}, chartLinks(r.mint, false)));
+    tr.onclick = () => { if (watchOpen.has(r.mint)) { watchOpen.delete(r.mint); renderWatch(); } else { watchOpen.add(r.mint); renderWatch(); loadToken(r.mint); } };
+    body.append(tr);
+    if (watchOpen.has(r.mint) && r.status !== 'unchecked' && r.status !== 'new') { const full = watchFull[r.mint];
+      body.append(el('tr', { className: 'detail' }, el('td', { colSpan: 10 }, ...(!full ? [el('p', { className: 'muted', textContent: 'Loading this token…' })] : full.error ? [el('p', { className: 'muted', textContent: 'This token\'s record could not be loaded. Click the row twice to try again.' })] : watchDetail(full))))); }
+  }
+  root.replaceChildren(
+    el('div', { className: 'table-head' }, el('h2', { textContent: 'Live: strategies on tokens graduating now' }), W.strategies.length > 1 ? sel : ''),
+    el('div', { className: 'body' },
+      el('p', { className: 'small', textContent: `Nothing is bought. Every strategy checks each new graduate at its own entry minute and either buys or passes, with the reason; a buy is followed minute by minute to its take profit, stop loss or time stop on a ${stakeText(W.stake_usd)} stake, after fees and price impact. The strategies shown are the rules ticked "Record live" in Rule settings (all of them when none is ticked).${W.background ? ` ${W.background} other strategies are recorded in the background and kept in the database.` : ''} Click a token for every strategy's decision and the profit-or-loss chart of each buy; the chart keeps following the price for 120 minutes after the buy, so you can see what holding longer would have returned. Updated ${ago(W.generated_at)}.` }),
+      el('h3', { textContent: 'Strategies, live record' }), strat,
+      ...(W.days && W.days.some(d => d.checked) ? [el('h3', { textContent: 'Day by day (UTC)' }), table(['Day', 'Strategy', '#Checked', '#Bought', '#Of which live', '#Finished', '#Won', '#Result', '#Best', '#Worst'],
+        W.days.filter(d => d.checked).map(d => [d.day, (W.strategies.find(s => s.id === d.strategy) || { name: d.strategy }).name, { className: 'num', textContent: d.checked.toLocaleString() }, { className: 'num', textContent: d.buys },
+          { className: 'num', textContent: d.live_buys }, { className: 'num', textContent: d.finished }, { className: 'num', textContent: d.finished ? `${d.wins} of ${d.finished}` : '–' },
+          d.finished ? { className: signed(d.total), textContent: money(d.total * W.stake_usd) } : { className: 'num muted', textContent: '–' },
+          { className: signed(d.best), textContent: d.best == null ? '–' : pc(d.best) }, { className: signed(d.worst), textContent: d.worst == null ? '–' : pc(d.worst) }]))] : []),
+      Object.keys(watchReports).length ? el('p', { className: 'small' }, el('b', { textContent: 'Daily report files: ' }), ...Object.keys(watchReports).sort().reverse().flatMap(d => [el('a', { href: '/api/reports/' + d + '.csv', textContent: d + '.csv', title: `${watchReports[d].rows.toLocaleString()} decisions, ${watchReports[d].buys} buys` }), '  ']), 'One file per UTC day of graduation: every strategy\'s decision on every token of that day, with the buy, the sale and everything measured.') : '',
+      el('p', { className: 'small', textContent: 'Live figures cover every token recorded since the watch began; nothing is deleted. "Tokens it passed, if bought" is the average result of tradable tokens the strategy did not buy: a strategy is only useful if its buys do better than what it passes. Hover a backtest figure for its most recent tokens.' }),
+      el('h3', { textContent: `Tokens: all ${W.rows.length.toLocaleString()} recorded in the last 7 days` }), tabs),
+    el('div', { className: 'scroll' }, el('table', {},
+      el('thead', {}, el('tr', {}, ...['Token', 'Graduated', 'Buys', '#Result of buys', 'Kind of token', '#Market cap', '#5-min volume', '#Holders', 'Progress', 'Live chart'].map(h => el('th', { textContent: h.replace(/^#/, ''), className: h[0] === '#' ? 'num' : '' })))), body)),
+    rows.length ? el('div', { className: 'pager', style: 'justify-content:flex-start' }, el('span', { textContent: `${rows.length.toLocaleString()} tokens. Page ${watchPage + 1} of ${pages}` }), prev, next)
+      : el('div', { style: 'padding:16px', className: 'muted', textContent: 'No tokens in this view yet.' }));
+}
+
+async function loadWatch() {
+  try {
+    const res = await fetch('/api/watch');
+    if (res.ok) { watch = await res.json(); SOL_USD = watch.sol_usd || SOL_USD;
+      // decisions of strategies no longer followed stay in the record, but are not shown
+      for (const r of watch.rows || []) { r.info = { name: r.name, symbol: r.symbol }; r.decisions = r.d || [];
+        r.measures = r.cluster == null && r.mcap == null ? {} : { 0: { cluster: r.cluster, f: { mcap_usd: r.mcap, vol_usd_last_5m: r.vol5, holders: r.holders } } }; }
+      for (const m of watchOpen) loadToken(m);   // opened tokens are brought up to date too
+      fetch('/api/reports').then(r => r.json()).then(x => { watchReports = x || {}; renderWatch(); }).catch(() => {});
+      renderWatch(); }
+  } catch (e) { /* the page works without the live table */ }
+}
+loadWatch();
+setInterval(() => { if (!$('tab-tokens').hidden) loadWatch(); }, 30000);
+
+// ---------- Strategy history tab ----------
+let historyLoaded = false;
+const money = v => v == null ? 'n/a' : !SOL_USD ? (v < 0 ? '-' : '+') + '$' + Math.abs(v).toLocaleString(undefined, { maximumFractionDigits: 0 })
+  : (v < 0 ? '-' : '+') + (a => a.toLocaleString(undefined, { maximumFractionDigits: a >= 100 ? 0 : a >= 10 ? 1 : a >= 1 ? 2 : 3 }))(Math.abs(v) / SOL_USD) + ' SOL';
+const plTag = v => el('span', { className: 'tag ' + (v > 0 ? 'p' : 'n'), textContent: v > 0 ? 'Profit' : v < 0 ? 'Loss' : 'Flat' });
+const invalid = x => /superseded/.test(x.model || '');
+const outcomeTag = x => invalid(x) ? el('span', { className: 'tag', style: 'border:1px solid var(--line)', textContent: 'Not valid' })
+  : !x.all.trades ? el('span', { className: 'tag', style: 'border:1px solid var(--line)', textContent: 'No trades' }) : plTag(x.all.pnl_usd);
+const ruleText = x => x.rule ? `Buy ${x.rule.entry} min after graduation${x.rule.conditions.length ? ' if ' + x.rule.conditions.map(condText).join(' and ') : ' (every tradable token)'}; sell at ${pc(x.rule.tp, 0)}, ${pc(-x.rule.sl, 0)} or after ${x.rule.hold} min` : 'No rule';
+const moneyCell = (x, v) => ({ className: invalid(x) ? 'num' : signed(v), textContent: money(v) });
+
+// What one rule's finished round trips teach, and what to try before the next round
+function lessons(run, st) {
+  const h2 = t => el('h2', { textContent: t }), p = t => el('p', { textContent: t });
+  if (run.kind !== 'rule') return [];
+  if (!st || !st.exits) return [h2('How to improve this rule'), p('Study data appears after the next backtest of this rule.')];
+  const out = [h2(`How to improve "${run.rule_name}"`)];
+  const stake = run.stake_usd, ex = Object.fromEntries(st.exits.map(x => [x.exit, x]));
+  out.push(el('p', {}, el('b', { textContent: '1. Where the money went. ' }), 'Each round trip ends one of three ways. "Sudden collapse" counts the ones that lost 70% or more, whichever way they ended; no stop loss can avoid those, only not buying the token can.'),
+    table(['How it ended', '#Round trips', '#Average result', '#Total'], [['target', 'Take profit hit'], ['stop', 'Stop loss hit'], ['time', 'Time stop'], ['collapse', 'Of which: sudden collapse (lost 70% or more)']].map(([k, label]) =>
+      [label, { className: 'num', textContent: ex[k].trades.toLocaleString() }, { className: signed(ex[k].mean), textContent: pc(ex[k].mean) }, { className: signed(ex[k].total), textContent: money(ex[k].total * stake) }])));
+  if (st.clusters && st.clusters.length) out.push(el('p', {}, el('b', { textContent: 'Which kinds of token this rule bought. ' }), 'Every round trip sorted into the token clusters of the Strategy report. A cluster that carries most of the loss can be kept out with one extra condition.'),
+    table(['Cluster', '#Round trips', '#Winners', '#Lost 70% or more', '#Average result', '#Total'], st.clusters.map(x =>
+      [x.name, { className: 'num', textContent: x.trades.toLocaleString() }, { className: 'num', textContent: share(x.win) }, { className: 'num', textContent: share(x.collapsed) }, { className: signed(x.mean), textContent: pc(x.mean) }, { className: signed(x.total), textContent: money(x.total * stake) }])));
+  if (st.profile && st.profile.length) out.push(el('p', {}, el('b', { textContent: '2. Winners against losers at the moment of buying. ' }), 'The typical (middle) value for round trips that made money and for those that lost. A clear gap in a row is a hint for a new condition; rows that look the same cannot separate good tokens from bad.'),
+    table(['Measured when buying', '#Typical winner', '#Typical loser'], st.profile.filter(x => x.winners != null || x.losers != null).map(x =>
+      [x.label, { className: 'num', textContent: x.kind === 'flag' ? share(x.winners) + ' have it' : fmtVal(x.winners, x.kind) }, { className: 'num', textContent: x.kind === 'flag' ? share(x.losers) + ' have it' : fmtVal(x.losers, x.kind) }])));
+  out.push(el('p', {}, el('b', { textContent: '3. One extra condition that would have helped. ' }), `Each row adds a single condition to this rule. It was chosen on the earlier 70% of tokens and then checked on the most recent 30%. Without any extra condition this rule averaged ${pc(st.base.train_mean)} per round trip on the earlier tokens and ${pc(st.base.test_mean)} on the recent ones.`));
+  out.push(st.ideas && st.ideas.length ? table(['Extra condition', '#Earlier 70%: average', '#Round trips', '#Recent 30%: average', '#Round trips', 'Held up on recent tokens?'], st.ideas.map(x =>
+    [{ className: 'wrap', textContent: condText(x) }, { className: signed(x.train_mean), textContent: pc(x.train_mean) }, { className: 'num', textContent: x.train_trades }, { className: signed(x.test_mean), textContent: pc(x.test_mean) }, { className: 'num', textContent: x.test_trades }, x.held ? (x.test_mean > 0 ? 'Yes, and profitable there' : 'Better than without it, still a loss') : 'No, worse than without it'])) : p('No single extra condition improved this rule with enough round trips to count.'));
+  out.push(el('p', { className: 'small' }, 'To try one: open ', el('a', { href: '#settings', textContent: 'Rule settings' }), ', add the condition to this rule (or to a copy), and press Save and backtest. Prefer conditions that held up on recent tokens and still leave plenty of round trips. A condition found this way always looks better than it is, so judge it by the rounds that come after you add it, not by this table.'));
+  if (st.over_time && st.over_time.length > 1) out.push(el('p', {}, el('b', { textContent: '4. This rule round after round. ' }), 'Each backtest of the same rule as more tokens were recorded. A rule worth keeping should not get worse as the data grows.'),
+    table(['Round', 'When', '#Tokens recorded', '#Round trips', '#Average result', '#Total'], st.over_time.map(x =>
+      ['#' + x.run_id, when(x.ran_ts), { className: 'num', textContent: x.coins.toLocaleString() }, { className: 'num', textContent: x.trades.toLocaleString() }, { className: signed(x.avg_return), textContent: pc(x.avg_return) }, { className: signed(x.pnl_usd), textContent: money(x.pnl_usd) }])));
+  out.push(el('p', {}, el('b', { textContent: 'Data to study yourself. ' }), el('a', { href: '/api/roundtrips.csv', textContent: 'Round trips of every rule (CSV)' }), ': one row per buy, with everything measured at the moment of buying and the result. ', el('a', { href: '/api/study.csv', textContent: 'All tradable tokens (CSV)' }), ': every token that could have been bought 10, 15, 20 or 30 minutes after graduation, what it looked like then, and what happened next, whether or not a rule bought it.'));
+  return out;
+}
+
+function renderHistory(h) {
+  const root = $('history'), out = [];
+  const h2 = t => el('h2', { textContent: t }), p = t => el('p', { textContent: t });
+  if (!h.runs.length) { root.textContent = 'No backtest has been saved yet.'; return; }
+  const byId = Object.fromEntries(h.runs.map(r => [r.run_id, r]));
+  const current = h.current.map(id => byId[id]).filter(Boolean);
+  const stake = h.runs[0].stake_usd;
+  out.push(el('p', { className: 'sub', textContent: `What each rule would have made or lost on past graduated tokens with ${stakeText(stake)} per trade, after fees and slippage. A round trip is one buy and its sell. These are simulated results, not real trades.` }));
+
+  out.push(h2('Your rules compared'), table(['Rule', '#Total result', '#Most recent 30% of tokens', 'Outcome', '#Round trips', '#Winners', 'What the rule does'], current.map(x =>
+    [{ className: 'wrap', textContent: x.rule_name }, moneyCell(x, x.all.pnl_usd), moneyCell(x, x.test.pnl_usd), el('td', {}, outcomeTag(x)),
+      { className: 'num', textContent: x.all.trades.toLocaleString() }, { className: 'num', textContent: x.all.trades ? share(x.all.wins / x.all.trades) : 'n/a' },
+      { className: 'wrap', textContent: ruleText(x) }])),
+    el('p', { className: 'small' }, 'Rules are edited on the ', el('a', { href: '#settings', textContent: 'Rule settings' }), ' tab. "Most recent 30%" shows whether a rule still held up on the newest tokens; for the automatic search it is also the part the search never saw.'));
+
+  const cols = h.trade_columns, T = Object.fromEntries(cols.map((c, i) => [c, i]));
+  const pick = el('select', { 'aria-label': 'Rule' }, ...current.map(x => el('option', { value: x.run_id, textContent: x.rule_name })));
+  const filt = el('select', { 'aria-label': 'Which round trips' }, ...[['all', 'All round trips'], ['win', 'Winners only'], ['loss', 'Losers only'], ['test', 'Most recent 30% of tokens'], ['train', 'Earlier 70% of tokens']].map(([v, t]) => el('option', { value: v, textContent: t })));
+  const learn = el('div', {});
+  const summary = el('div', {}), body = el('div', {}), info = el('span', {}), prev = el('button', { textContent: 'Previous' }), next = el('button', { textContent: 'Next' });
+  let pg = 0;
+  const tile = (k, v, n, tag) => el('div', { className: 'card tile' }, el('div', { className: 'k', textContent: k }),
+    el('div', { className: 'v' }, v, tag || ''), el('div', { className: 'n', textContent: n }));
+  const draw = () => {
+    const run = byId[pick.value], v = filt.value;
+    const rows = (h.trades[pick.value] || []).filter(r => v === 'all' || (v === 'win' ? r[T.net_return] > 0 : v === 'loss' ? r[T.net_return] <= 0 : r[T.split] === v));
+    summary.replaceChildren(el('p', {}, el('b', { textContent: run.rule_name + ': ' }), ruleText(run) + '.'), el('div', { className: 'tiles' },
+      tile('Total result', money(run.all.pnl_usd), `${run.all.trades} round trips, average ${pc(run.all.avg_return)} each`, run.all.trades ? plTag(run.all.pnl_usd) : ''),
+      tile('Most recent 30% of tokens', money(run.test.pnl_usd), `${run.test.trades} round trips, average ${pc(run.test.avg_return)} each`, run.test.trades ? plTag(run.test.pnl_usd) : ''),
+      tile('Winning / losing round trips', `${run.all.wins} / ${run.all.losses}`, run.all.trades ? share(run.all.wins / run.all.trades) + ' winners' : ''),
+      tile('Best / worst round trip', `${money(run.all.best_usd)} / ${money(run.all.worst_usd)}`, `on a ${stakeText(run.stake_usd)} stake`)));
+    learn.replaceChildren(...lessons(run, (h.study || {})[pick.value]));
+    const pages = Math.max(1, Math.ceil(rows.length / 50)); pg = Math.min(pg, pages - 1);
+    const sum = rows.reduce((a, r) => a + r[T.pnl_usd], 0);
+    // prices are per token in USD; the market cap (price x the 1 billion supply) shows on hover. Older history files carry no prices
+    const px = (r, k) => r[T.entry_price] == null ? null : r[T.entry_price] * k, pxCell = (v, note) => ({ className: 'num', textContent: v == null ? '–' : price(v) + (note || ''), title: v == null ? '' : 'market cap ' + usd(v * 1e9) });
+    const rule = run.rule || {}, exitName = { target: 'take profit', stop: 'stop loss', time: 'time stop' };
+    body.replaceChildren(table(['Token', 'Bought', '#Buy price', '#Take profit price', '#Stop loss price', 'Sold', 'Sold by', '#Sell price', '#Price change', '#Held', '#Result after costs', '#Profit or loss', 'Live chart'], rows.slice(pg * 50, pg * 50 + 50).map(r => {
+      const m = r[T.price_multiple], held = r[T.minutes_held];
+      return [el('td', {}, el('a', { href: 'https://pump.fun/coin/' + encodeURIComponent(r[T.mint]), target: '_blank', rel: 'noopener noreferrer', textContent: r[T.symbol] || r[T.mint].slice(0, 6) })),
+        when(r[T.entry_ts]), pxCell(px(r, 1)),
+        rule.tp == null ? pxCell(null) : pxCell(px(r, 1 + rule.tp), ` (${pc(rule.tp, 0)})`),
+        rule.sl == null ? pxCell(null) : pxCell(px(r, 1 - rule.sl), ` (${pc(-rule.sl, 0)})`),
+        held == null ? '' : when(r[T.entry_ts] + held * 60000), exitName[r[T.exit]] || r[T.exit],
+        pxCell(m == null ? null : px(r, m)), m == null ? { className: 'num', textContent: '–' } : { className: signed(m - 1), textContent: pc(m - 1) },
+        { className: 'num', textContent: held == null ? '' : held + ' min' },
+        { className: signed(r[T.net_return]), textContent: pc(r[T.net_return]) }, { className: signed(r[T.pnl_usd]), textContent: money(r[T.pnl_usd]) },
+        el('td', {}, chartLinks(r[T.mint], false))]; })),
+      el('p', { className: 'small', textContent: `Buy: ${rule.entry} minutes after graduation, at the buy price shown (USD per token; hover a price for the market cap). Sell: at the take profit, at the stop loss or after ${rule.hold} minutes, whichever comes first. "Price change" is the sell price against the buy price; "Result after costs" also takes off fees, the price impact of the order and slippage on a stop. A stop loss can sell far below its level when the price falls through it inside one minute.` }));
+    info.textContent = `${rows.length.toLocaleString()} round trips, total ${money(sum)}. Page ${pg + 1} of ${pages}`;
+    prev.disabled = pg === 0; next.disabled = pg >= pages - 1;
+  };
+  pick.onchange = filt.onchange = () => { pg = 0; draw(); };
+  prev.onclick = () => { pg--; draw(); }; next.onclick = () => { pg++; draw(); };
+  out.push(h2('Round trips, rule by rule'), el('div', { className: 'table-head', style: 'padding:0 0 4px' }, pick, filt), summary, el('div', { style: 'height:12px' }), body,
+    el('div', { className: 'pager', style: 'justify-content:flex-start;padding:10px 0' }, info, prev, next), learn);
+
+  out.push(el('details', {}, el('summary', { textContent: `Every saved backtest run (${h.runs.length})` }),
+    table(['Run', 'When', 'Rule', '#Total result', '#Most recent 30%', 'Outcome', '#Round trips', 'What the rule does', 'Backtest model'], h.runs.map(x =>
+      ['#' + x.run_id, when(x.ran_ts), { className: 'wrap', textContent: x.rule_name }, moneyCell(x, x.all.pnl_usd), moneyCell(x, x.test.pnl_usd), el('td', {}, outcomeTag(x)),
+        { className: 'num', textContent: x.all.trades.toLocaleString() }, { className: 'wrap', textContent: ruleText(x) }, { className: 'wrap', textContent: x.model || 'unknown' }])),
+    el('p', { className: 'small', textContent: 'Runs marked "Not valid" used a backtest assumption later shown to be wrong.' })));
+  root.replaceChildren(...out);
+  draw();
+}
+
+async function loadHistory() {
+  historyLoaded = true;
+  try {
+    const res = await fetch('/api/history');
+    if (!res.ok) throw new Error(res.status === 503 ? 'No backtest has been saved yet. Check back in a few minutes.' : 'HTTP ' + res.status);
+    const h = await res.json();
+    SOL_USD = h.sol_usd || SOL_USD;
+    renderHistory(h);
+  } catch (e) { $('history').textContent = 'Could not load the history: ' + e.message; historyLoaded = false; }
+}
+
+// ---------- Rule settings tab ----------
+let settingsLoaded = false, cfg = null;
+const store = { get: k => { try { return localStorage.getItem(k) || ''; } catch { return ''; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
+const unit = kind => ({ pct: '%', usd: '$', sol: 'SOL', min: 'min', num: '' }[kind] || '');
+const toShown = (v, kind) => kind === 'pct' ? +(v * 100).toFixed(4) : v;
+const fromShown = (v, kind) => kind === 'pct' ? v / 100 : v;
+
+function renderSettings() {
+  const root = $('settings'), F = cfg.features, L = cfg.limits, out = [];
+  const num = (value, onchange, attrs = {}) => { const i = el('input', { type: 'number', step: 'any', value, style: 'width:90px', ...attrs }); i.oninput = () => onchange(parseFloat(i.value)); return i; };
+  const field = (label, ...k) => el('label', { className: 'chk', style: 'gap:8px' }, label, ...k);
+  out.push(el('p', { className: 'sub', textContent: 'A rule decides which graduated tokens to buy and when to sell. Every enabled rule is backtested on all recorded tokens, and its result appears on the Strategy history tab.' }));
+  const status = el('span', { className: 'small', role: 'status' });
+  const save = el('button', { textContent: 'Save and backtest' }), add = el('button', { textContent: 'Add a rule' });
+  const list = el('div', {}), counter = el('p', { className: 'small' });
+  const count = () => { const a = cfg.rules.filter(r => r.enabled).length; counter.textContent = `${cfg.rules.length} rules, ${a} active. Untick "Use this rule" to pause a rule without deleting it: it stays here with its settings, is skipped in the next backtest and is hidden from Strategy history until you tick it again. Changes take effect when you press Save and backtest.`; };
+  const preview = r => ruleText({ rule: { ...r, entry: (r.entries || [r.entry]).join(' and ') || '?', conditions: r.conditions.map(c => ({ ...c, label: F[c.feature].label, kind: F[c.feature].kind })) } }) + '.';
+
+  // "5, 10" -> [5, 10]; error says what is wrong with the text
+  const minutes = text => {
+    const parts = text.split(/[\s,;]+/).filter(Boolean), list = [...new Set(parts.map(Number))];
+    const bad = !parts.length || list.some(v => !Number.isInteger(v) || v < L.entry[0] || v > L.entry[1]);
+    return { list, error: bad ? `Use whole minutes from ${L.entry[0]} to ${L.entry[1]}; separate several with commas, for example 5, 10.` : '' };
+  };
+  // a rule with several buy minutes becomes one rule per minute, named "<name> (N min)"
+  const expanded = () => cfg.rules.flatMap(r => {
+    const { entries, ...rule } = r, list = entries || [r.entry];
+    if (minutes(list.join(',')).error) throw new Error(`'${r.name}': ${minutes(list.join(',')).error}`);
+    if (!String(r.name || '').trim()) throw new Error('every rule needs a name.');
+    if (list.length < 2) return [{ ...rule, entry: list[0] }];
+    return list.map((m, k) => { const tail = ` (${m} min)`; return { ...JSON.parse(JSON.stringify(rule)), id: k ? '' : rule.id, entry: m, name: rule.name.slice(0, 60 - tail.length).trim() + tail }; });
+  });
+  // rules ticked "Record live" first; the others keep their order
+  const drawRules = () => list.replaceChildren(...cfg.rules.sort((a, b) => !!b.live - !!a.live).map((r, i) => {
+    const sentence = el('p', { className: 'small', textContent: preview(r) });
+    const touch = () => { sentence.textContent = preview(r); };
+    const name = el('input', { type: 'text', value: r.name, maxLength: 60, style: 'width:300px;max-width:100%;font-weight:600', 'aria-label': 'Rule name' });
+    name.oninput = () => { r.name = name.value; };
+    const on = el('input', { type: 'checkbox', checked: r.enabled, style: 'width:18px;height:18px' });
+    const live = el('input', { type: 'checkbox', checked: !!r.live, style: 'width:18px;height:18px', title: 'Follow this rule in the live table on the Record live tab. When any rule has this ticked, the live table records only the ticked rules.' });
+    live.onchange = () => { r.live = live.checked; };
+    const state = el('span', { className: 'tag' });
+    const paint = () => {
+      state.textContent = r.enabled ? 'Active' : 'Paused: kept, not backtested';
+      state.className = 'tag' + (r.enabled ? ' p' : '');
+      state.style.border = r.enabled ? '' : '1px solid var(--line)';
+      if (bodyBox) bodyBox.style.opacity = r.enabled ? 1 : 0.5;
+      count();
+    };
+    let bodyBox = null;
+    on.onchange = () => { r.enabled = on.checked; paint(); };
+    const del = el('button', { textContent: 'Delete rule' }); del.onclick = () => { cfg.rules.splice(i, 1); drawRules(); count(); };
+    // a copy sits right under the original, ready to change (for example to another buy minute)
+    const dup = el('button', { textContent: 'Duplicate' });
+    dup.onclick = () => {
+      if (cfg.rules.length >= L.max_rules) { status.textContent = `At most ${L.max_rules} rules.`; return; }
+      cfg.rules.splice(i + 1, 0, { ...JSON.parse(JSON.stringify(r)), id: '', name: (r.name + ' (copy)').slice(0, 60) });
+      drawRules(); count();
+      status.textContent = 'Copy added below the original. Change it, then press Save and backtest.';
+    };
+    // one minute, or several separated by commas ("5, 10"): saving makes one rule per minute
+    const buyAt = el('input', { type: 'text', value: (r.entries || [r.entry]).join(', '), style: 'width:110px', 'aria-label': 'Buy minutes after graduation' });
+    const buyNote = el('span', { className: 'small' });
+    const readBuy = () => {
+      const m = minutes(buyAt.value);
+      r.entries = m.error ? [] : m.list; r.entry = r.entries[0];
+      buyNote.textContent = m.error || (m.list.length > 1 ? `Saving makes ${m.list.length} rules from this one, one per buy minute.` : '');
+      touch();
+    };
+    buyAt.oninput = readBuy;
+    readBuy();
+    const conds = el('div', {});
+    const drawConds = () => conds.replaceChildren(...r.conditions.map((c, j) => {
+      const kind = F[c.feature].kind;
+      const feat = el('select', { 'aria-label': 'Condition' }, ...Object.entries(F).map(([k, f]) => el('option', { value: k, textContent: f.label, selected: k === c.feature })));
+      feat.onchange = () => { c.feature = feat.value; if (F[c.feature].kind === 'flag') { c.op = '='; c.value = 1; } else if (c.op === '=') { c.op = '>='; c.value = 0; } drawConds(); touch(); };
+      const rm = el('button', { textContent: 'Remove' }); rm.onclick = () => { r.conditions.splice(j, 1); drawConds(); touch(); };
+      if (kind === 'flag') return el('div', { className: 'table-head', style: 'padding:4px 0' }, feat, rm);
+      const op = el('select', { 'aria-label': 'At least or at most' }, el('option', { value: '>=', textContent: 'is at least', selected: c.op === '>=' }), el('option', { value: '<=', textContent: 'is at most', selected: c.op === '<=' }));
+      op.onchange = () => { c.op = op.value; touch(); };
+      return el('div', { className: 'table-head', style: 'padding:4px 0' }, feat, op, num(toShown(c.value, kind), v => { c.value = fromShown(v, kind); touch(); }, { 'aria-label': 'Value' }), el('span', { className: 'small', textContent: unit(kind) }), rm);
+    }));
+    drawConds();
+    const addCond = el('button', { textContent: 'Add a condition' });
+    addCond.onclick = () => { if (r.conditions.length < L.max_conditions) { r.conditions.push({ feature: 'mcap_usd', op: '>=', value: 50000 }); drawConds(); touch(); } };
+    bodyBox = el('div', {});
+    const card = el('div', { className: 'card' },
+      el('div', { className: 'table-head', style: 'padding:0 0 8px' }, field('', on, 'Use this rule'), field('', live, 'Record live'), name, state, dup, del), bodyBox);
+    bodyBox.append(
+      el('div', { className: 'table-head', style: 'padding:4px 0' }, field('Buy', buyAt, 'minutes after graduation, only if:'), buyNote),
+      conds, el('div', { style: 'padding:4px 0 8px' }, addCond),
+      el('div', { className: 'table-head', style: 'padding:4px 0' },
+        field('Take profit at +', num(+(r.tp * 100).toFixed(2), v => { r.tp = v / 100; touch(); }, { min: 5 }), '%'),
+        field('Stop loss at -', num(+(r.sl * 100).toFixed(2), v => { r.sl = v / 100; touch(); }, { min: 5, max: 95 }), '%'),
+        field('Sell anyway after', num(r.hold, v => { r.hold = v; touch(); }, { min: L.hold[0], max: L.hold[1], step: 1 }), 'minutes')),
+      sentence);
+    paint();
+    return card;
+  }));
+  add.onclick = () => { if (cfg.rules.length >= L.max_rules) return; cfg.rules.push({ id: '', name: 'New rule', enabled: true, entry: 20, conditions: [{ feature: 'mcap_usd', op: '>=', value: 50000 }], tp: 0.4, sl: 0.3, hold: 30 }); drawRules(); };
+  save.onclick = async () => {
+    save.disabled = true; status.textContent = 'Saving…';
+    try {
+      const rules = expanded();
+      if (rules.length > L.max_rules) throw new Error(`that makes ${rules.length} rules; at most ${L.max_rules} are allowed.`);
+      const res = await fetch('/api/rules', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Rules-Version': cfg.version || '' }, body: JSON.stringify(rules) });
+      const data = await res.json();
+      if (res.status === 409 && data.rules) {
+        // saved somewhere else since this page loaded: take in the rules this page has never seen
+        const added = data.rules.filter(r => !cfg.seen.has(r.id) && !cfg.rules.some(x => x.id === r.id));
+        cfg.rules.push(...added); data.rules.forEach(r => cfg.seen.add(r.id)); cfg.version = data.version;
+        drawRules(); count();
+        status.textContent = `Not saved yet: the rules were changed somewhere else after you opened this page. ${added.length ? added.length + ' rule' + (added.length > 1 ? 's' : '') + ' added there ' + (added.length > 1 ? 'are' : 'is') + ' now in your list' : 'Your list is kept as it is'}. Check the list, then press Save and backtest again.`;
+        return;
+      }
+      if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
+      cfg.rules = data.rules; cfg.version = data.version; cfg.seen = new Set(data.rules.map(r => r.id)); drawRules();
+      status.textContent = 'Saved. Backtest running, usually under a minute…';
+      for (let k = 0; k < 36; k++) {
+        await new Promise(r => setTimeout(r, 5000));
+        const h = await fetch('/api/history').then(r => r.ok ? r.json() : null).catch(() => null);
+        if (h && h.generated_at > data.saved_at) { historyLoaded = false; status.replaceChildren('Backtest finished. ', el('a', { href: '#history', textContent: 'See the results' })); return; }
+      }
+      status.textContent = 'Saved. The backtest is taking longer than usual; check Strategy history in a few minutes.';
+    } catch (e) { status.textContent = 'Not saved: ' + e.message + (/password/i.test(e.message) ? ' Type or paste it again into the password box (small letters and digits only, no spaces), then press Save and backtest.' : ''); }
+    finally { save.disabled = false; }
+  };
+  drawRules(); count();
+  out.push(counter, list, el('div', { className: 'table-head', style: 'padding:14px 0' }, add, save, status),
+    el('details', {}, el('summary', { textContent: 'What the conditions mean' }), el('dl', { className: 'gloss' }, ...Object.values(F).flatMap(f => [el('dt', { textContent: f.label }), el('dd', { textContent: {
+      'Price change since graduation': 'Price now compared with the price at graduation. +100% means it has doubled.',
+      'Distance below the highest price since graduation': 'How far the price is under its peak. -10% means 10% below the high; "at least -10%" keeps tokens within 10% of the high.',
+      'Price change over the last 5 minutes': 'Whether it is rising or falling right now.',
+      'Market cap': 'Token price times total supply, in dollars. Graduation happens at roughly $45K to $50K.',
+      'Trading volume since graduation': 'Dollars traded since graduation.',
+      'Trading volume in the last 5 minutes': 'Dollars traded in the 5 minutes before buying.',
+      'Number of trades since graduation': 'Count of trades. A huge count with small volume usually means bots trading with themselves.',
+      'Number of trades in the last 5 minutes': 'Count of trades in the 5 minutes before buying.',
+      "Creator's own buy at launch": 'How much SOL the creator bought in the very first trade. About 85 SOL means they bought the whole bonding curve themselves.',
+      'Minutes from creation to graduation': '0 means it graduated in the same minute it was created, typical of a single party filling the curve.',
+      'Has a Twitter, Telegram or website link': 'The token lists at least one social link.',
+      'Has an X (Twitter) link': 'The token lists an X (Twitter) account or post. Anyone can paste any link, so it shows effort, not legitimacy.',
+      'Has a website link': 'The token lists a website. The link is not checked: it can point to any site.',
+      'Has a Telegram link': 'The token lists a Telegram group.',
+      'Number of holders': 'How many wallets hold the token just before buying. Recorded live, see the note below.',
+      'Share of supply held by the top 10 wallets': 'A high share means a few wallets can crash the price by selling. Recorded live.',
+      'Share of supply held by the creator': 'What the creator still holds just before buying. Recorded live; pump.fun does not report it for every token.',
+      'Share of supply held by snipers': 'Held by wallets that bought in the first moments after launch, as flagged by pump.fun. Recorded live.',
+      'Share of supply held by bundled wallets': 'Held by wallets that bought together in one bundle at launch, as flagged by pump.fun. Recorded live.',
+    }[f.label] || '' })]))),
+    el('p', { className: 'small', textContent: 'Holder conditions (number of holders and the shares held by the top 10 wallets, creator, snipers and bundled wallets) exist only for tokens that graduated after holder recording started on 11 October 2026 at 20:00 UTC, because pump.fun does not keep past holder numbers. A rule that uses one skips every older token, so it has few round trips at first and gains more each day. Tokens that pump.fun lists late or that were not trading when first seen have no holder numbers either.' }),
+    el('p', { className: 'small', textContent: 'All conditions are measured at the moment of buying, using only what was known then. A token is never bought if it had no trades in the previous 5 minutes or its pool is too thin for the order.' }));
+
+  root.replaceChildren(...out);
+}
+
+async function loadSettings() {
+  settingsLoaded = true;
+  try {
+    const res = await fetch('/api/rules');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    cfg = await res.json();
+    cfg.seen = new Set(cfg.rules.map(r => r.id));
+    renderSettings();
+  } catch (e) { $('settings').textContent = 'Could not load the rules: ' + e.message; settingsLoaded = false; }
+}
+
+// ---------- Telegram tab ----------
+// Saved on the server by a signed-in user; the bot token is never sent back to the page.
+let telegramLoaded = false;
+function renderTelegram() {
+  telegramLoaded = true;
+  const root = $('telegram');
+  const field = (label, ...k) => el('label', { className: 'chk', style: 'gap:8px' }, label, ...k);
+  const tgToken = el('input', { type: 'password', placeholder: 'Bot token from @BotFather', autocomplete: 'off', style: 'width:340px;max-width:100%', 'aria-label': 'Telegram bot token' });
+  const tgChat = el('input', { type: 'text', placeholder: 'Your Telegram user ID, e.g. 123456789', style: 'width:260px;max-width:100%', 'aria-label': 'Telegram user ID' });
+  const tgOn = el('input', { type: 'checkbox', style: 'width:18px;height:18px' });
+  const tgSave = el('button', { textContent: 'Save Telegram settings' }), tgTest = el('button', { textContent: 'Send a test message' });
+  const tgStatus = el('span', { className: 'small', role: 'status' }), tgState = el('p', { className: 'small', textContent: 'Loading…' });
+  const tgShow = d => { tgChat.value = d.chat_id || ''; tgOn.checked = !!d.enabled; tgToken.value = '';
+    tgToken.placeholder = d.token_hint ? `Saved (ends ${d.token_hint}). Leave empty to keep it` : 'Bot token from @BotFather';
+    tgState.textContent = !d.configured ? 'Not set up yet: no message is sent.' : d.enabled ? 'Alerts are on.' : 'Saved, but alerts are switched off.'; };
+  fetch('/api/telegram').then(r => r.json()).then(tgShow).catch(() => { tgState.textContent = 'Could not load the Telegram settings.'; });
+  const tgPost = async (url, body, okText) => {
+    tgSave.disabled = tgTest.disabled = true; tgStatus.textContent = 'Working…';
+    try {
+      const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || 'HTTP ' + res.status);
+      if (url === '/api/telegram') tgShow(d);
+      tgStatus.textContent = okText;
+    } catch (e) { tgStatus.textContent = 'Not done: ' + e.message; }
+    tgSave.disabled = tgTest.disabled = false;
+  };
+  tgSave.onclick = () => tgPost('/api/telegram', { token: tgToken.value.trim(), chat_id: tgChat.value.trim(), enabled: tgOn.checked }, 'Saved.');
+  tgTest.onclick = () => tgPost('/api/telegram/test', {}, 'Test message sent: check Telegram.');
+  const tgDaily = el('button', { textContent: "Send yesterday's report now" });
+  tgDaily.onclick = () => tgPost('/api/telegram/report', {}, "Yesterday's report sent: check Telegram.");
+  root.replaceChildren(el('p', { className: 'sub', textContent: 'Messages on Telegram when a strategy buys a token.' }), el('div', { className: 'card' }, el('h2', { textContent: 'Telegram alerts' }),
+    el('p', { textContent: 'Get a Telegram message the moment a strategy shown on the Record live tab (ticked "Record live") buys a token, with a snapshot of the token at that minute and why it was bought, and a second message when that buy is sold. These are simulated trades: nothing is bought for you.' }),
+    el('ol', { className: 'steps' },
+      el('li', { textContent: 'In Telegram, open @BotFather, send /newbot and follow the steps. It gives you a bot token.' }),
+      el('li', { textContent: 'Open your new bot and press Start. A bot cannot write to you before you do.' }),
+      el('li', { textContent: 'Open @userinfobot and press Start. It replies with your user ID (a number).' }),
+      el('li', { textContent: 'Paste both below, tick the box, save, then send a test message.' })),
+    el('div', { className: 'table-head', style: 'padding:8px 0' }, field('Bot token', tgToken), field('User ID', tgChat), field('', tgOn, 'Send alerts')),
+    el('div', { className: 'table-head', style: 'padding:0 0 4px' }, tgSave, tgTest, tgDaily, tgStatus), tgState,
+    el('p', { className: 'small', textContent: `Every day at 00:10 UTC (${new Date(Date.UTC(2026, 0, 1, 0, 10)).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })} your time) you also get a report of the previous UTC day: for each strategy shown on the Record live tab, how many tokens it checked, every buy with its result, what holding longer or a +100% target would have given, and the running total, with that day's decisions attached as a CSV file.` }),
+    el('p', { className: 'small', textContent: 'The token is stored on the server and never shown again; anyone holding it can send messages as your bot, so do not share it. ' })));
+}
+
+// ---------- Trading tab ----------
+// The trader buys on the live watch's signals. Only "off" and "dry run" can be chosen here: in a dry run
+// every buy and sale is worked out on real Jupiter quotes and nothing is signed or sent.
+let tradingForm = null;
+async function loadTrading() {
+  let st = null;
+  try { const res = await fetch('/api/trading'); if (res.ok) st = await res.json(); } catch (e) { /* shown below */ }
+  renderTrading(st);
+}
+setInterval(() => { if (!$('tab-trading').hidden) loadTrading(); }, 10000);
+
+function renderTrading(st) {
+  const root = $('trading'), out = [], h2 = t => el('h2', { textContent: t }), p = t => el('p', { textContent: t });
+  const field = (label, ...k) => el('label', { className: 'chk', style: 'gap:8px' }, label, ...k);
+  const sol = v => v == null ? '–' : (v < 0 ? '-' : '+') + Math.abs(v).toLocaleString(undefined, { maximumFractionDigits: 4 }) + ' SOL';
+  const cfg = (st && st.settings) || { mode: 'off', sol_per_trade: 0.2, max_open: 2, daily_loss_limit_sol: 1, slippage_bps: 1500 };
+  // the form is built once and kept, so a refresh never wipes what is being typed
+  if (!tradingForm) {
+    const f = tradingForm = {
+      mode: el('select', { 'aria-label': 'Mode' }, el('option', { value: 'off', textContent: 'Off: no new buys' }), el('option', { value: 'live', textContent: 'LIVE: real SOL' })),
+      confirm: el('input', { type: 'text', placeholder: 'type LIVE', style: 'width:100px', 'aria-label': 'Confirm live trading' }),
+      sellSlip: el('input', { type: 'number', step: '50', min: '50', max: '5000', style: 'width:90px' }),
+      stopSlip: el('input', { type: 'number', step: '50', min: '50', max: '5000', style: 'width:90px' }),
+      fee: el('input', { type: 'number', step: '10000', min: '0', max: '5000000', style: 'width:110px' }),
+      rpc: el('input', { type: 'password', placeholder: 'leave empty to keep the saved one', style: 'width:300px;max-width:100%', autocomplete: 'off', 'aria-label': 'RPC address' }),
+      size: el('input', { type: 'number', step: '0.01', min: '0.01', max: '1', style: 'width:90px' }),
+      open: el('input', { type: 'number', step: '1', min: '1', max: '5', style: 'width:70px' }),
+      loss: el('input', { type: 'number', step: '0.1', min: '0.01', max: '10', style: 'width:90px' }),
+      slip: el('input', { type: 'number', step: '50', min: '50', max: '3000', style: 'width:90px' }),
+      settingsOpen: (() => { try { return localStorage.getItem('tradingSettingsOpen') === '1'; } catch (e) { return false; } })(),
+      stratBox: el('div', {}), follow: true, choice: new Set(), choiceDirty: false, pending: null, avail: [],
+      save: el('button', { textContent: 'Save' }), sellAll: el('button', { textContent: 'Sell all open positions' }),
+      status: el('span', { className: 'small', role: 'status' }) };
+    f.mode.value = cfg.mode === 'live' ? 'live' : 'off'; f.sellSlip.value = cfg.sell_slippage_bps ?? 1000; f.stopSlip.value = cfg.stop_slippage_bps ?? 2500; f.fee.value = cfg.priority_fee_lamports ?? 300000; f.size.value = cfg.sol_per_trade; f.open.value = cfg.max_open; f.loss.value = cfg.daily_loss_limit_sol; f.slip.value = cfg.slippage_bps;
+    const post = async (extra, okText) => {
+      // only strategies still listed; none ticked is refused, so it can never quietly mean "Record live"
+      const known = new Set(f.avail.map(s => s.id)), chosen = [...f.choice].filter(id => !known.size || known.has(id));
+      if (!f.follow && !chosen.length && f.mode.value === 'off') f.follow = true;   // nothing is bought when off: saved as following Record live
+      if (!f.follow && !chosen.length) { f.status.textContent = 'Not saved: tick at least one strategy, or "Same as Record live". To stop buying, set the mode to Off.'; return; }
+      if (chosen.length > 40) { f.status.textContent = `Not saved: choose at most 40 strategies (${chosen.length} are ticked).`; return; }
+      f.save.disabled = f.sellAll.disabled = true; f.status.textContent = 'Saving…';
+      try {
+        const res = await fetch('/api/trading', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: f.mode.value, confirm: f.confirm.value.trim(), strategies: f.follow ? [] : chosen, sol_per_trade: +f.size.value, max_open: +f.open.value, daily_loss_limit_sol: +f.loss.value, slippage_bps: +f.slip.value,
+            sell_slippage_bps: +f.sellSlip.value, stop_slippage_bps: +f.stopSlip.value, priority_fee_lamports: +f.fee.value, ...(f.rpc.value.trim() ? { rpc_url: f.rpc.value.trim() } : {}), ...extra }) });
+        const d = await res.json();
+        if (!res.ok) throw new Error(d.error || 'HTTP ' + res.status);
+        f.status.textContent = okText; f.confirm.value = ''; f.rpc.value = ''; f.choiceDirty = false;
+        f.pending = { ids: f.follow ? [] : chosen, until: Date.now() + 30000 };   // shown as saved until the trader reports it
+      } catch (e) { f.status.textContent = 'Not saved: ' + e.message; }
+      f.save.disabled = f.sellAll.disabled = false;
+    };
+    f.save.onclick = () => post({}, 'Saved. The trader picks it up within a second or two.');
+    f.sellAll.onclick = () => askSell({ all: true }, f.sellAll, 'Sell every open position now?');
+  }
+  const f = tradingForm;
+  // which strategies to trade: kept as ticked until saved, otherwise as the trader reports them
+  const reported = (st && st.settings && st.settings.strategies) || [];
+  if (f.pending && (Date.now() > f.pending.until || [...reported].sort().join() === [...f.pending.ids].sort().join())) f.pending = null;
+  const avail = f.avail = (st && st.strategies_available) || [];
+  // a saved choice none of which is listed any more is traded as Record live by the trader, and shown so
+  if (!f.choiceDirty && !f.pending && st && st.settings) { f.choice = new Set(reported); f.follow = !reported.length || (avail.length > 0 && !avail.some(s => f.choice.has(s.id))); }
+  const drawStrats = () => {
+    const follow = el('input', { type: 'checkbox', checked: f.follow, style: 'width:18px;height:18px' });
+    follow.onchange = () => { f.follow = follow.checked; f.choiceDirty = true; if (!f.follow && !f.choice.size) avail.filter(s => s.record_live).forEach(s => f.choice.add(s.id)); drawStrats(); };
+    const bt = s => s.backtest && s.backtest.trades ? `backtest ${pc(s.backtest.mean)} average over ${s.backtest.trades} trades` : 'no backtest trades yet';
+    const exit = s => `buys at minute ${s.entry}, sells at +${Math.round(s.tp * 100)}% / -${Math.round(s.sl * 100)}% or after ${s.hold} min`;
+    const rows = [...avail].sort((a, b) => b.record_live - a.record_live).map(s => {
+      const on = f.follow ? s.record_live : f.choice.has(s.id);
+      const c = el('input', { type: 'checkbox', checked: on, disabled: f.follow, style: 'width:18px;height:18px' });
+      c.onchange = () => { c.checked ? f.choice.add(s.id) : f.choice.delete(s.id); f.choiceDirty = true; };
+      return el('label', { className: 'chk', style: 'gap:8px;padding:2px 0' }, c, el('b', { textContent: s.name }), s.record_live ? el('span', { className: 'small', textContent: '(Record live)' }) : '', el('span', { className: 'small muted', textContent: `${exit(s)}; ${bt(s)}` }));
+    });
+    const traded = (st && st.strategies_traded) || [];
+    f.stratBox.replaceChildren(
+      el('label', { className: 'chk', style: 'gap:8px;padding:2px 0' }, follow, 'Same as Record live (the rules ticked "Record live" in Rule settings)'),
+      ...(avail.length ? rows : [p('The list appears once the live watch has written its first update.')]),
+      el('p', { className: 'small' }, traded.length ? `Trading now: ${traded.map(s => s.name).join(', ')}.` : 'Trading now: none.', f.choiceDirty ? ' Changes apply after Save.' : ''));
+  };
+  drawStrats();
+  async function askSell(body, btn, question) {
+    if (!confirm(question)) return;
+    btn.disabled = true;
+    try {
+      const res = await fetch('/api/trading/sell', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || 'HTTP ' + res.status);
+      const label = btn.textContent; btn.textContent = 'Sale asked';
+      if (btn === tradingForm.sellAll) setTimeout(() => { btn.textContent = label; btn.disabled = false; }, 4000);
+    } catch (e) { btn.disabled = false; alert('The sale was not asked: ' + e.message); }
+  }
+  out.push(el('p', { className: 'sub', textContent: 'Buys on the live buy signals of the strategies chosen below (by default the ones ticked "Record live"), and sells at their take profit, stop loss or time limit.' }));
+  const modeText = !st ? 'The trader has not reported yet.' : st.mode === 'dry' ? 'Dry run (set by hand in the settings file): nothing is signed or sent. Choose Off or LIVE and save.'
+    : st.mode === 'live' ? 'LIVE: real transactions with real SOL. Every order is signed with the wallet below.' : 'Off: no new buys. Open positions are still sold by their rules.';
+  out.push(el('div', { className: 'card verdict ' + (st && st.mode === 'dry' ? 'pass' : 'none') }, el('div', { className: 'big', textContent: !st ? 'Not running yet' : st.mode === 'dry' ? 'Dry run' : st.mode === 'live' ? 'LIVE' : st.wanted_mode === 'live' ? 'Off: live mode is not ready' : 'Off' }), p(modeText),
+    st && st.generated_at && Date.now() - st.generated_at > 60000 ? el('p', { className: 'n', style: 'font-weight:600', textContent: `The trader last reported ${ago(st.generated_at)}: it may be stuck, and open positions may not be watched. It restarts itself after 3 minutes; if this stays, check the server.` }) : '',
+    st && st.error ? p(st.error) : '', st && st.wallet ? el('p', {}, 'Wallet ', el('a', { href: 'https://solscan.io/account/' + encodeURIComponent(st.wallet), target: '_blank', rel: 'noopener noreferrer', className: 'mono', textContent: st.wallet }), st.balance_sol != null ? `: ${(+st.balance_sol.toFixed(4))} SOL` : '') : '',
+    st && st.rpc_is_public && st.wanted_mode === 'live' ? p('Note: live orders use the free public Solana RPC, and every transaction is also sent through a second free RPC (PublicNode), re-sent every 3 s for up to 90 s, then followed by its signature until its outcome is known. When the network is busy, orders can land a few seconds late. A free Helius key (helius.dev) entered below as the RPC address is faster.') : '',
+    st ? el('p', { className: 'small', textContent: `Updated ${ago(st.generated_at)}.` }) : ''));
+  const trades = (st && st.trades) || [], open = trades.filter(t => ['open', 'buying', 'buy_sent', 'selling', 'sell_sent', 'check', 'stuck'].includes(t.status)), closed = trades.filter(t => t.status === 'closed');
+  const total = closed.reduce((a, t) => a + (t.sol_out - t.sol_in), 0), wins = closed.filter(t => t.sol_out > t.sol_in).length;
+  const tile = (k, v, n) => el('div', { className: 'card tile' }, el('div', { className: 'k', textContent: k }), el('div', { className: 'v', textContent: v }), el('div', { className: 'n', textContent: n }));
+  out.push(el('div', { className: 'tiles' },
+    tile('Open positions', open.length.toLocaleString(), `at most ${cfg.max_open}`),
+    tile('Finished trades', closed.length.toLocaleString(), closed.length ? `${wins} with a profit` : 'none yet'),
+    tile('Result', closed.length ? sol(total) : '–', closed.length ? `average ${pc(closed.reduce((a, t) => a + t.sol_out / t.sol_in - 1, 0) / closed.length)} per trade` : ''),
+    tile('Today (UTC)', st ? sol(st.today_result_sol) : '–', `stops new buys at ${sol(-cfg.daily_loss_limit_sol)}`)));
+  const hist = (st && st.wallet_history) || [];
+  if (hist.length && st.balance_sol != null) {
+    const pts = [...hist, [Math.max(Date.now(), hist[hist.length - 1][0] + 1), st.balance_sol]], start = hist[0][1], now = st.balance_sol;
+    const withOpen = st.open_value_sol ? now + st.open_value_sol : null, change = (withOpen ?? now) - start;
+    out.push(el('div', { className: 'card' }, h2('Wallet balance'),
+      el('p', { className: 'small' }, `Start ${start.toFixed(4)} SOL (just before the first trade, ${new Date(hist[0][0]).toLocaleString()}) · now ${now.toFixed(4)} SOL`
+        + (withOpen != null ? ` + open positions ${st.open_value_sol.toFixed(4)} SOL = ${withOpen.toFixed(4)} SOL` : '')
+        + ` · change `, el('span', { className: signed(change), textContent: `${change >= 0 ? '+' : ''}${change.toFixed(4)} SOL (${pc(change / start)})` }),
+        '. Read from the wallet\'s own transactions on the chain, so SOL sent to the wallet also shows as a step up.'),
+      el('div', { className: 'pnl' }, balanceChart(pts, withOpen))));
+  }
+  const tok = t => el('td', {}, el('div', { className: 'tok' }, el('div', {}, el('div', { className: 'nm', textContent: t.symbol || t.mint.slice(0, 8) }), el('div', { className: 'sy', textContent: t.mode === 'dry' ? 'dry run' : 'live' }))));
+  const txLink = sig => sig ? el('a', { href: 'https://solscan.io/tx/' + encodeURIComponent(sig), target: '_blank', rel: 'noopener noreferrer', textContent: 'tx' }) : '';
+  const sellBtn = t => {
+    if (t.status === 'stuck' && !t.tokens) return el('td', { className: 'small', textContent: 'amount not known: sell it in a wallet app' });
+    const asked = t.sell_asked && t.status !== 'stuck';
+    const b = el('button', { textContent: asked ? 'Sale asked' : t.status === 'stuck' ? 'Try to sell again' : 'Sell', disabled: asked, title: 'Sell this position now, at the next quote' });
+    b.onclick = () => askSell({ id: t.id }, b, `Sell ${t.symbol || t.mint.slice(0, 8)} now${t.mode === 'live' ? ' (real SOL)' : ''}?`);
+    return el('td', {}, b);
+  };
+  out.push(el('div', { className: 'table-head', style: 'padding:0' }, h2('Open positions'), open.length ? f.sellAll : ''), open.length ? table(['Token', 'Bought', '#Cost', '#Selling now would return', '#Result now', 'Status', 'Live chart', 'Sell'], open.map(t =>
+    [tok(t), when(t.opened_ts || t.signal_ts), { className: 'num', textContent: t.sol_in == null ? '–' : t.sol_in + ' SOL' },
+      { className: 'num', textContent: t.last_value == null ? '–' : (+t.last_value.toFixed(4)) + ' SOL' },
+      t.last_value == null || !t.sol_in ? { className: 'num muted', textContent: '–' } : { className: signed(t.last_value / t.sol_in - 1), textContent: pc(t.last_value / t.sol_in - 1) },
+      { textContent: { open: 'open', buying: 'buying', buy_sent: 'buy sent, waiting', selling: 'selling', sell_sent: 'sale sent, waiting', check: 'outcome being checked on chain', stuck: 'could not be sold: try again, or sell it in a wallet app' }[t.status] || t.status, className: t.status === 'stuck' ? 'n' : '' }, el('td', {}, chartLinks(t.mint, false)), sellBtn(t)])) : p('No open position.'));
+  out.push(h2('Finished and failed trades'), trades.filter(t => !open.includes(t)).length ? table(['Token', 'Bought', 'Sold', 'Sold by', '#Cost', '#Returned', '#Result', 'Transactions', 'Live chart', 'Note'], trades.filter(t => !open.includes(t)).map(t =>
+    [tok(t), when(t.opened_ts || t.signal_ts), t.closed_ts ? when(t.closed_ts) : '', t.reason || t.status,
+      { className: 'num', textContent: t.sol_in == null ? '–' : t.sol_in + ' SOL' }, { className: 'num', textContent: t.sol_out == null ? '–' : (+t.sol_out.toFixed(4)) + ' SOL' },
+      t.sol_out == null || !t.sol_in ? { className: 'num muted', textContent: '–' } : { className: signed(t.sol_out / t.sol_in - 1), textContent: `${pc(t.sol_out / t.sol_in - 1)} (${sol(t.sol_out - t.sol_in)})` },
+      el('td', {}, txLink(t.buy_sig), ' ', txLink(t.sell_sig)), el('td', {}, chartLinks(t.mint, false)), { className: 'wrap', textContent: t.error || '' }])) : p('Nothing yet. A trade starts when a shown strategy makes a live buy decision.'));
+  const secs = v => v == null ? '–' : (v / 1000).toFixed(v < 10000 ? 2 : 1) + ' s';
+  const timed = trades.filter(t => t.lat_total_ms != null || t.lat_sell_ms != null);
+  if (timed.length) out.push(h2('Latency'), p('How long each step took. "Signal seen" is the time from the end of the entry minute until the trader saw the buy decision; "Buy landed" is from the end of the entry minute until the buy was confirmed on chain; "Sale landed" is from the moment the take profit or stop was seen until the sale was confirmed.'),
+    table(['Token', 'Mode', '#Signal seen', '#Quote', '#Build and sign', '#On chain', '#Buy landed', '#Sale landed', '#Buy slippage'], timed.map(t =>
+      [t.symbol || t.mint.slice(0, 8), t.mode === 'dry' ? 'dry run' : 'live', { className: 'num', textContent: secs(t.lat_seen_ms) }, { className: 'num', textContent: secs(t.lat_quote_ms) },
+        { className: 'num', textContent: secs(t.lat_build_ms) }, { className: 'num', textContent: secs(t.lat_land_ms) }, { className: 'num', textContent: secs(t.lat_total_ms) }, { className: 'num', textContent: secs(t.lat_sell_ms) },
+        t.mode === 'live' && t.buy_quote_tokens && t.tokens ? { className: signed(t.tokens / t.buy_quote_tokens - 1), textContent: pc(t.tokens / t.buy_quote_tokens - 1, 2), title: 'tokens received against tokens quoted' } : { className: 'num muted', textContent: '–' }])));
+  // collapsible; open or closed as last left in this browser
+  const settingsCard = (...kids) => {
+    const traded = ((st && st.strategies_traded) || []).map(x => x.name).join(', ') || 'none';
+    const box = el('details', { className: 'card', open: !!f.settingsOpen },
+      el('summary', {}, el('span', { style: 'font-size:1.15em' }, 'Settings'), el('span', { className: 'small muted', style: 'font-weight:400;margin-left:10px',
+        textContent: `${cfg.mode === 'live' ? 'LIVE' : 'Off'} · ${cfg.sol_per_trade} SOL per buy · at most ${cfg.max_open} open · daily loss limit ${cfg.daily_loss_limit_sol} SOL · ${traded}` })), ...kids);
+    box.addEventListener('toggle', () => { f.settingsOpen = box.open; try { localStorage.setItem('tradingSettingsOpen', box.open ? '1' : '0'); } catch (e) { /* not kept */ } });
+    return box;
+  };
+  out.push(settingsCard(
+    el('div', { className: 'table-head', style: 'padding:4px 0' }, field('Mode', f.mode), field('Confirm live', f.confirm), field('SOL per trade', f.size), field('Most open at once', f.open), field('Daily loss limit (SOL)', f.loss)),
+    el('div', { className: 'table-head', style: 'padding:4px 0' }, field('Buy slippage (bps)', f.slip), field('Sell slippage (bps)', f.sellSlip), field('Stop-loss slippage (bps)', f.stopSlip), field('Priority fee (lamports, max)', f.fee)),
+    el('div', { className: 'table-head', style: 'padding:4px 0' }, field('RPC address', f.rpc)),
+    el('div', { style: 'padding:6px 0' }, el('div', { style: 'font-weight:600' }, 'Strategies to trade'), f.stratBox),
+    el('div', { className: 'table-head', style: 'padding:4px 0' }, f.save, f.status),
+    el('p', { className: 'small', textContent: 'Take profit and stop loss are measured on what selling the whole position would really return, after the pool fee and price impact, so the price has to rise somewhat more than the target to reach it. No order is ever larger than 1 SOL, at most one live position is held per token, and new buys stop for the day once the day\'s loss (open positions included) reaches the limit. Switching to LIVE needs LIVE typed in the confirmation box. Off stops new buys at once; Sell all sells what is held but does not stop new buys. 100 basis points = 1%.' })));
+  root.replaceChildren(...out);
+}
+
+function showTab() {
+  const tab = { '#report': 'report', '#history': 'history', '#settings': 'settings', '#telegram': 'telegram', '#trading': 'trading' }[location.hash] || 'tokens';
+  for (const t of ['tokens', 'report', 'history', 'settings', 'telegram', 'trading']) $('tab-' + t).hidden = tab !== t;
+  document.querySelectorAll('nav.tabs:not(.sub) a').forEach(a => a.classList.toggle('on', a.dataset.tab === tab));
+  if (tab === 'report') { reportLoaded ? redraws.forEach(f => f()) : loadReport(); }
+  else if (tab === 'history') { if (!historyLoaded) loadHistory(); }
+  else if (tab === 'settings') { if (!settingsLoaded) loadSettings(); }
+  else if (tab === 'telegram') { if (!telegramLoaded) renderTelegram(); }
+  else if (tab === 'trading') loadTrading();
+  else if (all.length) chart();
+}
+window.addEventListener('hashchange', showTab);
+window.addEventListener('resize', () => !$('tab-report').hidden && redraws.forEach(f => f()));
+showTab();
+</script>
+</body>
+</html>

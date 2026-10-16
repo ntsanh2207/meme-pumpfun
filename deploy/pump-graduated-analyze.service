@@ -1,0 +1,17 @@
+[Unit]
+Description=Backtest the post-graduation strategy and refresh the report
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=pumpgrad
+WorkingDirectory=/opt/pump-graduated
+ExecStart=/usr/bin/python3 -u /opt/pump-graduated/analyze.py --db /opt/pump-graduated/data/pump.db --out /opt/pump-graduated/data/report.json
+TimeoutStartSec=1h
+MemoryMax=450M
+Nice=15
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/pump-graduated/data

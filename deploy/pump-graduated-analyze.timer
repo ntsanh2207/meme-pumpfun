@@ -1,0 +1,9 @@
+[Unit]
+Description=Re-run the post-graduation backtest as data accumulates
+
+[Timer]
+OnBootSec=30min
+OnUnitInactiveSec=6h
+
+[Install]
+WantedBy=timers.target

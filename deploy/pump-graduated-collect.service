@@ -1,0 +1,19 @@
+[Unit]
+Description=Collect pump.fun tokens graduated in the last 7 days
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=pumpgrad
+WorkingDirectory=/opt/pump-graduated
+ExecStart=/usr/bin/python3 -u /opt/pump-graduated/collector.py --out /opt/pump-graduated/data
+ExecStart=-/usr/bin/python3 -u /opt/pump-graduated/first_trades.py --db /opt/pump-graduated/data/pump.db
+TimeoutStartSec=2h
+MemoryMax=350M
+Nice=10
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/pump-graduated/data

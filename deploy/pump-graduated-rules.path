@@ -1,0 +1,9 @@
+[Unit]
+Description=Re-run the rule backtest when the rules are saved in the web app
+
+[Path]
+PathChanged=/opt/pump-graduated/data/settings/rules.json
+Unit=pump-graduated-rules.service
+
+[Install]
+WantedBy=multi-user.target

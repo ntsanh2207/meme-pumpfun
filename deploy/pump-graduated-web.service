@@ -1,0 +1,20 @@
+[Unit]
+Description=Pump.fun graduated tokens webapp (port 8090)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=pumpgrad
+WorkingDirectory=/opt/pump-graduated
+ExecStart=/usr/bin/python3 /opt/pump-graduated/server.py --port 8090 --data /opt/pump-graduated/data
+Restart=always
+RestartSec=3
+MemoryMax=200M
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/pump-graduated/data/settings
+
+[Install]
+WantedBy=multi-user.target

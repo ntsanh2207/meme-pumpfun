@@ -1,0 +1,21 @@
+[Unit]
+Description=Record holder snapshots of freshly graduated pump.fun tokens
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=pumpgrad
+WorkingDirectory=/opt/pump-graduated
+ExecStart=/usr/bin/python3 -u /opt/pump-graduated/holders.py --db /opt/pump-graduated/data/holders.db
+Restart=always
+RestartSec=10
+MemoryMax=100M
+Nice=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/pump-graduated/data
+
+[Install]
+WantedBy=multi-user.target
