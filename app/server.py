@@ -8,40 +8,67 @@ import argparse
 import gzip
 import hashlib
 import hmac
+import ipaddress
 import json
 import os
 import re
 import secrets
+import shutil
+import socket
+import subprocess
+import sqlite3
 import threading
 import time
+import urllib.error
 import urllib.parse
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import notify
+import radar
 import rules
+import wallets
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SESSION_DAYS = 30           # a login lasts this long
 COOKIE = "pg_session"
-_sessions = {}              # token -> expiry (unix seconds); also kept in settings/sessions.json
+_sessions = {}              # token -> {exp, created, last (unix seconds), ip, ua}; also kept in settings/sessions.json
 _sessions_lock = threading.Lock()
 
 LOGIN_PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer">
-<title>Sign in</title><style>
-:root{--page:#f9f9f7;--surface:#fcfcfb;--ink:#0b0b0b;--ink-2:#52514e;--line:#e4e3df;--accent:#2a78d6;--neg:#eb6834}
-@media (prefers-color-scheme: dark){:root{--page:#0d0d0d;--surface:#1a1a19;--ink:#f0efec;--ink-2:#c3c2b7;--line:#2e2e2c;--accent:#3987e5;--neg:#d95926}}
-body{margin:0;background:var(--page);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-display:grid;place-items:center;min-height:100vh;padding:16px;box-sizing:border-box}
-form{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:28px;width:100%;max-width:340px}
-h1{font-size:19px;margin:0 0 4px} p{color:var(--ink-2);margin:0 0 18px;font-size:13px}
-input,button{font:inherit;width:100%;box-sizing:border-box;border-radius:8px;padding:10px 12px}
-input{border:1px solid var(--line);background:var(--page);color:var(--ink);margin-bottom:12px}
-button{border:0;background:var(--accent);color:#fff;font-weight:600;cursor:pointer}
-.err{color:var(--neg);font-size:13px;margin:-4px 0 12px}
+<title>Sign in · Pumpfun Graduates</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800&display=swap">
+<style>
+:root{color-scheme:light;--bg:#F3F5FA;--surface:#FFFFFF;--surface-2:#F7F8FC;--ink:#0E1525;--muted:#5A6478;--line:#E4E8F0;--accent:#5146E5;--accent-2:#7C3AED;--accent-soft:#EEEDFE;--crit:#E0404A;
+--shadow:0 2px 4px rgba(16,24,40,.06),0 18px 48px rgba(16,24,40,.10)}
+@media (prefers-color-scheme: dark){:root{color-scheme:dark;--bg:#0A0E17;--surface:#121827;--surface-2:#161E30;--ink:#E9EDF5;--muted:#9AA3B8;--line:#222B3D;--accent:#8B83FF;--accent-2:#192ee5;--accent-soft:#1E1F45;--crit:#FF6B72;
+--shadow:0 2px 6px rgba(0,0,0,.45),0 18px 48px rgba(0,0,0,.4);--on-accent:#0A0E17}}
+*{box-sizing:border-box}
+body{margin:0;color:var(--ink);font:15px/1.5 "Inter",system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;
+display:grid;place-items:center;min-height:100vh;padding:16px;background:var(--bg);
+background-image:radial-gradient(900px 480px at 80% -10%,color-mix(in srgb,var(--accent) 16%,transparent),transparent 70%),
+radial-gradient(800px 460px at 0% 110%,color-mix(in srgb,var(--accent-2) 12%,transparent),transparent 70%)}
+form{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:34px 32px 30px;width:100%;max-width:400px;box-shadow:var(--shadow)}
+.brand{display:flex;align-items:center;gap:10px;margin-bottom:26px}
+.brand::before{content:"";width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent-2));
+box-shadow:0 6px 18px color-mix(in srgb,var(--accent) 40%,transparent)}
+.brand b{font-family:"Plus Jakarta Sans","Inter",sans-serif;font-size:17px;font-weight:800;letter-spacing:.04em}
+.brand span{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:2px 9px;border-radius:999px;background:var(--accent-soft);color:var(--accent)}
+h1{font-family:"Plus Jakarta Sans","Inter",sans-serif;font-size:24px;font-weight:800;letter-spacing:-.02em;margin:0 0 6px}
+p{color:var(--muted);margin:0 0 22px;font-size:14px}
+input,button{font:inherit;width:100%;border-radius:11px;padding:12px 14px}
+input{border:1px solid var(--line);background:var(--surface-2);color:var(--ink);margin-bottom:14px}
+input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+button{border:0;background:linear-gradient(135deg,var(--accent),var(--accent-2));color:var(--on-accent,#fff);font-weight:600;cursor:pointer;
+box-shadow:0 6px 18px color-mix(in srgb,var(--accent) 38%,transparent)}
+button:hover{filter:brightness(1.07)}
+.err{color:var(--crit);font-size:13px;margin:-6px 0 14px}
 </style></head><body><form method="post" action="/login">
-<h1>Pump.fun graduated tokens</h1><p>Sign in to continue.</p>
-<input type="password" name="password" placeholder="Password" autocomplete="current-password" autofocus required>
+<div class="brand"><b>PUMPFUN</b><span>Graduates</span></div>
+<h1>Welcome back</h1><p>Sign in to follow graduated pump.fun tokens, strategies and trades.</p>
+<input type="password" name="password" placeholder="Password" autocomplete="current-password" autofocus required aria-label="Password">
 %ERROR%<button type="submit">Sign in</button></form></body></html>"""
 
 
@@ -52,29 +79,105 @@ def _sessions_file(settings):
 def load_sessions(settings):
     try:
         with open(_sessions_file(settings), encoding="utf-8") as f:
-            _sessions.update({k: v for k, v in json.load(f).items() if v > time.time()})
-    except (OSError, ValueError, AttributeError):
+            for k, v in json.load(f).items():
+                if not isinstance(v, dict):    # a file from before sessions carried details: just the expiry
+                    v = {"exp": v, "created": v - SESSION_DAYS * 86400, "last": None, "ip": "", "ua": ""}
+                if v["exp"] > time.time():
+                    _sessions[k] = v
+    except (OSError, ValueError, AttributeError, KeyError, TypeError):
         pass
 
 
 def save_sessions(settings):
     tmp = _sessions_file(settings) + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
-        json.dump({k: v for k, v in _sessions.items() if v > time.time()}, f)
+        json.dump({k: v for k, v in _sessions.items() if v["exp"] > time.time()}, f)
     os.chmod(tmp, 0o600)
     os.replace(tmp, _sessions_file(settings))
 
 
-def password_ok(settings, given):
-    """Checks the password against settings/login.json: {"salt": hex, "hash": hex of PBKDF2-SHA256}."""
+# A guest (settings/guest.json, same format as login.json) may look at the Lab and Trading pages (these reads, nothing that changes
+# anything) and use the Coins Review and Wallets Review pages in full (radar.GUEST_GET / GUEST_POST). Everything else answers 403,
+# whatever the page asks for.
+GUEST_GET = {"/", "/radar.js", "/radar2.js", "/api/rules", "/api/trading", "/api/backtest/schedule"}
+
+
+def guest_stamp(settings):
+    """A fingerprint of the guest password in force: a guest session from another (or a removed) one is signed out."""
     try:
-        with open(os.path.join(settings, "login.json"), encoding="utf-8") as f:
+        with open(os.path.join(settings, "guest.json"), encoding="utf-8") as f:
+            return hashlib.sha256(json.load(f)["hash"].encode()).hexdigest()[:16]
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
+def role_for(settings, given):
+    """'admin' for the account's password, 'guest' for the guest password, else None."""
+    if password_ok(settings, given):
+        return "admin"
+    if password_ok(settings, given, "guest.json"):
+        return "guest"
+    return None
+
+
+def password_ok(settings, given, name="login.json"):
+    """Checks the password against settings/<name>: {"salt": hex, "hash": hex of PBKDF2-SHA256}."""
+    try:
+        with open(os.path.join(settings, name), encoding="utf-8") as f:
             cfg = json.load(f)
         want = bytes.fromhex(cfg["hash"])
         got = hashlib.pbkdf2_hmac("sha256", given.encode(), bytes.fromhex(cfg["salt"]), int(cfg.get("rounds", 200000)))
         return hmac.compare_digest(want, got)
     except (OSError, ValueError, KeyError, TypeError):
         return False
+def browser_of(ua):
+    """A short name for a User-Agent: "Chrome on macOS"."""
+    ua = ua or ""
+    name = next((n for k, n in (("Edg/", "Edge"), ("OPR/", "Opera"), ("Firefox/", "Firefox"), ("Chrome/", "Chrome"), ("Safari/", "Safari")) if k in ua), "A browser")
+    system = next((n for k, n in (("iPhone", "iPhone"), ("iPad", "iPad"), ("Android", "Android"), ("Mac OS X", "macOS"), ("Windows", "Windows"), ("Linux", "Linux")) if k in ua), "")
+    return f"{name} on {system}" if system else name
+
+
+def saved_rpc(settings):
+    """The RPC address the trader uses (the one saved from this page or the Trading tab, else the free public one)."""
+    try:
+        with open(os.path.join(settings, "trading.json"), encoding="utf-8") as f:
+            url = json.load(f).get("rpc_url")
+        if isinstance(url, str) and url.startswith("https://"):
+            return url, True
+    except (OSError, ValueError, AttributeError):
+        pass
+    return "https://api.mainnet-beta.solana.com", False
+
+
+def test_rpc(url):
+    """Asks an RPC for its newest slot and times it. Returns (result, error); an error never contains the address, which may hold a key.
+    The address must be https and resolve only to public addresses: this server makes the request."""
+    try:
+        parts = urllib.parse.urlsplit(url)
+        if parts.scheme != "https" or not parts.hostname or len(url) > 300:
+            return None, "The RPC address must start with https://"
+        for info in socket.getaddrinfo(parts.hostname, parts.port or 443, proto=socket.IPPROTO_TCP):
+            if not ipaddress.ip_address(info[4][0]).is_global:
+                return None, "That address points at a private network."
+    except (ValueError, OSError):
+        return None, "That address could not be looked up."
+    req = urllib.request.Request(url, data=json.dumps({"jsonrpc": "2.0", "id": 1, "method": "getSlot"}).encode(),
+                                 headers={"Content-Type": "application/json", "User-Agent": "pumpgrad"})
+    t0 = time.time()
+    try:
+        with urllib.request.urlopen(req, timeout=8) as r:
+            body = json.loads(r.read(65536))
+    except urllib.error.HTTPError as e:
+        return None, f"The provider answered HTTP {e.code}" + (": the key was refused." if e.code in (401, 403) else ".")
+    except (urllib.error.URLError, OSError, ValueError):
+        return None, "It did not answer in 8 seconds, or the answer was not JSON-RPC."
+    slot = body.get("result") if isinstance(body, dict) else None
+    if not isinstance(slot, int):
+        return None, "It answered, but not with a slot number."
+    return {"ms": round((time.time() - t0) * 1000), "slot": slot}, None
+
+
 MAX_BODY = 20000   # bytes accepted for a settings save
 _save_lock = threading.Lock()
 
@@ -85,7 +188,10 @@ ROUTES = {
     "/api/report": ("report.json", "application/json; charset=utf-8", None),
     "/api/history": ("history.json", "application/json; charset=utf-8", None),
     "/api/watch": ("watch.json", "application/json; charset=utf-8", None),
+    "/radar.js": ("radar.js", "application/javascript; charset=utf-8", None),
+    "/radar2.js": ("radar2.js", "application/javascript; charset=utf-8", None),
     "/api/trading": ("trading_state.json", "application/json; charset=utf-8", None),
+    "/api/crossing": ("crossing.json", "application/json; charset=utf-8", None),   # the Crossing page (the account only: a guest may not read it)
     "/api/roundtrips.csv": ("roundtrips.csv", "text/csv; charset=utf-8", "pump_rule_round_trips.csv"),
     "/api/study.csv": ("study.csv", "text/csv; charset=utf-8", "pump_entry_study.csv"),
     "/api/tokens.csv": ("latest.csv", "text/csv; charset=utf-8", "pump_graduated_7d.csv"),
@@ -93,16 +199,105 @@ ROUTES = {
 _gz_cache = {}  # file path -> (mtime, gzipped bytes)
 DAY_FILE = re.compile(r"\d{4}-\d{2}-\d{2}\.csv")
 MINT = re.compile(r"[1-9A-HJ-NP-Za-km-z]{32,44}")   # a Solana address, and nothing else
+STRATEGY_ID = re.compile(r"[a-z0-9-]{1,40}")         # a rule id (rules.validate), and nothing else
+
+
+# The databases the Record live tab lists: file, what it holds, and the tables whose rows are counted.
+STORAGE_DBS = [
+    ("watch.db", "The live record: what was measured on every new graduate and every strategy's decision",
+     [("tokens", "tokens recorded"), ("measures", "measurements"), ("decisions", "decisions")]),
+    ("pump.db", "Coin details and the 1-minute price history the backtest reads",
+     [("tokens", "coins"), ("candles", "price bars")]),
+    ("holders.db", "Holder snapshots of each new graduate's first hour",
+     [("holder_watch", "graduates"), ("holder_snaps", "snapshots")]),
+    ("trades.db", "The trader's orders", [("trades", "orders")]),
+]
+_storage_cache = [0.0, None]
+
+
+def storage_report(data):
+    """Sizes of the databases (with their temporary write-ahead files), what is in them, and the disk. Kept for 30 s:
+    counting rows and walking the data folder is not free."""
+    now = time.time()
+    if _storage_cache[1] is not None and now - _storage_cache[0] < 30:
+        return _storage_cache[1]
+    size = lambda p: os.path.getsize(p) if os.path.exists(p) else 0   # noqa: E731
+    dbs, in_dbs = [], 0
+    for name, what, tables in STORAGE_DBS:
+        path = os.path.join(data, name)
+        if not os.path.exists(path):
+            continue
+        temp = size(path + "-wal") + size(path + "-shm")
+        rows = {}
+        # (a database nobody has open has no temporary files, and this service may not create them: read it as it lies)
+        for flags in ("mode=ro", "mode=ro&immutable=1"):
+            try:
+                with sqlite3.connect(f"file:{path}?{flags}", uri=True, timeout=2) as db:
+                    rows = {label: db.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] for table, label in tables}
+                break
+            except sqlite3.Error:
+                rows = {}
+        dbs.append({"name": name, "what": what, "bytes": size(path), "temp_bytes": temp, "rows": rows})
+        in_dbs += size(path) + temp
+    total = 0
+    for d, _, fs in os.walk(data):
+        for f in fs:
+            try:
+                total += os.path.getsize(os.path.join(d, f))
+            except OSError:   # gone since the folder was listed
+                pass
+    disk = shutil.disk_usage(data)
+    doc = {"generated_at": int(now * 1000), "databases": dbs, "databases_bytes": in_dbs, "data_bytes": total,
+           "disk": {"total": disk.total, "used": disk.used, "free": disk.free}}
+    _storage_cache[0], _storage_cache[1] = now, doc
+    return doc
+
+
+def file_key(st):
+    """What identifies one version of a file: a rewrite through os.replace is a new inode even within one clock tick."""
+    return (st.st_mtime_ns, st.st_size, st.st_ino)
 
 
 def gzipped(path):
-    mtime = os.stat(path).st_mtime_ns
+    key = file_key(os.stat(path))
     hit = _gz_cache.get(path)
-    if not hit or hit[0] != mtime:
+    if not hit or hit[0] != key:
         with open(path, "rb") as f:
-            hit = (mtime, gzip.compress(f.read(), 6))
+            hit = (key, gzip.compress(f.read(), 6))
         _gz_cache[path] = hit
     return hit[1]
+
+
+BACKTEST_EVERY = 6 * 3600   # pump-graduated-analyze.timer: OnUnitInactiveSec=6h
+
+
+def backtest_schedule(data_dir):
+    """When the full backtest last ran, when it runs next, and whether a backtest is running now.
+    Asks systemd (the units may not exist on a development machine); falls back to report.json's age."""
+    def show(unit, *props):
+        try:
+            out = subprocess.run(["systemctl", "show", unit, "--timestamp=unix"] + ["-p" + p for p in props],
+                                 capture_output=True, text=True, timeout=3).stdout
+        except (OSError, subprocess.SubprocessError):
+            return {}
+        return dict(l.split("=", 1) for l in out.splitlines() if "=" in l)
+    def ts(v):
+        return int(v[1:]) * 1000 if v and v.startswith("@") and v[1:].isdigit() else None
+    full = show("pump-graduated-analyze.service", "ActiveState", "InactiveEnterTimestamp", "ExecMainStartTimestamp")
+    saved = show("pump-graduated-rules.service", "ActiveState")
+    last = ts(full.get("InactiveEnterTimestamp"))
+    if last is None:
+        try:
+            last = int(os.path.getmtime(os.path.join(data_dir, "report.json")) * 1000)
+        except OSError:
+            pass
+    running = full.get("ActiveState") in ("active", "activating")
+    return {"last": last, "next": last + BACKTEST_EVERY * 1000 if last else None, "every": BACKTEST_EVERY,
+            "running": running, "running_since": ts(full.get("ExecMainStartTimestamp")) if running else None,
+            "rules_running": saved.get("ActiveState") in ("active", "activating")}
+
+
+HELD_STATES = ("buying", "buy_sent", "open", "selling", "sell_sent", "check", "stuck")   # trader.py's states of a position still held
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -115,13 +310,38 @@ class Handler(BaseHTTPRequestHandler):
             k, _, v = part.strip().partition("=")
             if k == COOKIE and v:
                 with _sessions_lock:
-                    if _sessions.get(v, 0) > time.time():
+                    sess = _sessions.get(v)
+                    if sess and sess["exp"] > time.time():
+                        sess["last"] = time.time()
                         return v
         return None
 
-    def require_login(self, path):
-        """True when the request may go on; otherwise the answer (a redirect or a 401) is sent."""
-        if self.session():
+    def role(self):
+        """'admin', 'guest' or None (not signed in). Sessions from before guests existed are the account's."""
+        token = self.session()
+        if not token:
+            return None
+        with _sessions_lock:
+            sess = dict(_sessions.get(token) or {})
+        if sess.get("role") == "guest" and sess.get("guest") != guest_stamp(self.settings_dir()):
+            with _sessions_lock:
+                _sessions.pop(token, None)
+                save_sessions(self.settings_dir())
+            return None
+        return sess.get("role", "admin")
+
+    def require_login(self, path, write=False):
+        """True when the request may go on; otherwise the answer (a redirect, a 401 or a 403) is sent."""
+        role = self._role = self.role()          # (read once: the handlers below use this value, not a second read)
+        radar_part = path[len("/api/radar/"):] if path.startswith("/api/radar/") else None
+        guest_ok = (radar_part in (radar.GUEST_POST if write else radar.GUEST_GET)) if radar_part is not None else (not write and (path in GUEST_GET or path.startswith("/api/strategy/")))
+        if role == "guest" and not guest_ok:
+            if path.startswith("/api/") or write:
+                self.json(403, {"error": "The guest account can use the Lab, Trading, Coins Review and Wallets Review pages only."})
+            else:
+                self.reply(303, b"", "text/plain", {"Location": "/#lab"})
+            return False
+        if role:
             return True
         if path.startswith("/api/"):
             self.json(401, {"error": "Not signed in. Reload the page to sign in."})
@@ -133,8 +353,23 @@ class Handler(BaseHTTPRequestHandler):
         body = LOGIN_PAGE.replace("%ERROR%", f'<div class="err">{error}</div>' if error else "").encode()
         self.reply(200, body, "text/html; charset=utf-8", {"Cache-Control": "no-store"})
 
+    # The Crossing page has a trader of its own (service pump-graduated-crossing-trader, data folder data/crossing: its own wallets, limits,
+    # trades and state; no automatic strategy). /api/ct/<x> is the same handler as /api/<x> on that folder.
+    CT_ROUTES = ("/api/ct/trading", "/api/ct/trading/sell", "/api/ct/trading/buy", "/api/ct/wallets", "/api/ct/wallets/active", "/api/ct/wallets/remove")
+
+    def scoped(self, path):
+        """The handler's path, with self.data_dir set to the folder of the trader the request is for; None for an /api/ct route that does not exist."""
+        self.data_dir = Handler.data_dir
+        if not path.startswith("/api/ct/"):
+            return path
+        if path not in self.CT_ROUTES:
+            return None
+        self.data_dir = os.path.join(Handler.data_dir, "crossing")
+        return "/api/" + path[len("/api/ct/"):]
+
     def do_GET(self):
         path = self.path.split("?", 1)[0]
+        self.data_dir = Handler.data_dir
         if path == "/healthz":
             return self.reply(200, b"ok\n", "text/plain")
         if path == "/login":
@@ -151,11 +386,48 @@ class Handler(BaseHTTPRequestHandler):
                                                         "Set-Cookie": f"{COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax"})
         if not self.require_login(path):
             return
-        if path == "/api/rules":
+        path = self.scoped(path)
+        if path is None:
+            return self.reply(404, b"not found\n", "text/plain")
+        if path.startswith("/api/radar/"):      # the Coins, Wallets and Monitor pages
+            query = self.path.partition("?")[2]
+            peek = urllib.parse.parse_qs(query).get("peek") == ["1"]
+            if path in ("/api/radar/traders", "/api/radar/wallet", "/api/radar/coins/review") and not peek and not self.same_site():     # a GET that starts a job or a lookup
+                return self.json(403, {"error": "This request came from another site."})
+            status, obj = radar.handle("GET", path[len("/api/radar/"):], query, None, self.data_dir, _save_lock, guest=self._role == "guest")
+            return self.json(status, obj)
+        if path == "/api/rules":     # the saved rules (the starter ones until something is saved) and the built-in ones
             saved = rules.load(self.settings_dir())
-            return self.json(200, {"rules": saved, "version": version(saved), "limits": rules.LIMITS,
+            gone = set(rules.removed(self.settings_dir()))
+            built = rules.validate(rules.WATCH_EXTRA)
+            return self.json(200, {"rules": saved, "builtin": [b for b in built if b["id"] not in gone], "version": version(saved), "limits": rules.LIMITS,
+                                   "removed": [{"id": b["id"], "name": b["name"]} for b in built if b["id"] in gone],
+                                   "saved_file": os.path.exists(os.path.join(self.settings_dir(), "rules.json")),
                                    "features": {k: {"label": v[0], "kind": v[1]}
                                                 for k, v in rules.FEATURES.items()}})
+        if path == "/api/backtest/schedule":
+            return self.json(200, backtest_schedule(self.data_dir))
+        if path == "/api/lab/draft":    # the answer to the newest "Backtest without saving"
+            try:
+                with open(os.path.join(self.data_dir, "draft-result.json"), "rb") as f:
+                    return self.reply(200, f.read(), "application/json; charset=utf-8", {"Cache-Control": "no-store"})
+            except OSError:
+                return self.json(404, {"error": "No draft has been backtested yet."})
+        if path == "/api/account":      # the browsers signed in (never their tokens)
+            cur = self.session()
+            with _sessions_lock:
+                items = [(t, dict(v)) for t, v in _sessions.items() if v["exp"] > time.time()]
+            out = [{"id": hashlib.sha256(t.encode()).hexdigest()[:12], "current": t == cur, "created": int(v["created"] * 1000),
+                    "last": int((v["last"] or v["created"]) * 1000), "ip": v.get("ip", ""), "browser": browser_of(v.get("ua", ""))} for t, v in items]
+            return self.json(200, {"sessions": sorted(out, key=lambda x: -x["last"])})
+        if path == "/api/wallets":      # addresses and labels only: a private key never leaves the settings folder
+            return self.json(200, {**wallets.listing(self.settings_dir()), "secure": self.secure()})
+        if path == "/api/rpc":          # which RPC the trader uses: its host only, never the path or key
+            url, custom = saved_rpc(self.settings_dir())
+            host = urllib.parse.urlsplit(url).hostname or ""
+            return self.json(200, {"host": host, "custom": custom, "public": host == "api.mainnet-beta.solana.com"})
+        if path == "/api/storage":
+            return self.json(200, storage_report(self.data_dir))
         if path == "/api/telegram":
             return self.json(200, notify.public(notify.load(self.settings_dir())))
         if path == "/api/reports":
@@ -190,16 +462,47 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(200, gzip.decompress(body), "application/json; charset=utf-8", {"Cache-Control": "no-cache"})
             return self.reply(200, body, "application/json; charset=utf-8",
                               {"Content-Encoding": "gzip", "Cache-Control": "no-cache"})
+        if path.startswith("/api/strategy/"):
+            # /api/strategy/<id>: its backtest (analyze.py); /api/strategy/<id>/live: its live record (watch.py)
+            sid, _, part = path[len("/api/strategy/"):].partition("/")
+            if not STRATEGY_ID.fullmatch(sid) or part not in ("", "live"):   # the name goes into a file path
+                return self.reply(404, b'{"error":"no such strategy"}\n', "application/json")
+            return self.send_file(os.path.join(self.data_dir, "strategies", sid + (".live.json" if part else ".json")),
+                                  "application/json; charset=utf-8", None,
+                                  b'{"error":"not recorded yet"}\n' if part else b'{"error":"not backtested yet"}\n')
+        if path == "/" and self.role() == "guest":    # the page, told it is a guest's: only Lab and Trading, nothing to change
+            with open(os.path.join(HERE, "index.html"), encoding="utf-8") as f:
+                page = f.read().replace("<head>", "<head><script>window.GUEST = true;</script>", 1)
+            return self.reply(200, page.encode(), "text/html; charset=utf-8", {"Cache-Control": "no-store"})
         route = ROUTES.get(path)
         if not route:
             return self.reply(404, b"not found\n", "text/plain")
         name, ctype, download = route
-        full = os.path.join(HERE if name == "index.html" else self.data_dir, name)
+        self.send_file(os.path.join(HERE if name in ("index.html", "radar.js", "radar2.js") else self.data_dir, name), ctype, download,
+                       b'{"error":"data not collected yet"}\n')
+
+    def send_file(self, full, ctype, download, missing):
+        """A file, gzipped when the browser takes it; a 503 with `missing` when it is not written yet. An unchanged
+        file (the browser sends back the tag it got) is answered 304 with no body: pages refresh every few seconds."""
+        try:
+            st = os.stat(full)
+        except OSError:
+            return self.reply(503, missing, "application/json")
+        etag = '"%x-%x-%x"' % file_key(st)
+        # (a proxy that re-compresses turns the tag into a weak one, W/"…"; a list of tags may come back)
+        sent = [t.strip().removeprefix("W/") for t in self.headers.get("If-None-Match", "").split(",")]
+        if etag in sent and not download:
+            self.send_response(304)
+            self.send_header("ETag", etag)
+            self.send_header("Cache-Control", "private, no-cache")
+            self.send_header("Vary", "Accept-Encoding")
+            self.end_headers()
+            return
         try:
             body = gzipped(full)
         except OSError:
-            return self.reply(503, b'{"error":"data not collected yet"}\n', "application/json")
-        headers = {"Content-Encoding": "gzip", "Cache-Control": "no-cache"}
+            return self.reply(503, missing, "application/json")
+        headers = {"Content-Encoding": "gzip", "Cache-Control": "private, no-cache", "ETag": etag, "Vary": "Accept-Encoding"}
         if download:
             headers["Content-Disposition"] = f'attachment; filename="{download}"'
         if "gzip" not in self.headers.get("Accept-Encoding", ""):
@@ -208,6 +511,20 @@ class Handler(BaseHTTPRequestHandler):
         self.reply(200, body, ctype, headers)
 
     do_HEAD = do_GET
+
+    def secure(self):
+        """True when the browser reached us over HTTPS (nginx and Cloudflare terminate it and say so)."""
+        # only believed from the local proxy: a client reaching port 8090 directly could send the header itself
+        return self.client_address[0] in ("127.0.0.1", "::1") and self.headers.get("X-Forwarded-Proto", "").split(",")[0].strip().lower() == "https"
+
+    def same_site(self):
+        """False for a request sent by a page of another site. Browsers say so in Sec-Fetch-Site; the Origin header is
+        the fallback, where "null" (our pages send no referrer, so their forms post with Origin: null) proves nothing."""
+        fetch_site = self.headers.get("Sec-Fetch-Site")
+        if fetch_site:
+            return fetch_site in ("same-origin", "none")
+        origin = self.headers.get("Origin")
+        return not origin or origin == "null" or urllib.parse.urlsplit(origin).netloc.lower() == self.headers.get("Host", "").lower()
 
     def settings_dir(self):
         return os.path.join(self.data_dir, "settings")
@@ -220,24 +537,49 @@ class Handler(BaseHTTPRequestHandler):
         """Save the rules or the Telegram settings, or send a Telegram test message.
         Needs a signed-in session (see require_login)."""
         path = self.path.split("?", 1)[0]
+        self.data_dir = Handler.data_dir
+        if not self.same_site():                 # a page of another site must not post here (signing in included)
+            return self.json(403, {"error": "This request came from another site."})
         if path == "/login":
             try:
                 length = min(int(self.headers.get("Content-Length", "0")), 4096)
             except ValueError:
                 length = 0
             given = urllib.parse.parse_qs(self.rfile.read(length).decode("utf-8", "replace")).get("password", [""])[0]
-            if not password_ok(self.settings_dir(), given):
+            role = role_for(self.settings_dir(), given)
+            if not role:
                 time.sleep(1.5)     # slows down guessing
                 return self.login_page("Wrong password.")
             token = secrets.token_urlsafe(32)
             with _sessions_lock:
-                _sessions[token] = time.time() + SESSION_DAYS * 86400
+                now = time.time()
+                _sessions[token] = {"exp": now + SESSION_DAYS * 86400, "created": now, "last": now, "role": role,
+                                    **({"guest": guest_stamp(self.settings_dir())} if role == "guest" else {}),
+                                    "ip": self.client_address[0], "ua": self.headers.get("User-Agent", "")[:300]}
                 save_sessions(self.settings_dir())
             return self.reply(303, b"", "text/plain", {"Location": "/", "Set-Cookie":
-                              f"{COOKIE}={token}; Path=/; Max-Age={SESSION_DAYS * 86400}; HttpOnly; SameSite=Lax"})
-        if not self.require_login(path):
+                              f"{COOKIE}={token}; Path=/; Max-Age={SESSION_DAYS * 86400}; HttpOnly; SameSite=Lax{'; Secure' if self.secure() else ''}"})
+        if not self.require_login(path, write=True):
             return
-        if path not in ("/api/rules", "/api/telegram", "/api/telegram/test", "/api/telegram/report", "/api/trading", "/api/trading/sell"):
+        path = self.scoped(path)
+        if path is None:
+            return self.reply(404, b"not found\n", "text/plain")
+        if path.startswith("/api/radar/"):
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+            except ValueError:
+                length = -1
+            if not 0 < length <= MAX_BODY:
+                return self.json(400 if length <= 0 else 413, {"error": "Empty request." if length <= 0 else "Request too large."})
+            try:
+                body = json.loads(self.rfile.read(length))
+            except (ValueError, RecursionError):
+                return self.json(400, {"error": "Could not read the request."})
+            status, obj = radar.handle("POST", path[len("/api/radar/"):], "", body, self.data_dir, _save_lock, guest=self._role == "guest")
+            return self.json(status, obj)
+        if path not in ("/api/rules", "/api/rules/builtin", "/api/telegram", "/api/telegram/test", "/api/trading", "/api/trading/sell", "/api/trading/buy",
+                        "/api/password", "/api/sessions/others", "/api/rpc/test", "/api/lab/draft",
+                        "/api/wallets", "/api/wallets/active", "/api/wallets/remove"):
             return self.reply(404, b"not found\n", "text/plain")
         try:
             length = int(self.headers.get("Content-Length", "0"))
@@ -253,6 +595,131 @@ class Handler(BaseHTTPRequestHandler):
                 left -= len(chunk)
             return self.json(400 if length == 0 else 413, {"error": "Empty request." if length == 0 else "Request too large."})
         raw = self.rfile.read(length)
+        if path in ("/api/wallets", "/api/wallets/active", "/api/wallets/remove"):
+            try:
+                body = json.loads(raw)
+                if not isinstance(body, dict):
+                    raise ValueError
+            except (ValueError, RecursionError):
+                return self.json(400, {"error": "Could not read the request."})
+            settings = self.settings_dir()
+            # the key in use must not change while real positions are open: the trader would lose the key that sells them
+            held, state = False, {}
+            try:
+                with open(os.path.join(self.data_dir, "trading_state.json"), encoding="utf-8") as f:
+                    state = json.load(f)
+                held = any(t.get("mode") == "live" and t.get("status") in HELD_STATES for t in state.get("trades", []))
+            except (OSError, ValueError, AttributeError):
+                pass
+
+            def holds(address):     # positions still open with this wallet (or with the key the trader has loaded)
+                return any(t.get("mode") == "live" and t.get("status") in HELD_STATES and
+                           (t.get("wallet") == address or (not t.get("wallet") and state.get("wallet") == address))
+                           for t in state.get("trades", []))
+            try:
+                with _save_lock:
+                    if path == "/api/wallets":
+                        if not self.secure():     # a private key must not cross the network unencrypted
+                            raise ValueError("Open this site through its https:// address to add a wallet: over plain HTTP the key would travel unencrypted.")
+                        activate = bool(body.get("activate"))
+                        if activate and held:
+                            raise ValueError("Real positions are open, so the wallet in use cannot change now. Add it without switching, and switch when they are closed.")
+                        _, address = wallets.parse_key(body.get("key"))
+                        other = os.path.join(Handler.data_dir, "settings") if self.data_dir != Handler.data_dir else os.path.join(Handler.data_dir, "crossing", "settings")
+                        if any(w["address"] == address for w in wallets.listing(other)["wallets"]):
+                            raise ValueError("That wallet is already used by the " + ("Trading tab" if self.data_dir != Handler.data_dir else "Crossing page") + ". Use a different wallet for each, so the two traders' limits cannot add up on one wallet.")
+                        wallets.add(settings, body.get("key"), body.get("label"), activate)
+                    elif path == "/api/wallets/active":
+                        if held:
+                            raise ValueError("Real positions are open, so the wallet in use cannot change now. Switch when they are closed.")
+                        wallets.activate_wallet(settings, body.get("address"))
+                    else:
+                        address = body.get("address")
+                        if holds(address) or (address == wallets.listing(settings)["active"] and held):
+                            raise ValueError("Real positions are open with this wallet: sell them or wait until they close, then delete it.")
+                        if wallets.remove(settings, address):
+                            # no wallet left to trade with: trading is switched off (the other settings stay)
+                            path_ = os.path.join(settings, "trading.json")
+                            try:
+                                with open(path_, encoding="utf-8") as f:
+                                    tcfg = json.load(f)
+                            except (OSError, ValueError):
+                                tcfg = {}
+                            if isinstance(tcfg, dict) and tcfg.get("mode") != "off":
+                                tcfg["mode"] = "off"
+                                tmp = path_ + ".tmp"
+                                with open(tmp, "w", encoding="utf-8") as f:
+                                    json.dump(tcfg, f)
+                                os.chmod(tmp, 0o644)
+                                os.replace(tmp, path_)
+                        wallets.queue_purge(settings, address)   # and its trade history goes too
+            except (ValueError, OSError) as e:
+                return self.json(400, {"error": str(e) if isinstance(e, ValueError) else "The wallet could not be saved on the server."})
+            return self.json(200, wallets.listing(settings))
+        if path == "/api/lab/draft":
+            # "Backtest without saving": the rule is written for the backtest to pick up (a systemd path unit watches the file),
+            # exactly like saved rules, and the answer is read back from /api/lab/draft
+            try:
+                body = json.loads(raw)
+                rule = rules.validate([{**body["rule"], "id": "draft", "enabled": True}])[0]
+            except (ValueError, TypeError, KeyError, RecursionError) as e:
+                return self.json(400, {"error": str(e) or "Could not read the rule."})
+            requested = int(time.time() * 1000)
+            path_ = os.path.join(self.settings_dir(), "draft.json")
+            with _save_lock:
+                tmp = path_ + ".tmp"
+                with open(tmp, "w", encoding="utf-8") as f:
+                    json.dump({"rule": rule, "requested": requested}, f)
+                os.chmod(tmp, 0o644)
+                os.replace(tmp, path_)
+            return self.json(200, {"requested": requested})
+        if path == "/api/password":
+            try:
+                body = json.loads(raw)
+                cur, new = body.get("current"), body.get("new")
+                if not isinstance(cur, str) or not isinstance(new, str):
+                    raise ValueError
+            except (ValueError, TypeError, AttributeError, RecursionError):
+                return self.json(400, {"error": "Give the current and the new password."})
+            if not 8 <= len(new) <= 200:
+                return self.json(400, {"error": "The new password must be 8 to 200 characters."})
+            if not password_ok(self.settings_dir(), cur):
+                time.sleep(1.5)     # slows down guessing
+                return self.json(400, {"error": "The current password is wrong."})
+            salt = os.urandom(16)
+            doc = {"salt": salt.hex(), "hash": hashlib.pbkdf2_hmac("sha256", new.encode(), salt, 200000).hex(), "rounds": 200000}
+            path_ = os.path.join(self.settings_dir(), "login.json")
+            with _save_lock:
+                tmp = path_ + ".tmp"
+                with open(tmp, "w", encoding="utf-8") as f:
+                    json.dump(doc, f)
+                os.chmod(tmp, 0o600)
+                os.replace(tmp, path_)
+            keep, gone = self.session(), 0      # every other browser has to sign in again
+            with _sessions_lock:
+                for t in [t for t in _sessions if t != keep]:
+                    del _sessions[t]
+                    gone += 1
+                save_sessions(self.settings_dir())
+            return self.json(200, {"ok": True, "signed_out": gone})
+        if path == "/api/sessions/others":
+            keep, gone = self.session(), 0
+            with _sessions_lock:
+                for t in [t for t in _sessions if t != keep]:
+                    del _sessions[t]
+                    gone += 1
+                save_sessions(self.settings_dir())
+            return self.json(200, {"signed_out": gone})
+        if path == "/api/rpc/test":
+            try:
+                body = json.loads(raw)
+                url = body.get("url") if isinstance(body, dict) else None
+                if url is not None and not isinstance(url, str):
+                    raise ValueError
+            except (ValueError, TypeError, RecursionError):
+                return self.json(400, {"error": "Could not read the request."})
+            result, error = test_rpc(url.strip() if url and url.strip() else saved_rpc(self.settings_dir())[0])
+            return self.json(400 if error else 200, {"error": error} if error else result)
         if path == "/api/trading":
             try:
                 body = json.loads(raw)
@@ -261,13 +728,14 @@ class Handler(BaseHTTPRequestHandler):
                 if body.get("mode") not in ("off", "live"):
                     raise ValueError("Mode must be off or live.")
                 new = {"mode": body["mode"]}
-                if "strategies" in body:   # ids to trade; an empty list follows the rules ticked "Record live"
+                if "strategies" in body:   # ids to trade (switched ON on the Trading tab); an empty list trades nothing
                     chosen = body["strategies"]
                     if not isinstance(chosen, list) or len(chosen) > 40 or not all(
                             isinstance(x, str) and 0 < len(x) <= 100 for x in chosen):
-                        raise ValueError("Choose between 1 and 40 strategies from the list, or follow Record live.")
+                        raise ValueError("Choose between 1 and 40 strategies from the list.")
                     new["strategies"] = list(dict.fromkeys(chosen))
-                for k, lo, hi in (("sol_per_trade", 0.01, 1.0), ("max_open", 1, 5), ("daily_loss_limit_sol", 0.01, 10.0),
+                for k, lo, hi in (("sol_per_trade", 0.01, 1.0), ("max_open", 1, 5), ("daily_loss_limit_sol", 0.01, 10.0), ("max_buy_impact_pct", 1.0, 20.0),
+                                  ("take_profit_pct", 5.0, 1000.0), ("stop_loss_pct", 5.0, 95.0),
                                   ("slippage_bps", 50, 3000), ("sell_slippage_bps", 50, 5000), ("stop_slippage_bps", 50, 5000),
                                   ("priority_fee_lamports", 0, 5_000_000)):
                     if body.get(k) is None:
@@ -277,7 +745,7 @@ class Handler(BaseHTTPRequestHandler):
                     v = float(body.get(k))
                     if not lo <= v <= hi:
                         raise ValueError(f"{k} must be between {lo:g} and {hi:g}")
-                    new[k] = v if k in ("sol_per_trade", "daily_loss_limit_sol") else int(v)
+                    new[k] = v if k in ("sol_per_trade", "daily_loss_limit_sol", "max_buy_impact_pct", "take_profit_pct", "stop_loss_pct") else int(v)
                 if body.get("rpc_url"):
                     if not str(body["rpc_url"]).startswith("https://") or len(body["rpc_url"]) > 300:
                         raise ValueError("The RPC address must start with https://")
@@ -293,14 +761,58 @@ class Handler(BaseHTTPRequestHandler):
                     old = {}
                 if not isinstance(old, dict):
                     old = {}
+                if not old and self.data_dir != Handler.data_dir:
+                    # the Crossing trader's first save: the RPC address, slippage and priority fee start as the Trading tab has them
+                    try:
+                        with open(os.path.join(Handler.data_dir, "settings", "trading.json"), encoding="utf-8") as f:
+                            main = json.load(f)
+                    except (OSError, ValueError):
+                        main = {}
+                    if isinstance(main, dict):
+                        old = {k: v for k, v in main.items() if k not in ("mode", "strategies", "sell_all", "sell_ids", "sol_per_trade", "max_open", "daily_loss_limit_sol", "max_buy_impact_pct", "take_profit_pct", "stop_loss_pct")}
                 # switching to live needs LIVE typed; saving other settings while live does not
                 if new["mode"] == "live" and old.get("mode") != "live" and body.get("confirm") != "LIVE":
                     return self.json(400, {"error": "Type LIVE in the confirmation box to trade with real SOL."})
+                if self.data_dir != Handler.data_dir:      # the Crossing trader never trades a strategy by itself
+                    new.pop("strategies", None)
+                    old.pop("strategies", None)
+                if "strategies" in new:     # a built-in rule deleted from the Lab cannot be switched ON
+                    gone_ids = set(rules.removed(self.settings_dir()))
+                    new["strategies"] = [x for x in new["strategies"] if x not in gone_ids]
                 tmp = path_ + ".tmp"
                 with open(tmp, "w", encoding="utf-8") as f:
                     json.dump({**old, **new}, f)
                 os.replace(tmp, path_)
             return self.json(200, {"saved": True, **{k: v for k, v in new.items() if k != "rpc_url"}})
+        if path == "/api/trading/buy" and self.data_dir == Handler.data_dir:
+            return self.reply(404, b"not found\n", "text/plain")      # (only the Crossing trader takes buys asked by hand: /api/ct/trading/buy)
+        if path == "/api/trading/buy":
+            # a buy asked by hand on the Crossing page: {"mint", "symbol", "tp", "sl", "hold", "confirm": true}. It only queues a request
+            # (settings/manual_buys/<mint>.json); the trader applies the same limits as for an automatic buy and records a refusal as a
+            # failed buy with the reason. The account only (a guest never reaches a POST).
+            try:
+                body = json.loads(raw)
+                if not isinstance(body, dict) or body.get("confirm") is not True:
+                    raise ValueError("Confirm the buy first.")
+                mint = body.get("mint")
+                if not isinstance(mint, str) or not MINT.fullmatch(mint):
+                    raise ValueError("That is not a token address.")
+                tp, sl, hold = body.get("tp"), body.get("sl"), body.get("hold")
+                if any(isinstance(x, bool) or not isinstance(x, (int, float)) for x in (tp, sl, hold)):
+                    raise ValueError("Give the take profit, stop loss and time stop as numbers.")
+                if not (0.05 <= tp <= 10 and 0.05 <= sl <= 0.95 and 1 <= hold <= 240):
+                    raise ValueError("The take profit, stop loss or time stop is outside its limits.")
+                symbol = re.sub(r"[\x00-\x1f\x7f]", "", str(body.get("symbol") or ""))[:40]
+            except (ValueError, TypeError, RecursionError) as e:
+                return self.json(400, {"error": str(e) or "Could not read the request."})
+            folder = os.path.join(self.settings_dir(), "manual_buys")
+            with _save_lock:
+                os.makedirs(folder, exist_ok=True)
+                tmp = os.path.join(folder, mint + ".tmp")
+                with open(tmp, "w", encoding="utf-8") as f:
+                    json.dump({"mint": mint, "symbol": symbol, "tp": float(tp), "sl": float(sl), "hold": int(hold), "asked": int(time.time() * 1000)}, f)
+                os.replace(tmp, os.path.join(folder, mint + ".json"))
+            return self.json(200, {"asked": True})
         if path == "/api/trading/sell":
             # sell one position ({"id": n}) or all of them ({"all": true}); the settings are not touched,
             # so this works in live mode without typing LIVE again
@@ -335,19 +847,6 @@ class Handler(BaseHTTPRequestHandler):
                     json.dump(old, f)
                 os.replace(tmp, path_)
             return self.json(200, {"asked": True})
-        if path == "/api/telegram/report":
-            folder = os.path.join(self.data_dir, "reports")
-            days = sorted(f[:-12] for f in os.listdir(folder) if f.endswith("-summary.txt")) if os.path.isdir(folder) else []
-            if not days:
-                return self.json(404, {"sent": False, "error": "No daily report has been written yet; the first one "
-                                                               "appears a little after midnight UTC."})
-            cfg = notify.load(self.settings_dir())
-            with open(os.path.join(folder, days[-1] + "-summary.txt"), encoding="utf-8") as f:
-                sent, why = notify.send(cfg, f.read())
-            if sent and os.path.exists(os.path.join(folder, days[-1] + "-shown.csv")):
-                with open(os.path.join(folder, days[-1] + "-shown.csv"), "rb") as f:
-                    notify.send_file(cfg, f"{days[-1]}-strategy-decisions.csv", f.read(), f"Decisions of {days[-1]} (UTC)")
-            return self.json(200 if sent else 502, {"sent": sent, "error": why, "day": days[-1]})
         if path == "/api/telegram/test":
             sent, why = notify.send(notify.load(self.settings_dir()),
                                     "✅ <b>Test message</b>\nThe pump.fun watch can reach you here. "
@@ -360,6 +859,43 @@ class Handler(BaseHTTPRequestHandler):
             except (ValueError, RecursionError) as e:
                 return self.json(400, {"error": str(e) or "Could not read the settings."})
             return self.json(200, notify.public(cfg))
+        if path == "/api/rules/builtin":
+            # delete a built-in rule from the Lab ({"id", "removed": true}) or bring it back ({"id", "removed": false})
+            try:
+                body = json.loads(raw)
+                rid, gone = body["id"], body["removed"]
+                builtin = {b["id"]: b for b in rules.validate(rules.WATCH_EXTRA)}
+                if not isinstance(gone, bool) or rid not in builtin:
+                    raise ValueError
+            except (ValueError, KeyError, TypeError, RecursionError):
+                return self.json(400, {"error": "Say which built-in rule."})
+            settings = self.settings_dir()
+            with _save_lock:    # (the Trading tab's save takes the same lock, so a strategy cannot be switched ON between the check and the delete)
+                if gone:
+                    # the trader trades nothing at all when every strategy it was told to trade is missing, so a strategy that
+                    # is switched ON, or still holds a real position, is not deleted
+                    try:
+                        with open(os.path.join(settings, "trading.json"), encoding="utf-8") as f:
+                            on = (json.load(f) or {}).get("strategies") or []
+                    except (OSError, ValueError, AttributeError):
+                        on = []
+                    try:
+                        with open(os.path.join(self.data_dir, "trading_state.json"), encoding="utf-8") as f:
+                            trades = json.load(f).get("trades", [])
+                    except (OSError, ValueError, AttributeError):
+                        trades = []
+                    if rid in on:
+                        return self.json(409, {"error": f"{builtin[rid]['name']} is switched ON on the Trading tab. Switch it off there first, then delete it."})
+                    if any(t.get("strategy") == rid and t.get("status") in HELD_STATES for t in trades):
+                        return self.json(409, {"error": f"{builtin[rid]['name']} still holds a position. Delete it after the position is sold."})
+                ids = set(rules.removed(settings))
+                ids = ids | {rid} if gone else ids - {rid}
+                rules.set_removed(settings, ids)
+                saved = rules.load(settings)
+                kept = [r for r in saved if r["id"] != rid] if gone else saved      # a saved copy of a deleted built-in goes too
+                rules.save(settings, kept)      # (always: it starts the backtest, which clears or rebuilds the rule's pages)
+                saved = rules.load(settings)
+            return self.json(200, {"removed": sorted(ids), "rules": saved, "version": version(saved)})
         try:
             cleaned = rules.validate(json.loads(raw))
         except (ValueError, RecursionError) as e:   # includes malformed or absurdly nested JSON

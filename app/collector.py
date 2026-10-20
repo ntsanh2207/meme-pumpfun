@@ -44,6 +44,7 @@ DAY = 86400
 # requests per second; /candles advertises 600/min, the coin lists sit behind a
 # Cloudflare rule that blocks for 3 minutes after a burst of ~30 requests
 RATES = {"/candles": 9.0, "/coins": 0.4}
+BATCH = 200         # coins fetched between writes, so a run cut short still keeps its bars
 _next_slot = {k: 0.0 for k in RATES}
 _lock = threading.Lock()
 
@@ -210,8 +211,8 @@ def fetch_pass(db, ex, now_ms):
         if bars_to is None or bars_to < target - 120000:
             todo.append((mint, pool, target))
     print(f"coins needing candles: {len(todo)}", flush=True)
-    for i in range(0, len(todo), 1000):
-        batch = todo[i:i + 1000]
+    for i in range(0, len(todo), BATCH):
+        batch = todo[i:i + BATCH]
         # fetch first, then write in one short transaction so other writers get a turn
         results = list(ex.map(fetch_bars, batch))
         for (mint, _, _), res in zip(batch, results):
@@ -227,7 +228,7 @@ def fetch_pass(db, ex, now_ms):
                 [(mint, b["openTimeMs"], float(b["open"]), float(b["high"]), float(b["low"]),
                   float(b["close"]), float(b["volumeUsd"]), b["trades"]) for b in bars])
         db.commit()
-        print(f"  candles: {min(i + 1000, len(todo))}/{len(todo)}", flush=True)
+        print(f"  candles: {min(i + BATCH, len(todo))}/{len(todo)}", flush=True)
     return len(todo)
 
 
@@ -418,11 +419,12 @@ def publish(db, out, days, now_ms, partial):
     with open(tmp, "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=COLUMNS)
         w.writeheader()
-        for raw, grad in db.execute(
-                """SELECT raw, graduated_ts FROM tokens
+        for mint, raw, grad in db.execute(
+                """SELECT mint, raw, graduated_ts FROM tokens
                    WHERE graduated_ts BETWEEN ? AND ? OR (graduated_ts IS NULL AND created_ts >= ?)
                    ORDER BY COALESCE(graduated_ts, created_ts) DESC""", (cutoff_ms, now_ms, cutoff_ms)):
             c = json.loads(raw)
+            c.setdefault("mint", mint)      # coins saved by the live watch's archive carry a shorter record
             c["graduated_timestamp"] = grad
             pending += grad is None
             w.writerow(to_row(c))
@@ -445,9 +447,12 @@ def main():
     ap.add_argument("--days", type=int, default=7, help="graduation window in days")
     ap.add_argument("--out", default="data", help="output directory")
     ap.add_argument("--workers", type=int, default=8)
+    ap.add_argument("--rate", type=float, default=RATES["/candles"],
+                    help="candle requests per second; lower it where other services share the IP")
     ap.add_argument("--no-list", action="store_true",
                     help="skip the coin listing and only work on coins already stored")
     args = ap.parse_args()
+    RATES["/candles"] = args.rate
     os.makedirs(args.out, exist_ok=True)
     db = sqlite3.connect(os.path.join(args.out, "pump.db"), timeout=120)
     db.execute("PRAGMA journal_mode=WAL")

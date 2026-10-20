@@ -12,17 +12,18 @@ stop, and the profit or loss at each minute is kept for the chart. Tokens a stra
 get the result they would have had, so a strategy can be judged on tokens that did not exist
 when it was written. Nothing is bought: this is a record.
 
-Writes watch.db (its own database, like holders.db) and watch.json for the web app.
+Writes watch.db (its own database, like holders.db) and watch.json for the web app. It also saves every graduate's
+complete 1-minute bars into pump.db once they exist (archive_loop), so the backtest grows with the live record.
 
 Usage: python3 watch.py [--data data]
 """
 import argparse
 import csv
-import io
 import json
 import os
 import sqlite3
 import threading
+from concurrent.futures import ThreadPoolExecutor
 import time
 import urllib.error
 import urllib.parse
@@ -34,19 +35,24 @@ import numpy as np
 import analyze as A
 import collector as C
 import first_trades
-import notify
 import rules as rulebook
 
 MIN = 60000
 LOOKBACK = 3 * 3600      # on start, also take graduates first seen this recently
-SETTLE = 2               # seconds after a minute ends before its bar is read (measured: final within 1 s)
+SETTLE = 1               # seconds after a minute ends before its bar is read (measured 19 Oct 2026: final from +0.1 s;
+                         # a missing bar is still read again before deciding)
 DUE_FOR = 180            # a decision this many seconds past its minute is no longer hurried (catch-up handles it)
+DECIDERS = 4             # tokens decided at the same time
 LATE = 180               # a decision made this many seconds after its minute is marked late
 MAX_TRIES = 30           # failed lookups (one a minute) before a token is given up
 LISTED = 7 * 86400       # the web app lists the tokens of this many days; the database keeps every one
 FOLLOW = 120             # minutes a bought token's price is kept after the buy, whatever the exit was
 ALT_TPS = (1.0, 2.0)     # every buy is also run with these take profits, to show what aiming higher would have done
-CORE = ("entry", "conditions", "tp", "sl", "hold")
+PASSED_SHOWN = 100       # passed tokens listed on a strategy page (newest first)
+ARCHIVE_AFTER = (A.T + 3) * MIN   # a graduate's whole window of bars (what the backtest reads) exists this long after it graduated
+ARCHIVE_EVERY = 3.0      # seconds between archive requests: the decisions keep their share of pump.fun's limits
+ARCHIVE_TRIES = 3        # answers without any bars before a graduate is left out (it has no history to keep)
+CORE = ("entry", "conditions", "tp", "sl", "hold", "be", "be_stop")      # "be": breakeven trigger, 0 = none; "be_stop": where the stop moves to (rules.py)
 
 SCHEMA = """
 DROP TABLE IF EXISTS watch;          -- the first version kept one rule's decision per token
@@ -56,7 +62,8 @@ CREATE TABLE IF NOT EXISTS tokens (
   status TEXT NOT NULL,             -- new, active, done, unchecked (not a standard launch), failed
   tries INTEGER NOT NULL DEFAULT 0,
   info TEXT,                        -- JSON: name, symbol, image, links, created_ts, pool, classic, dev_buy_sol
-  graduated_ts INTEGER, graduated_src TEXT
+  graduated_ts INTEGER, graduated_src TEXT,
+  archived INTEGER                  -- 1: its bars are saved in pump.db (the backtest's data); -1: it had none to save
 );
 CREATE TABLE IF NOT EXISTS measures (  -- the token as it looked at one entry minute
   mint TEXT NOT NULL, entry INTEGER NOT NULL,
@@ -82,6 +89,7 @@ CREATE TABLE IF NOT EXISTS daily_sent (day TEXT PRIMARY KEY, ts INTEGER);   -- d
 CREATE INDEX IF NOT EXISTS tokens_status ON tokens(status);
 CREATE INDEX IF NOT EXISTS decisions_open ON decisions(status);
 CREATE INDEX IF NOT EXISTS decisions_strategy ON decisions(strategy);
+CREATE INDEX IF NOT EXISTS decisions_decided ON decisions(decided_ts);
 """
 
 
@@ -108,27 +116,32 @@ def load_strategies(data):
         with closing(read_only(os.path.join(data, "pump.db"))) as db:
             saved = [r for r in rulebook.load(os.path.join(data, "settings")) if r["enabled"]]
             chosen = [r for r in saved if r["live"]]
+            # the newest search run's pick, only when it passed its test: an older pass is not kept, since among
+            # millions of rule sets an occasional lucky pass is expected and must not stay on for good
             row = db.execute("SELECT run_id, picked_rule FROM backtest_runs WHERE kind = 'search' "
-                             "AND picked_rule IS NOT NULL ORDER BY run_id DESC LIMIT 1").fetchone()
+                             "ORDER BY run_id DESC LIMIT 1").fetchone()
+            if row and (not row[1] or db.execute("SELECT verdict FROM backtest_runs WHERE run_id = ?",
+                                                 (row[0],)).fetchone()[0] != "pass"):
+                row = None
             # every strategy is recorded; the web app shows the rules marked "record live",
             # or all of them when none is marked
             if row:
                 r = json.loads(row[1])
                 out.append({"id": "auto", "name": "Automatic search (best rule found)", "run_id": row[0],
-                            "shown": not chosen, **{k: r[k] for k in CORE}})
-            for r in rulebook.with_extras(saved):
+                            "shown": not chosen, **{k: r.get(k, 0.0) for k in CORE}})
+            for r in rulebook.with_extras(saved, rulebook.removed(os.path.join(data, "settings"))):
                 if r["enabled"]:
                     hit = db.execute("SELECT MAX(run_id) FROM backtest_runs WHERE kind = 'rule' AND rule_id = ? "
                                      "AND picked_rule IS NOT NULL", (r["id"],)).fetchone()
                     out.append({"id": r["id"], "name": r["name"], "run_id": hit[0],
-                                "shown": r["live"] or not chosen, **{k: r[k] for k in CORE}})
+                                "shown": r["live"] or not chosen, **{k: r.get(k, 0.0) for k in CORE}})
             for s in out:
                 s["conditions"] = labelled(s["conditions"])
                 n, mean, wins = db.execute("SELECT COUNT(*), AVG(net_return), SUM(net_return > 0) FROM backtest_trades "
                                            "WHERE run_id = ?", (s["run_id"],)).fetchone() if s["run_id"] else (0, None, 0)
                 te = db.execute("SELECT COUNT(*), AVG(net_return) FROM backtest_trades WHERE run_id = ? "
                                 "AND split = 'test'", (s["run_id"],)).fetchone() if s["run_id"] else (0, None)
-                s["backtest"] = {"trades": n, "mean": mean, "wins": wins or 0, "recent_trades": te[0], "recent_mean": te[1]}
+                s["backtest"] = {"trades": n, "mean": mean, "wins": wins or 0, "recent_trades": te[0], "recent_mean": te[1], "stake_sol": A.STAKE_SOL}
     except (sqlite3.Error, ValueError, KeyError, TypeError) as e:
         print(f"  ! strategies could not be read: {e!r}", flush=True)
         return None
@@ -305,9 +318,12 @@ def measure(data, mint, info, grad_min, e, frame):
             "cluster": rulebook.CLUSTERS[int(A.cluster_labels(f)[0])]["id"]}
 
 
-def check(strategy, f):
-    return [{"feature": c["feature"], "op": c["op"], "value": c["value"], "actual": num(f[c["feature"]][0], 9),
-             "ok": bool(A.matches(f, [c])[0])} for c in strategy["conditions"]]
+def check(strategy, f, at):
+    """Each condition against the token's readings: at the entry minute (f), or at the condition's own earlier
+    minute ("at": at(minute) gives the readings there)."""
+    return [{"feature": c["feature"], "op": c["op"], "value": c["value"], **({"at": c["at"]} if c.get("at") else {}),
+             "actual": num((at(c["at"]) if c.get("at") else f)[c["feature"]][0], 9),
+             "ok": bool(A.matches(f, [c], at)[0])} for c in strategy["conditions"]]
 
 
 def follow(rule, frame, done_minutes, want_path):
@@ -321,19 +337,22 @@ def follow(rule, frame, done_minutes, want_path):
     held = min(full, done_minutes - e)
     if held < 1:
         return False, None, None, None, []
-    by_hold, reason, exit_min = A.simulate(arr, e, rule["tp"], rule["sl"], [held])
+    by_hold, reason, exit_min = A.simulate(arr, e, rule["tp"], rule["sl"], [held], be=rule.get("be", 0.0), be_stop=rule.get("be_stop", 0.0))
     r = float(A.net_return(arr, trd, e, by_hold[held])[0])
     k = int(reason[0])
     finished = k in (1, 2) or held >= full
     last = int(exit_min[0])
     path = []
     if want_path:
+        # each minute held: [minute, net return if sold then, price ÷ entry price at its close, its high ÷ entry price]
         p0 = float(arr["close"][0, e - 1])
         for m in range(e, last + 1):
-            g = np.array([float(arr["close"][0, m]) / p0])
-            path.append([m - e + 1, num(A.net_return(arr, trd, e, g)[0], 4)])
+            x = float(arr["close"][0, m]) / p0
+            path.append([m - e + 1, num(A.net_return(arr, trd, e, np.array([x]))[0], 4), num(x, 4),
+                         num(float(arr["high"][0, m]) / p0, 4)])
         if finished and path and np.isfinite(r):
             path[-1][1] = num(r, 4)   # the last point is what the sale really fetched
+            path[-1][2] = num(float(by_hold[held][0]), 4)   # and the price it sold at (the stop or the target)
     return finished, {1: "stop", 2: "target", 3: "time"}[k], last - e + 1, r if np.isfinite(r) else None, path
 
 
@@ -385,95 +404,6 @@ def _share(v):
     return "no data" if v is None else f"{v * 100:.1f}%"
 
 
-def _shown(v, kind, name=""):
-    if v is None:
-        return "no data"
-    if kind == "pct" and ("_pct" in name):
-        return _share(v)
-    return (_pct(v) if kind == "pct" else _usd(v) if kind == "usd" else f"{v:.2f} SOL" if kind == "sol"
-            else f"{v:.1f} min" if kind == "min" else ("yes" if v else "no") if kind == "flag" else f"{v:,.0f}")
-
-
-def buy_message(strategy, rule, info, mint, m, f, checks):
-    """The Telegram text for one buy: what was bought, why, and what the token looked like."""
-    e, g = notify.esc, lambda k: f.get(k)
-    name = {c["id"]: c["name"] for c in rulebook.CLUSTERS}.get(m["cluster"], "")
-    lines = [
-        f"🟢 <b>BUY (paper)</b>: <b>{e(info.get('name') or mint[:8])}</b> ({e(info.get('symbol') or '')})",
-        f"Strategy: <b>{e(strategy)}</b>",
-        f"Bought {rule['entry']} min after graduation at {_usd((m['entry_price'] or 0) * 1e9)} market cap, "
-        f"{A.STAKE_SOL:g} SOL stake. Sells at {_pct(rule['tp'], 0)}, {_pct(-rule['sl'], 0)} or after {rule['hold']} min.",
-        "",
-        "<b>Why it was bought</b>",
-        *[f"✓ {e(rulebook.FEATURES[c['feature']][0])}: {_shown(c['actual'], rulebook.FEATURES[c['feature']][1], c['feature'])}"
-          for c in checks],
-        "",
-        "<b>The token at that minute</b>",
-        f"Kind: {e(name)}",
-        f"Price: {_pct(g('ret_since_grad'), 0)} since graduation, {_pct(g('drawdown_from_high'), 0)} from its high, "
-        f"{_pct(g('ret_last_5m'), 0)} over 5 min",
-        f"Volume: {_usd(g('vol_usd_last_5m'))} in 5 min ({_shown(g('trades_last_5m'), 'num')} trades, "
-        f"{_usd(g('avg_trade_usd_5m'))} average), {_usd(g('vol_usd_total'))} since graduation",
-        f"Holders: {_shown(g('holders'), 'num')} ({_pct(g('holders_change_5m'))} in 5 min)",
-        f"Largest wallet {_share(g('top1_pct'))}, top 10 {_share(g('top10_pct'))}, top 50 {_share(g('top50_pct'))}",
-        f"Snipers {_share(g('snipers_pct'))}, bundled wallets {_share(g('bundlers_pct'))}",
-        f"Creator: bought {_shown(g('dev_buy_sol'), 'sol')} at launch, held {_share(g('dev_pct_at_grad'))} at graduation",
-        f"Graduated {_shown(g('mins_to_grad'), 'min')} after creation",
-        "",
-        f"<a href=\"https://pump.fun/coin/{e(mint)}\">Chart on pump.fun</a>"
-        + "".join(f" · <a href=\"{e(info[k])}\">{label}</a>" for k, label in (("twitter", "X"), ("website", "Website"))
-                  if str(info.get(k) or "").startswith(("http://", "https://"))),
-        f"<code>{e(mint)}</code>",
-        "Nothing was bought: this is a simulated trade.",
-    ]
-    return "\n".join(lines)
-
-
-def send_alerts(db, data, strategies):
-    """Telegram messages for live buys by the shown strategies, and for how each ended."""
-    cfg = notify.load(os.path.join(data, "settings"))
-    if not notify.ready(cfg):
-        return
-    names = {s["id"]: s["name"] for s in strategies if s["shown"]}
-    if not names:
-        return
-    marks = ",".join("?" * len(names))
-    since = int((time.time() - ALERT_FOR) * 1000)
-    for mint, sid, rule, checks, info in db.execute(
-            f"SELECT d.mint, d.strategy, d.rule, d.checks, t.info FROM decisions d JOIN tokens t USING (mint) "
-            f"WHERE d.pick = 1 AND d.late = 0 AND d.notified IS NULL AND d.decided_ts > ? AND d.strategy IN ({marks})",
-            (since, *names)).fetchall():
-        rule = json.loads(rule)
-        row = db.execute("SELECT entry_price, cluster, features FROM measures WHERE mint = ? AND entry = ?",
-                         (mint, rule["entry"])).fetchone()
-        if not row:
-            continue
-        text = buy_message(names[sid], rule, json.loads(info), mint, {"entry_price": row[0], "cluster": row[1]},
-                           json.loads(row[2] or "{}"), json.loads(checks or "[]"))
-        sent, why = notify.send(cfg, text)
-        if not sent:
-            print(f"  ! Telegram: {why}", flush=True)
-            return      # tried again on the next round, until the buy is too old to matter
-        db.execute("UPDATE decisions SET notified = 1 WHERE mint = ? AND strategy = ?", (mint, sid))
-        db.commit()
-    for mint, sid, reason, held, r, info in db.execute(
-            "SELECT d.mint, d.strategy, d.exit_reason, d.minutes_held, d.net_return, t.info FROM decisions d "
-            "JOIN tokens t USING (mint) WHERE d.pick = 1 AND d.notified = 1 AND d.status = 'closed' "
-            "AND d.notified_exit IS NULL").fetchall():
-        info = json.loads(info)
-        how = {"target": "take profit", "stop": "stop loss", "time": "time stop"}.get(reason, reason)
-        text = (f"{'✅' if (r or 0) > 0 else '🔴'} <b>SOLD (paper)</b>: <b>{notify.esc(info.get('name') or mint[:8])}</b> "
-                f"({notify.esc(info.get('symbol') or '')})\nStrategy: <b>{notify.esc(names.get(sid, sid))}</b>\n"
-                f"{_pct(r)} ({'+' if (r or 0) >= 0 else '-'}{abs((r or 0) * A.STAKE_SOL):.3f} SOL) by {how} after {held} min.\n"
-                f"<a href=\"https://pump.fun/coin/{notify.esc(mint)}\">Chart on pump.fun</a>")
-        sent, why = notify.send(cfg, text)
-        if not sent:
-            print(f"  ! Telegram: {why}", flush=True)
-            return
-        db.execute("UPDATE decisions SET notified_exit = 1 WHERE mint = ? AND strategy = ?", (mint, sid))
-        db.commit()
-
-
 def reopen(db, strategies):
     """Finished tokens that a shown strategy never decided on (it was added, or ticked, after
     they were done) are worked again, from their stored history. Returns how many."""
@@ -511,6 +441,108 @@ def live_record(db, strategies):
         s["live"] = {"checked": n, "picks": picks or 0, "finished": fin, "total": total or 0.0, "wins": wins or 0,
                      "best": best, "worst": worst, "skipped": skipped, "skip_mean": skip_mean,
                      "held_n": len(held), "held_mean": sum(held) / len(held) if held else None}
+
+
+def write_strategy_live(db, data, strategies, p_grad):
+    """strategies/<id>.live.json for every rule strategy (the Lab page): every token the watch decided on for it,
+    bought or passed, and which condition kept the passed ones out. Written whether or not the strategy is shown
+    on the Record live tab. A rule that no longer exists leaves no record file behind."""
+    folder = os.path.join(data, "strategies")
+    os.makedirs(folder, exist_ok=True)
+    known = {r["id"] for r in rulebook.with_extras(rulebook.load(os.path.join(data, "settings")),
+                                                   rulebook.removed(os.path.join(data, "settings")))}
+    for f in os.listdir(folder):
+        if f.endswith(".live.json") and f[:-10] not in known:
+            os.remove(os.path.join(folder, f))
+    for s in strategies:
+        if s["id"] == "auto":     # the automatic search's pick is not a rule of the Lab
+            continue
+        # only decisions made with the strategy as it is defined now: an edited strategy starts a new record
+        core = lambda r: (r["entry"], r["tp"], r["sl"], r["hold"], r.get("be", 0.0), r.get("be_stop", 0.0),   # noqa: E731
+                          [rulebook.cond_core(c) for c in r["conditions"]])
+        rows, earlier, first_seen, old = [], 0, None, {}
+        for row in db.execute(
+                "SELECT d.mint, json_extract(t.info, '$.symbol'), t.graduated_ts, d.decided_ts, d.late, d.pick, d.checks, "
+                "d.status, d.exit_reason, d.minutes_held, d.net_return, m.tradable, m.entry_price, d.path, d.full_path, d.alts, "
+                "d.rule FROM decisions d "
+                "JOIN tokens t USING (mint) LEFT JOIN measures m ON m.mint = d.mint AND m.entry = d.entry "
+                "WHERE d.strategy = ? ORDER BY d.decided_ts DESC", (s["id"],)):
+            if core(json.loads(row[16])) == core(s):
+                rows.append(row[:16])
+                first_seen = row[3] if first_seen is None or (row[3] and row[3] < first_seen) else first_seen
+            else:
+                earlier += 1
+                if row[5]:      # what an earlier version bought, kept as its own list (newest version first, see below)
+                    old.setdefault(json.dumps(core(json.loads(row[16]))), (json.loads(row[16]), []))[1].append(row[:16])
+        # only tokens whose entry minute came after this version of the strategy was first seen: a strategy that is
+        # added or edited also decides on tokens it missed (reconstructed from their saved bars), but those were
+        # never live signals and are already in its backtest
+        before = 0
+        if first_seen:
+            kept_rows = [r for r in rows if r[2] is None or r[2] // MIN * MIN + s["entry"] * MIN >= first_seen - LATE * 1000]
+            before, rows = len(rows) - len(kept_rows), kept_rows
+        columns = rulebook.page_columns(s["conditions"])
+        bought, fails, untradable, passed_rows = [], {}, 0, []
+        top = max(ALT_TPS)
+
+        def bought_row(r, tp=s["tp"]):
+            """One bought token's row for the page (r: the decision's columns, see the query above)."""
+            mint, symbol, grad, dt, late, pick, checks, status, reason, held, net, tradable, px, path, full, alts = r
+            checks = json.loads(checks) if checks else []
+            actual = {rulebook.cond_key(c): c.get("actual") for c in checks}
+            # the best moment while held, the same buy simply held for FOLLOW minutes, and aimed at the top ALT_TPS target
+            pts = json.loads(path) if path else []
+            nets = [p[1] for p in pts if p[1] is not None]
+            # "Now / exit": the price as a multiple of the entry now (open) or at the sale (closed), and its peak;
+            # decisions made before the path held prices have none
+            xs = [p for p in pts if len(p) >= 4 and p[2] is not None]
+            x_now = xs[-1][2] if xs else None
+            x_peak = max([p[3] for p in xs if p[3] is not None] + ([x_now] if x_now is not None else []), default=None)
+            kept = [v for _, v in (json.loads(full) if full else []) if v is not None]
+            alt = next((a for a in (json.loads(alts) if alts else []) if a.get("tp") == top), None)
+            return [mint, symbol, grad, dt, bool(late), status, reason, held, net, px,
+                           [actual.get(k) for k in columns], max(nets) if nets else None,
+                           kept[-1] if kept else None, max(kept) if kept else None,
+                           {"net": alt.get("net"), "exit": alt.get("exit"), "held": alt.get("held"), "done": alt.get("done")}
+                           if alt and top > tp else None, x_now, x_peak]
+
+        for r in rows:
+            mint, symbol, grad, dt, late, pick, checks, status, reason, held, net, tradable, px, path, full, alts = r
+            checks = json.loads(checks) if checks else []
+            if pick:
+                bought.append(bought_row(r))
+            elif tradable == 0:
+                untradable += 1
+            else:
+                for c in checks:
+                    if not c.get("ok"):
+                        f = fails.setdefault(rulebook.cond_key(c), {"failed": 0, "no_reading": 0})
+                        f["failed" if c.get("actual") is not None else "no_reading"] += 1
+                if len(passed_rows) < PASSED_SHOWN:   # rows come newest first
+                    passed_rows.append([mint, symbol, grad, dt, bool(late), status, net,
+                                        [[rulebook.cond_key(c), c.get("actual")] for c in checks if not c.get("ok")]])
+        passed = [r for r in rows if not r[5] and r[7] == "closed" and r[10] is not None]
+        write_json(os.path.join(folder, s["id"] + ".live.json"), {
+            "generated_at": int(time.time() * 1000), "id": s["id"], "name": s["name"],
+            "rule": {k: s[k] for k in ("entry", "tp", "sl", "hold", "be", "be_stop", "conditions")},
+            "stake_usd": A.stake_usd(p_grad), "stake_sol": A.STAKE_SOL, "sol_usd": A.sol_usd(p_grad),
+            "since_ts": first_seen, "decided": len(rows),
+            "earlier_rule": earlier,   # decisions made with an earlier definition of the strategy, left out
+            "before_rule": before,     # tokens whose entry minute was over before this version existed, left out
+            "untradable": untradable, "fails": fails,
+            # what the passed tokens would have returned had they been bought all the same
+            "passed_closed": len(passed), "passed_mean": sum(r[10] for r in passed) / len(passed) if passed else None,
+            "bought_columns": ["mint", "symbol", "graduated_ts", "decided_ts", "late", "status", "exit", "minutes_held",
+                               "net_return", "entry_price", "measured", "best", "held_end", "held_best", "alt", "x", "peak"],
+            "measured_columns": columns,   # the features in each bought row's "measured", in order
+            "follow_minutes": FOLLOW, "alt_tp": top if top > s["tp"] else None,
+            "bought": bought,
+            # what earlier versions of the strategy bought (newest version first, at most 5): their own rule, and rows like "bought"
+            "earlier_versions": [{"rule": {k: v.get(k, [] if k == "conditions" else 0.0) for k in CORE}, "bought": [bought_row(r, v["tp"]) for r in rs]}
+                                 for v, rs in sorted(old.values(), key=lambda t: -max(r[3] or 0 for r in t[1]))[:5]],
+            # the newest passed tokens that could be bought: which conditions failed (with the reading), and their result
+            "passed_columns": ["mint", "symbol", "graduated_ts", "decided_ts", "late", "status", "net_return", "failed"],
+            "passed": passed_rows})
 
 
 def token_detail(db, mint):
@@ -555,7 +587,8 @@ def publish(db, data, strategies, clusters, p_grad):
     hidden = sum(not s["shown"] for s in strategies)
     # every recorded strategy, shown or not, for the Trading tab's choice of what to trade
     tradable = [{"id": s["id"], "name": s["name"], "shown": s["shown"], "entry": s["entry"], "tp": s["tp"], "sl": s["sl"],
-                 "hold": s["hold"], "backtest": s.get("backtest")} for s in strategies]
+                 "be": s.get("be", 0.0), "be_stop": s.get("be_stop", 0.0), "hold": s["hold"], "backtest": s.get("backtest")} for s in strategies]
+    write_strategy_live(db, data, strategies, p_grad)
     strategies = [s for s in strategies if s["shown"]]
     shown = {s["id"] for s in strategies}
     live_record(db, strategies)
@@ -643,7 +676,7 @@ def write_reports(db, data, strategies, days=None):
                 closed = status == "closed" and net is not None
                 at_stop = next((p[1] for p in json.loads(full or "[]") if p[0] == rule["hold"]), None)
                 alt = {a["tp"]: a["net"] for a in json.loads(alts or "[]") if a.get("done")}
-                failed = "; ".join(f"{c['feature']} {c['op']} {c['value']:g} (was {c['actual']})"
+                failed = "; ".join(f"{rulebook.cond_key(c)} {c['op']} {c['value']:g} (was {c['actual']})"
                                    for c in json.loads(checks or "[]") if not c["ok"])
                 buys += bool(pick)
                 w.writerow([
@@ -669,7 +702,6 @@ def write_reports(db, data, strategies, days=None):
         write_json(idx, index)
 
 
-REPORT_AT = 10 * 60      # seconds after midnight UTC that yesterday's report is sent to Telegram
 DAYS_SHOWN = 30          # days in the day-by-day table of the web app
 
 
@@ -695,84 +727,6 @@ def day_numbers(db, sid, day):
             "finished": len(done), "wins": sum(b["net"] > 0 for b in done), "total": sum(b["net"] for b in done),
             "best": max((b["net"] for b in done), default=None), "worst": min((b["net"] for b in done), default=None),
             "list": buys}
-
-
-def day_report(db, strategies, day):
-    """(Telegram text, CSV of the shown strategies' decisions) for one UTC day."""
-    shown = [s for s in strategies if s["shown"]]
-    standard = db.execute("SELECT COUNT(*) FROM tokens WHERE date(graduated_ts / 1000, 'unixepoch') = ?", (day,)).fetchone()[0]
-    other = db.execute("SELECT COUNT(*) FROM tokens WHERE status = 'unchecked' AND "
-                       "date(first_seen_ts / 1000, 'unixepoch') = ?", (day,)).fetchone()[0]
-    e, p = notify.esc, lambda v: _pct(v)
-    lines = [f"📊 <b>Daily report {day}</b> (UTC)",
-             f"Graduated: {standard} standard launches watched, {other} other launches not checked", ""]
-    for s in shown:
-        n = day_numbers(db, s["id"], day)
-        lines += [f"<b>{e(s['name'])}</b>: {n['checked']} checked, {n['buys']} bought "
-                  f"({n['live_buys']} live, {n['buys'] - n['live_buys']} reconstructed)"]
-        if n["finished"]:
-            lines.append(f"Result: {n['wins']} won, {n['finished'] - n['wins']} lost, "
-                         f"{'+' if n['total'] >= 0 else '-'}{abs(n['total'] * A.STAKE_SOL):.3f} SOL "
-                         f"(average {p(n['total'] / n['finished'])}; best {p(n['best'])}, worst {p(n['worst'])})")
-        for b in n["list"]:
-            how = {"target": "take profit", "stop": "stop loss", "time": "time stop"}.get(b["exit"], "open")
-            res = f"{p(b['net'])} by {how} after {b['held']} min" if b["closed"] else "still open"
-            extra = f"; held to time stop {p(b['held_to_stop'])}, +100% target {p(b['tp100'])}" if b["closed"] else ""
-            lines.append(f"• {e(b['symbol'])} {utc(b['buy_ts'], '%H:%M')}{'' if b['live'] else ' (reconstructed)'}: {res}{extra}")
-        everything = live_total(db, s["id"])
-        lines += [f"Since recording began: {everything[0]} buys, {everything[1]} won, "
-                  f"{'+' if everything[2] >= 0 else '-'}{abs(everything[2] * A.STAKE_SOL):.3f} SOL", ""]
-    lines.append("Simulated trades: nothing was bought. The day's decisions are attached.")
-    # the attached file: the shown strategies' rows of the day's full report
-    full = os.path.join(DATA_DIR, "reports", day + ".csv")
-    out = io.StringIO()
-    try:
-        with open(full, encoding="utf-8") as fh:
-            r = csv.reader(fh)
-            w = csv.writer(out)
-            head = next(r)
-            w.writerow(head)
-            col = head.index("strategy_id")
-            ids = {s["id"] for s in shown}
-            for row in r:
-                if row[col] in ids:
-                    w.writerow(row)
-    except (OSError, StopIteration, ValueError):
-        pass
-    return "\n".join(lines), out.getvalue().encode("utf-8")
-
-
-def live_total(db, sid):
-    n, wins, total = db.execute("SELECT COUNT(*), SUM(net_return > 0), SUM(net_return) FROM decisions WHERE strategy = ? "
-                                "AND pick = 1 AND status = 'closed' AND net_return IS NOT NULL", (sid,)).fetchone()
-    return n, wins or 0, total or 0.0
-
-
-def send_daily(db, data, strategies):
-    """Yesterday's report to Telegram, once, a little after midnight UTC; also kept as a file."""
-    now = time.time()
-    if now % 86400 < REPORT_AT:
-        return
-    day = utc((now - 86400) * 1000, "%Y-%m-%d")
-    text, attach = day_report(db, strategies, day)
-    folder = os.path.join(data, "reports")
-    os.makedirs(folder, exist_ok=True)
-    with open(os.path.join(folder, day + "-summary.txt"), "w", encoding="utf-8") as fh:
-        fh.write(text)
-    with open(os.path.join(folder, day + "-shown.csv"), "wb") as fh:
-        fh.write(attach)
-    if db.execute("SELECT 1 FROM daily_sent WHERE day = ?", (day,)).fetchone():
-        return
-    cfg = notify.load(os.path.join(data, "settings"))
-    if not notify.ready(cfg):
-        return
-    sent, why = notify.send(cfg, text)
-    if sent:
-        notify.send_file(cfg, f"{day}-strategy-decisions.csv", attach, f"Decisions of {day} (UTC)")
-        db.execute("INSERT OR REPLACE INTO daily_sent VALUES (?, ?)", (day, int(now * 1000)))
-        db.commit()
-    else:
-        print(f"  ! daily Telegram report: {why}", flush=True)
 
 
 def newly_listed(data, since_ms):
@@ -846,7 +800,12 @@ def work_token(db, data, mint, info, grad, strategies, p_grad, last_fetch, fast=
         db.execute("UPDATE tokens SET info = ? WHERE mint = ?", (json.dumps(info), mint))
     frame = arrays(bars, grad_min, p_grad)
     t = int(time.time() * 1000)
-    measured = {}
+    measured, at_minute = {}, {}
+
+    def earlier(e2):    # the readings at an earlier minute, for conditions measured there
+        if e2 not in at_minute:
+            at_minute[e2] = A.features(token_frame(data, mint, info, grad_min), *frame, e2)
+        return at_minute[e2]
     for s in todo:
         e = s["entry"]
         if e not in measured:
@@ -856,7 +815,7 @@ def work_token(db, data, mint, info, grad, strategies, p_grad, last_fetch, fast=
                        (mint, e, t, int(m["tradable"]), int(m["traded"]), m["impact"], m["entry_price"], m["cluster"],
                         json.dumps({k: num(v[0]) for k, v in m["f"].items()})))
         m = measured[e]
-        checks = check(s, m["f"])
+        checks = check(s, m["f"], earlier)
         pick = m["tradable"] and all(c["ok"] for c in checks)
         late = int(t - (grad_min + e * MIN) > LATE * 1000)
         # a token that cannot be bought has no result to wait for
@@ -898,6 +857,83 @@ def work_token(db, data, mint, info, grad, strategies, p_grad, last_fetch, fast=
     return True
 
 
+# ---- the bars of every graduate, kept for the backtest ----
+def archive_token(pdb, mint, info, grad, src, bars):
+    """Saves one graduate's bars in pump.db, where analyze.py reads them, the way the collector would have: the coin
+    (a standard launch only when known to be one) with its bars done, its candles, and the creator's launch buy. A coin
+    the collector already holds keeps its own graduation time. Returns the number of bars."""
+    rows = [(mint, int(b["openTimeMs"]), float(b["open"]), float(b["high"]), float(b["low"]), float(b["close"]),
+             float(b["volumeUsd"]), b["trades"]) for b in bars]
+    raw = {k: info.get(k) for k in ("name", "symbol", "image_uri", "twitter", "telegram", "website", "creator")}
+    raw.update(mint=mint, created_timestamp=info.get("created_ts"), pump_swap_pool=info.get("pool"), source="watch")
+    now = int(time.time() * 1000)
+    pdb.execute(
+        "INSERT INTO tokens (mint, name, symbol, creator, pump_swap_pool, created_ts, graduated_ts, graduated_src, classic, "
+        "first_bar_ts, bars_to_ts, candles_done, first_seen_ts, updated_ts, raw) VALUES (?,?,?,?,?,?,?,?,?,?,?,1,?,?,?) "
+        "ON CONFLICT(mint) DO UPDATE SET graduated_ts = COALESCE(graduated_ts, excluded.graduated_ts), "
+        "graduated_src = COALESCE(graduated_src, excluded.graduated_src), classic = COALESCE(classic, excluded.classic), "
+        "first_bar_ts = COALESCE(first_bar_ts, excluded.first_bar_ts), bars_to_ts = excluded.bars_to_ts, "
+        "candles_done = 1, updated_ts = excluded.updated_ts",
+        (mint, info.get("name"), info.get("symbol"), info.get("creator"), info.get("pool"), info.get("created_ts"), grad, src,
+         # a standard launch only when known to be one: the backtest's pool-depth model fits no other
+         1 if info.get("classic") == 1 else None, rows[0][1] if rows else None, grad // MIN * MIN + ARCHIVE_AFTER, now, now, json.dumps(raw, ensure_ascii=False)))
+    pdb.executemany("INSERT OR REPLACE INTO candles VALUES (?,?,?,?,?,?,?,?)", rows)
+    if info.get("dev_buy_sol") is not None:   # the rules that look at the creator's launch buy need it
+        pdb.execute("INSERT OR IGNORE INTO first_trades (mint, ts, type, user, is_dev_buy, amount_sol) VALUES (?,?,?,?,?,?)",
+                    (mint, None, "buy", info.get("creator"), int(info["dev_buy_sol"] > 0), info["dev_buy_sol"]))
+    pdb.commit()
+    return len(rows)
+
+
+def archive_once(data, fails, backoff):
+    """Archives the newest graduate that is old enough and not yet saved. Returns "idle" (nothing to do),
+    "done" or "failed". Its own connections: it runs in its own thread."""
+    now = time.time() * 1000
+    with closing(sqlite3.connect(os.path.join(data, "watch.db"), timeout=30)) as wdb:
+        todo = [r for r in wdb.execute(
+            "SELECT mint, info, graduated_ts, graduated_src FROM tokens WHERE status IN ('active', 'done') AND archived IS NULL "
+            "AND graduated_ts <= ? ORDER BY graduated_ts DESC LIMIT 200", (now - ARCHIVE_AFTER,)) if backoff.get(r[0], 0) <= now]
+        if not todo:
+            return "idle"
+        mint, info, grad, src = todo[0]
+        mark = lambda v: (wdb.execute("UPDATE tokens SET archived = ? WHERE mint = ?", (v, mint)), wdb.commit())   # noqa: E731
+        try:
+            info = json.loads(info)
+            with closing(sqlite3.connect(os.path.join(data, "pump.db"), timeout=60)) as pdb:
+                pdb.executescript(C.SCHEMA + first_trades.SCHEMA)
+                held = pdb.execute("SELECT candles_done FROM tokens WHERE mint = ?", (mint,)).fetchone()
+                if not (held and held[0]):      # the collector may already hold it complete
+                    bars, _ = fetch_bars(mint, info.get("pool"), grad // MIN * MIN + ARCHIVE_AFTER)
+                    archive_token(pdb, mint, info, grad, src, bars)
+            mark(1)
+            return "done"
+        except Exception as e:
+            if "no bars" in str(e):
+                fails[mint] = fails.get(mint, 0) + 1
+                if fails[mint] >= ARCHIVE_TRIES:
+                    mark(-1)
+            backoff[mint] = now + 600_000
+            print(f"  ! archive {mint}: {e!r}", flush=True)
+            return "429" if "429" in str(e) else "failed"
+
+
+def archive_loop(data):
+    """Forever, slowly: one graduate every few seconds, newest first (the ones the strategies are trading). Everything a
+    graduate needs to be in the backtest is here, so it grows without the collector, which pump.fun throttles."""
+    fails, backoff, saved = {}, {}, 0
+    while True:
+        try:
+            r = archive_once(data, fails, backoff)
+        except Exception as e:   # the thread must keep running whatever happens
+            print(f"  ! archive: {e!r}", flush=True)
+            r = "failed"
+        if r == "done":
+            saved += 1
+            if saved % 25 == 0:
+                print(f"archived the bars of {saved} graduates since the start", flush=True)
+        time.sleep(60 if r in ("idle", "429") else ARCHIVE_EVERY)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--data", default="data")
@@ -911,6 +947,8 @@ def main():
     for col in ("full_path TEXT", "alts TEXT", "notified INTEGER", "notified_exit INTEGER"):
         if col.split()[0] not in {r[1] for r in db.execute("PRAGMA table_info(decisions)")}:
             db.execute(f"ALTER TABLE decisions ADD COLUMN {col}")
+    if "archived" not in {r[1] for r in db.execute("PRAGMA table_info(tokens)")}:
+        db.execute("ALTER TABLE tokens ADD COLUMN archived INTEGER")
     # buys made before prices were kept after the sale: follow them again while their bars are still served
     db.execute("UPDATE tokens SET status = 'active' WHERE status = 'done' AND graduated_ts > ? AND mint IN "
                "(SELECT mint FROM decisions WHERE pick = 1 AND (full_path IS NULL OR alts IS NULL))",
@@ -918,7 +956,6 @@ def main():
     db.commit()
     strategies, p_grad, clusters, next_rules, next_publish = None, 4.76e-5, {}, 0.0, 0.0
     next_reports = next_all_reports = time.time() + 120    # after the first rounds of work
-    next_daily = time.time() + 180
     global DATA_DIR
     DATA_DIR = data
     retry_at, last_fetch = {}, {}   # mint -> when to try again after a failure / when its bars were last read
@@ -933,6 +970,32 @@ def main():
         with locks_lock:
             return locks.setdefault(mint, threading.Lock())
 
+    # tokens due in the same minute are decided side by side (each in its own thread with its own connection),
+    # so one token's slow read never delays another's buy
+    workers, busy_mints, busy_lock = ThreadPoolExecutor(max_workers=DECIDERS), set(), threading.Lock()
+    local = threading.local()
+
+    def decide_one(mint, info, grad):
+        lk = lock_of(mint)
+        try:
+            if not hasattr(local, "db"):
+                local.db = sqlite3.connect(os.path.join(data, "watch.db"), timeout=30)
+            if not lk.acquire(timeout=2):   # the main loop is on it: tried again in a moment
+                decider_retry[mint] = time.time() + 1
+                return
+            try:
+                work_token(local.db, data, mint, json.loads(info), grad, shared["strategies"],
+                           shared["p_grad"], last_fetch, fast=True)
+            except Exception as e:
+                local.db.rollback()
+                decider_retry[mint] = time.time() + 3
+                print(f"  ! decision {mint}: {e!r}", flush=True)
+            finally:
+                lk.release()
+        finally:
+            with busy_lock:
+                busy_mints.discard(mint)
+
     def decider():
         ddb = sqlite3.connect(os.path.join(data, "watch.db"), timeout=30)
         while True:
@@ -944,24 +1007,17 @@ def main():
                     for mint, info, grad in got:
                         if decider_retry.get(mint, 0) > time.time():
                             continue
-                        lk = lock_of(mint)
-                        if not lk.acquire(timeout=2):   # the main loop is on it: the next due token first
-                            decider_retry[mint] = time.time() + 1
-                            continue
-                        try:
-                            work_token(ddb, data, mint, json.loads(info), grad, shared["strategies"],
-                                       shared["p_grad"], last_fetch, fast=True)
-                        except Exception as e:
-                            ddb.rollback()
-                            decider_retry[mint] = time.time() + 3
-                            print(f"  ! decision {mint}: {e!r}", flush=True)
-                        finally:
-                            lk.release()
+                        with busy_lock:
+                            if mint in busy_mints:
+                                continue
+                            busy_mints.add(mint)
+                        workers.submit(decide_one, mint, info, grad)
             except Exception as e:   # the thread must keep running whatever happens
                 print(f"  ! decider: {e!r}", flush=True)
-            time.sleep(min(1.0, max(0.05, nxt - time.time())))
+            time.sleep(min(0.25, max(0.05, nxt - time.time())))
 
     threading.Thread(target=decider, daemon=True).start()
+    threading.Thread(target=archive_loop, args=(data,), daemon=True).start()
 
     print("watching new graduates", flush=True)
     while True:
@@ -1060,10 +1116,6 @@ def main():
             finally:
                 lk.release()
 
-        try:
-            send_alerts(db, data, strategies)
-        except Exception as e:   # an alert that cannot be built must not stop the watch
-            print(f"  ! alerts: {e!r}", flush=True)
         if now >= next_reports:     # the last days often, every day on record a few times a day
             everything = now >= next_all_reports
             next_reports, next_all_reports = now + 600, (now + 6 * 3600 if everything else next_all_reports)
@@ -1072,12 +1124,6 @@ def main():
                               None if everything else [utc((now - k * 86400) * 1000, "%Y-%m-%d") for k in (2, 1, 0)])
             except Exception as e:
                 print(f"  ! daily reports: {e!r}", flush=True)
-        if now >= next_daily:
-            next_daily = now + 300
-            try:
-                send_daily(db, data, strategies)
-            except Exception as e:
-                print(f"  ! daily report: {e!r}", flush=True)
         if (dirty and now >= next_publish) or not os.path.exists(os.path.join(data, "watch.json")):
             next_publish, dirty = now + 15, False
             try:

@@ -5,6 +5,7 @@ A rule is a dict:
    "entry": minutes after graduation to buy,
    "conditions": [{"feature": name, "op": ">=" | "<=" | "=", "value": number}, ...],
    "tp": take profit as a fraction (0.4 = +40%), "sl": stop loss as a fraction,
+   "be": optional (0 = none): once the price has been this far above the entry (0.5 = +50%), the stop moves up to the entry price plus "be_stop" (0.1 = +10%; default 0 = the entry price),
    "hold": time stop in minutes}
 Shared by the web server (which saves rules) and analyze.py (which backtests them).
 """
@@ -25,6 +26,9 @@ FEATURES = {
     "trades_total": ("Number of trades since graduation", "num"),
     "trades_last_5m": ("Number of trades in the last 5 minutes", "num"),
     "avg_trade_usd_5m": ("Average trade size over the last 5 minutes", "usd"),
+    "avg_trade_usd_total": ("Average trade size since graduation", "usd"),
+    "mins_since_high": ("Minutes since the highest price", "min"),
+    "hour_utc": ("Hour of graduation (UTC, 0-23)", "num"),
     "dev_buy_sol": ("Creator's own buy at launch", "sol"),
     "mins_to_grad": ("Minutes from creation to graduation", "min"),
     "socials": ("Has a Twitter, Telegram or website link", "flag"),
@@ -53,7 +57,7 @@ FEATURES = {
 
 # entry + hold may not pass the price history kept after each graduation (295 minutes)
 LIMITS = {"max_rules": 40, "max_conditions": 8, "entry": [5, 240], "hold": [5, 240],
-          "max_entry_plus_hold": 295, "tp": [0.05, 10.0], "sl": [0.05, 0.95]}
+          "max_entry_plus_hold": 295, "tp": [0.05, 10.0], "sl": [0.05, 0.95], "be": [0.05, 10.0], "be_stop": [0.0, 9.0]}
 
 PRESETS = [
     {"id": "momentum-near-high", "name": "Momentum near the high", "enabled": True, "entry": 20,
@@ -136,35 +140,169 @@ CLUSTERS = [
 
 # Strategies the live watch (watch.py) always runs beside the saved rules, and analyze.py
 # backtests with them. They live here, not in the settings, so editing rules in the web app
-# never removes them. Each targets tokens the creator does not own (creator's buy under 80 SOL).
-_NO_CREATOR = {"feature": "dev_buy_sol", "op": "<=", "value": 79.0}
+# never removes them.
 WATCH_EXTRA = [
-    {"id": "live-first-minute-snipers", "name": "Built-in: first-minute graduate, snipers 3%+ (15 min)",
+    {"id": "strategy-a", "name": "Strategy A: creator out, X and website (15 min)",
      "enabled": True, "entry": 15,
-     "conditions": [{"feature": "mins_to_grad", "op": "<=", "value": 1.0}, _NO_CREATOR,
-                    {"feature": "snipers_pct", "op": ">=", "value": 0.03}],
-     "tp": 0.4, "sl": 0.3, "hold": 60},
-    {"id": "live-real-trades-near-high", "name": "Built-in: real-size trades near the high (15 min)",
+     "conditions": [{"feature": "dev_pct_at_grad", "op": "<=", "value": 0.0},
+                    # pump.fun often shows the creator's share as 0% before it has counted it, then
+                    # 20-40% minutes later: the latest reading before buying must say 0% too
+                    {"feature": "dev_pct_last", "op": "<=", "value": 0.0},
+                    {"feature": "has_twitter", "op": "=", "value": 1.0},
+                    {"feature": "has_website", "op": "=", "value": 1.0},
+                    {"feature": "avg_trade_usd_5m", "op": ">=", "value": 30.0},
+                    {"feature": "mcap_usd", "op": ">=", "value": 20000.0},
+                    {"feature": "ret_since_grad", "op": ">=", "value": -0.5}],
+     "tp": 0.4, "sl": 0.3, "hold": 15},
+    {"id": "strategy-b", "name": "Strategy B: heavy volume, few trades (15 min)",
      "enabled": True, "entry": 15,
-     "conditions": [_NO_CREATOR, {"feature": "avg_trade_usd_5m", "op": ">=", "value": 30.0},
-                    {"feature": "ret_since_grad", "op": ">=", "value": 0.3},
-                    {"feature": "drawdown_from_high", "op": ">=", "value": -0.2},
-                    {"feature": "vol_usd_last_5m", "op": ">=", "value": 10000.0}],
-     "tp": 0.4, "sl": 0.3, "hold": 60},
-    {"id": "live-organic-survivor", "name": "Built-in: organic survivor above graduation (30 min)",
-     "enabled": True, "entry": 30,
-     "conditions": [_NO_CREATOR, {"feature": "mins_to_grad", "op": ">=", "value": 5.0},
-                    {"feature": "ret_since_grad", "op": ">=", "value": 0.0},
-                    {"feature": "drawdown_from_high", "op": ">=", "value": -0.3},
-                    {"feature": "vol_usd_last_5m", "op": ">=", "value": 5000.0}],
-     "tp": 0.4, "sl": 0.3, "hold": 60},
+     "conditions": [{"feature": "vol_usd_last_5m", "op": ">=", "value": 33700.0},
+                    {"feature": "trades_total", "op": "<=", "value": 2805.0},
+                    # the volume above is also met by a rug pull's own dump; this keeps those out
+                    {"feature": "ret_since_grad", "op": ">=", "value": -0.5}],
+     # held up to 30 minutes since 19 Oct 2026 (was 240): on 5,315 coins the 30-minute hold did better on both the
+     # older (+3.6% a trade) and the newest coins (+4.3%)
+     "tp": 1.0, "sl": 0.5, "hold": 30},
+    # found by the research of 19 Oct 2026 (picked on the older 70% of 5,314 coins, +5% a trade on the newest 30%,
+    # about 0% without its 3 best trades): paper only until the live record says otherwise
+    {"id": "strategy-c", "name": "Strategy C: late momentum (8 min)",
+     "enabled": True, "entry": 8,
+     "conditions": [{"feature": "ret_since_grad", "op": ">=", "value": 3.0},
+                    {"feature": "vol_usd_last_5m", "op": ">=", "value": 40000.0}],
+     "tp": 0.6, "sl": 0.5, "hold": 30},
+    # Strategy C narrowed by the deeper research of 19 Oct 2026: an X link, not graduated 18:00-23:59 UTC, held up to
+    # 60 minutes. These filters were tried on the newest coins too, so only live paper results can confirm them.
+    {"id": "strategy-c-plus", "name": "Strategy C+: late momentum, X link, daytime (8 min)",
+     "enabled": True, "entry": 8,
+     "conditions": [{"feature": "ret_since_grad", "op": ">=", "value": 3.0},
+                    {"feature": "vol_usd_last_5m", "op": ">=", "value": 40000.0},
+                    {"feature": "has_twitter", "op": "=", "value": 1.0},
+                    {"feature": "hour_utc", "op": "<=", "value": 17.0}],
+     "tp": 0.6, "sl": 0.5, "hold": 60},
+    # the user's rule of 19 Oct 2026: Strategy A's coins with 16%+ of the supply in bundled wallets. Backtested on only
+    # 5 trades (+49% a trade, all on the newest coins: the creator and bundler readings exist only since 16 Oct), so it
+    # is paper only until the live record has a few dozen trades
+    {"id": "strategy-d", "name": "Strategy D: creator out, X, web, bundled 16%+ (15 min)",
+     "enabled": True, "entry": 15,
+     "conditions": [{"feature": "dev_pct_at_grad", "op": "<=", "value": 0.0},
+                    {"feature": "has_twitter", "op": "=", "value": 1.0},
+                    {"feature": "has_website", "op": "=", "value": 1.0},
+                    {"feature": "avg_trade_usd_5m", "op": ">=", "value": 34.0},
+                    {"feature": "mcap_usd", "op": ">=", "value": 20000.0},
+                    {"feature": "ret_since_grad", "op": ">=", "value": -0.5},
+                    {"feature": "bundlers_pct", "op": ">=", "value": 0.16}],
+     "tp": 1.0, "sl": 0.4, "hold": 15},
+    # found on 19 Oct 2026 by studying Strategy B's trades (all coins seen, so the newest 30% is not an unseen test):
+    # the coins Strategy B passes at minute 15, bought 5 minutes later if the price held steady (0 to +20%) meanwhile.
+    # Backtest: 21 trades, +24% a trade. Paper only until the live record agrees. (Until 19 Oct 2026 it measured B's
+    # conditions at minute 20 instead, which also bought coins Strategy B never passed.)
+    {"id": "strategy-b20", "name": "Strategy B20: Strategy B, then a steady price (20 min)",
+     "enabled": True, "entry": 20,
+     "conditions": [{"feature": "vol_usd_last_5m", "op": ">=", "value": 33700.0, "at": 15},
+                    {"feature": "trades_total", "op": "<=", "value": 2805.0, "at": 15},
+                    {"feature": "ret_since_grad", "op": ">=", "value": -0.5, "at": 15},
+                    {"feature": "ret_last_5m", "op": ">=", "value": 0.0},
+                    {"feature": "ret_last_5m", "op": "<=", "value": 0.2}],
+     "tp": 1.0, "sl": 0.5, "hold": 30},
+    # Strategy B with the same steady-price condition at 15 minutes (same study): 33 trades, +24% a trade, 9 stop
+    # losses, and a 1 s delay costs it about 8 points a trade. Paper only, to compare with B and B20 live
+    {"id": "strategy-b-plus", "name": "Strategy B+: heavy volume, steady price (15 min)",
+     "enabled": True, "entry": 15,
+     "conditions": [{"feature": "vol_usd_last_5m", "op": ">=", "value": 33700.0},
+                    {"feature": "trades_total", "op": "<=", "value": 2805.0},
+                    {"feature": "ret_since_grad", "op": ">=", "value": -0.5},
+                    {"feature": "ret_last_5m", "op": ">=", "value": 0.0},
+                    {"feature": "ret_last_5m", "op": "<=", "value": 0.2}],
+     "tp": 1.0, "sl": 0.5, "hold": 30},
+    # The first version of Strategy B20 (19 Oct 2026), kept as its own strategy: Strategy B's three conditions measured at
+    # 20 minutes (not at 15), plus a steady price (0 to +20%) over the last 5 minutes. It is NOT a subset of Strategy B: it
+    # also buys coins whose volume only reached the threshold by minute 20. Backtest: 17 trades, +46% a trade, no stop loss,
+    # a 1-3 s delay costs little. Found by looking at all the coins, so paper only until the live record agrees
+    {"id": "strategy-b20-direct", "name": "Strategy B20-direct: volume and steady price at 20 min",
+     "enabled": True, "entry": 20,
+     "conditions": [{"feature": "vol_usd_last_5m", "op": ">=", "value": 33700.0},
+                    {"feature": "trades_total", "op": "<=", "value": 2805.0},
+                    {"feature": "ret_since_grad", "op": ">=", "value": -0.5},
+                    {"feature": "ret_last_5m", "op": ">=", "value": 0.0},
+                    {"feature": "ret_last_5m", "op": "<=", "value": 0.2}],
+     "tp": 1.0, "sl": 0.5, "hold": 30,
+     # 20 Oct 2026: once the price is 50% above the entry the stop moves up to entry +10%. Backtest (20 trades): +36.3% against
+     # +35.9% without it (a stop at the entry price: +40.4%; at +20%: +28.3%); a trigger at +30% would cost 12 points a trade
+     "be": 0.5, "be_stop": 0.1},
+    # found on 19 Oct 2026 with the strategy-mining skill from Strategy C's trades (all coins seen): C's coins whose
+    # price held steady (0 to +20%) over the last 5 minutes. Backtest: 29 trades, +27.5% a trade (newest 30%: +25.5%),
+    # 4 stop losses; a 1-3 s delay costs about 5 points. Paper only until the live record agrees
+    {"id": "strategy-c-steady", "name": "Strategy C-steady: late momentum, steady price (8 min)",
+     "enabled": True, "entry": 8,
+     "conditions": [{"feature": "ret_since_grad", "op": ">=", "value": 3.0},
+                    {"feature": "vol_usd_last_5m", "op": ">=", "value": 40000.0},
+                    {"feature": "ret_last_5m", "op": ">=", "value": 0.0},
+                    {"feature": "ret_last_5m", "op": "<=", "value": 0.2}],
+     "tp": 0.6, "sl": 0.5, "hold": 30},
+    # found on 20 Oct 2026 with the strategy-mining skill, from a plain base rule (buy at 20 min if the volume of the last 5 minutes is at
+    # least $23.5K and the trades since graduation at most 2,969: 112 trades, +9.0% a trade). Added to it: the coin graduated within 5
+    # minutes of its creation (78 trades, +28.1%; a 1-3 s delay costs about 8 points) and it is not more than 70% below its high (the
+    # coin has not collapsed). Backtest: 62 trades, +38.0% a trade, 68% won (earlier 70% of coins +41.0%, newest 30% +32.1%, without the
+    # best 3 +35.1%, bootstrap range +19% to +55%), 9 of 10 days positive; the threshold moved by a quarter stays at +33% to +36%.
+    # The filters were chosen after trying about 900 conditions on the same 10 days, so expect less; the delay test was not run on this
+    # exact form. Paper only until the live record agrees
+    {"id": "strategy-e", "name": "Strategy E: fast graduate, not collapsed (20 min)",
+     "enabled": True, "entry": 20,
+     "conditions": [{"feature": "vol_usd_last_5m", "op": ">=", "value": 23500.0},
+                    {"feature": "trades_total", "op": "<=", "value": 2969.0},
+                    {"feature": "mins_to_grad", "op": "<=", "value": 5.0},
+                    {"feature": "drawdown_from_high", "op": ">=", "value": -0.7}],
+     "tp": 1.0, "sl": 0.4, "hold": 60},
 ]
 
+# Every rule the system runs shows on the Lab page. analyze.py writes strategies/<id>.json (its backtest) and watch.py writes
+# strategies/<id>.live.json (its live paper record) for each enabled one; the saved rules (or the starter ones) and the
+# built-in ones in WATCH_EXTRA that no saved rule replaces make up the list (with_extras).
 
-def with_extras(saved):
-    """The saved rules followed by the built-in live strategies (a saved rule with the same id wins)."""
+
+def cond_key(c):
+    """A condition's measurement: its feature, and the minute it is measured at when that is not the entry minute
+    ("vol_usd_last_5m@15"). Readings, failure counts and page columns are keyed by it."""
+    return f"{c['feature']}@{c['at']}" if c.get("at") else c["feature"]
+
+
+def cond_core(c):
+    """What defines a condition, for telling one version of a rule from another."""
+    return (c["feature"], c["op"], c["value"], c.get("at"))
+
+
+def page_columns(conditions):
+    """The readings a strategy page lists for each trade: one per measurement, except a condition
+    that leaves every bought token the same value (a share of supply, never below 0, at most 0%)."""
+    fixed = lambda c: "_pct" in c["feature"] and c["op"] == "<=" and c["value"] <= 0   # noqa: E731
+    return list(dict.fromkeys(cond_key(c) for c in conditions if not fixed(c)))
+
+
+def with_extras(saved, removed=()):
+    """The saved rules followed by the built-in live strategies (a saved rule with the same id wins).
+    A built-in rule deleted from the Lab (`removed`: see removed()) is left out, with any saved copy of it."""
     ids = {r["id"] for r in saved}
-    return saved + [r for r in validate(WATCH_EXTRA) if r["id"] not in ids]
+    gone = set(removed) & {b["id"] for b in WATCH_EXTRA}
+    return [r for r in saved if r["id"] not in gone] + [r for r in validate(WATCH_EXTRA) if r["id"] not in ids | gone]
+
+
+def removed(settings_dir):
+    """The ids of built-in rules deleted from the Lab (settings/rules_removed.json); they come back with restore."""
+    try:
+        with open(os.path.join(settings_dir, "rules_removed.json"), encoding="utf-8") as f:
+            ids = json.load(f)
+    except (OSError, ValueError):
+        return []
+    return [i for i in ids if isinstance(i, str)] if isinstance(ids, list) else []
+
+
+def set_removed(settings_dir, ids):
+    path = os.path.join(settings_dir, "rules_removed.json")
+    fd, tmp = tempfile.mkstemp(dir=settings_dir, prefix="rules_removed.", suffix=".tmp")
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        json.dump(sorted(set(ids)), f)
+    os.chmod(tmp, 0o644)
+    os.replace(tmp, path)
 
 
 def _number(x, lo, hi, what):
@@ -197,25 +335,38 @@ def validate(rules):
         conds = r.get("conditions", [])
         if not isinstance(conds, list) or len(conds) > LIMITS["max_conditions"]:
             raise ValueError(f"'{name}': at most {LIMITS['max_conditions']} conditions")
+        entry = _number(r.get("entry"), *LIMITS["entry"], f"'{name}': entry minute")
         clean = []
         for c in conds:
             if not isinstance(c, dict) or c.get("feature") not in FEATURES:
                 raise ValueError(f"'{name}': unknown condition")
+            # "at": measured at that earlier minute instead of the entry minute (for example "Strategy B's
+            # conditions at minute 15, then buy at minute 20")
+            at = c.get("at")
+            if at is not None:
+                at = _number(at, LIMITS["entry"][0], entry - 1, f"'{name}': a condition's minute")
+                if at != int(at):
+                    raise ValueError(f"'{name}': a condition's minute must be a whole minute")
+                at = int(at)
+            extra = {"at": at} if at else {}
             kind = FEATURES[c["feature"]][1]
             if kind == "flag":
-                clean.append({"feature": c["feature"], "op": "=", "value": 1.0})
+                clean.append({"feature": c["feature"], "op": "=", "value": 1.0, **extra})
                 continue
             if c.get("op") not in (">=", "<="):
                 raise ValueError(f"'{name}': a condition must be 'at least' or 'at most'")
             clean.append({"feature": c["feature"], "op": c["op"],
-                          "value": float(_number(c.get("value"), -1e12, 1e12, f"'{name}': condition value"))})
-        entry = _number(r.get("entry"), *LIMITS["entry"], f"'{name}': entry minute")
+                          "value": float(_number(c.get("value"), -1e12, 1e12, f"'{name}': condition value")), **extra})
         hold = _number(r.get("hold"), *LIMITS["hold"], f"'{name}': time stop")
         if entry != int(entry) or hold != int(hold):
             raise ValueError(f"'{name}': entry minute and time stop must be whole minutes")
         if entry + hold > LIMITS["max_entry_plus_hold"]:
             raise ValueError(f"'{name}': entry minute plus time stop must be at most "
                              f"{LIMITS['max_entry_plus_hold']} (prices are kept for that long after graduation)")
+        be = float(_number(r["be"], *LIMITS["be"], f"'{name}': breakeven trigger")) if r.get("be") else 0.0
+        be_stop = float(_number(r.get("be_stop") or 0.0, *LIMITS["be_stop"], f"'{name}': breakeven stop level")) if be else 0.0
+        if be and be_stop >= be:
+            raise ValueError(f"'{name}': the breakeven stop level must be below its trigger")
         out.append({
             "id": rid, "name": name, "enabled": bool(r.get("enabled", True)),
             # recorded by the live watch; once any rule has this, the watch follows only those
@@ -224,6 +375,8 @@ def validate(rules):
             "tp": float(_number(r.get("tp"), *LIMITS["tp"], f"'{name}': take profit")),
             "sl": float(_number(r.get("sl"), *LIMITS["sl"], f"'{name}': stop loss")),
             "hold": int(hold),
+            "be": be,
+            "be_stop": be_stop,
         })
     return out
 
