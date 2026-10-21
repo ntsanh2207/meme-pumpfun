@@ -355,7 +355,8 @@ class Handler(BaseHTTPRequestHandler):
 
     # The Crossing page has a trader of its own (service pump-graduated-crossing-trader, data folder data/crossing: its own wallets, limits,
     # trades and state; no automatic strategy). /api/ct/<x> is the same handler as /api/<x> on that folder.
-    CT_ROUTES = ("/api/ct/trading", "/api/ct/trading/sell", "/api/ct/trading/buy", "/api/ct/wallets", "/api/ct/wallets/active", "/api/ct/wallets/remove")
+    CT_ROUTES = ("/api/ct/trading", "/api/ct/trading/sell", "/api/ct/trading/buy", "/api/ct/wallets", "/api/ct/wallets/active", "/api/ct/wallets/remove",
+                 "/api/ct/telegram", "/api/ct/telegram/test")
 
     def scoped(self, path):
         """The handler's path, with self.data_dir set to the folder of the trader the request is for; None for an /api/ct route that does not exist."""
@@ -849,8 +850,9 @@ class Handler(BaseHTTPRequestHandler):
             return self.json(200, {"asked": True})
         if path == "/api/telegram/test":
             sent, why = notify.send(notify.load(self.settings_dir()),
-                                    "✅ <b>Test message</b>\nThe pump.fun watch can reach you here. "
-                                    "You will get a message when a strategy shown on the Record live tab buys a token.")
+                                    "✅ <b>Test message</b>\n" + ("The Crossing alerts can reach you here. You will get the messages you ticked on the Crossing page."
+                                    if self.data_dir != Handler.data_dir else "The pump.fun watch can reach you here. "
+                                    "You will get a message when a strategy shown on the Record live tab buys a token."))
             return self.json(200 if sent else 502, {"sent": sent, "error": why})
         if path == "/api/telegram":
             try:

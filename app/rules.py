@@ -253,6 +253,22 @@ WATCH_EXTRA = [
                     {"feature": "mins_to_grad", "op": "<=", "value": 5.0},
                     {"feature": "drawdown_from_high", "op": ">=", "value": -0.7}],
      "tp": 1.0, "sl": 0.4, "hold": 60},
+    # found on 21 Oct 2026 with the strategy-mining skill, from a rule the user gave (buy at 10 min if the price change since graduation is
+    # at least -94%, the average trade size over the last 5 minutes at least $33.92 and the coin has a Telegram link; +100% / -50% / 30 min:
+    # 178 trades, +11.6% a trade, newest 30% -1.6%). Added in two rounds (about 470 candidates tried): the market cap at least $90K
+    # (123 trades, +18.5%) and the price at least 5% below its high so far (100 trades). Backtest: 100 trades, +25.8% a trade, 63% won
+    # (earlier 70% +26.9%, newest 30% +21.6%, without the best 3 +23.6%, bootstrap range +10.8% to +40.0%), 9 of 11 days positive; thresholds
+    # moved by a quarter stay at +21% to +26%; a 1-3 s delay costs 7-9 points (about +20% a trade). Weak spot: entry minutes 8, 9 and 11
+    # are negative on the newest 30%, so it needs minute 10. The filters were chosen on the same 10 days they are measured on and the
+    # newest 30% is only 21 trades. Paper only until 20-30 live trades agree
+    {"id": "strategy-f", "name": "Strategy F: Telegram, market cap, off its high (10 min)",
+     "enabled": True, "entry": 10,
+     "conditions": [{"feature": "ret_since_grad", "op": ">=", "value": -0.94},
+                    {"feature": "avg_trade_usd_5m", "op": ">=", "value": 33.92},
+                    {"feature": "has_telegram", "op": ">=", "value": 1.0},
+                    {"feature": "mcap_usd", "op": ">=", "value": 90000.0},
+                    {"feature": "drawdown_from_high", "op": "<=", "value": -0.05}],
+     "tp": 1.0, "sl": 0.5, "hold": 30},
 ]
 
 # Every rule the system runs shows on the Lab page. analyze.py writes strategies/<id>.json (its backtest) and watch.py writes

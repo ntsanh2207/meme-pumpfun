@@ -1257,6 +1257,8 @@ let lab = null, labSel = null, labBt = null, labScope = '', labHist = '', labLoa
 const labEarlierOpen = new Set(), labPassedOpen = new Set(), labTrip = { filter: 'all', page: 0 };
 const HELD = ['buying', 'buy_sent', 'open', 'selling', 'sell_sent', 'check', 'stuck'];   // the trader's states of a position still held (trader.py HELD_STATES)
 const exitTag = { target: ['take profit', 'p'], stop: ['stop loss', 'n'], time: ['time stop', 'w'] };
+// why a trade did not go through, for a tooltip: the stored error without the 'not bought: ' prefix, a RuntimeError('…') wrapper or a trailing ': not bought'
+const errText = e => String(e || 'The trade did not go through.').replace(/^not bought: /, '').replace(/^RuntimeError\((['"])(.*)\1\)$/, '$2').replace(/: not bought$/, '').slice(0, 300);
 const subCell = (main, sub, cls) => el('td', { className: cls || '' }, main, el('span', { className: 'subl', textContent: sub || '' }));
 // a token: its symbol (pump.fun) over a short mint (DexScreener)
 const tokCell = (mint, symbol) => el('td', {}, el('b', {}, el('a', { href: 'https://pump.fun/coin/' + encodeURIComponent(mint), target: '_blank', rel: 'noopener noreferrer', textContent: symbol || mint.slice(0, 6) })),
@@ -1960,41 +1962,45 @@ function loadSettingsPage() {
 }
 
 // The Telegram alerts panel of the Settings page. Saved on the server by a signed-in user; the bot token is never sent back to the page.
-function telegramPanel() {
+function telegramPanel(base = '/api', isCross = false) {
   const field = (label, ...k) => el('label', { className: 'chk', style: 'gap:8px' }, label, ...k);
   const tgToken = el('input', { type: 'password', placeholder: 'Bot token from @BotFather', autocomplete: 'off', style: 'width:340px;max-width:100%', 'aria-label': 'Telegram bot token' });
   const tgChat = el('input', { type: 'text', placeholder: 'Your Telegram user ID, e.g. 123456789', style: 'width:260px;max-width:100%', 'aria-label': 'Telegram user ID' });
   const tgOn = el('input', { type: 'checkbox', style: 'width:18px;height:18px' });
   const tgSave = el('button', { textContent: 'Save Telegram settings' }), tgTest = el('button', { textContent: 'Send a test message' });
+  const evWatch = el('select', { 'aria-label': 'Watching alerts' }, el('option', { value: 'off', textContent: 'Nothing' }), el('option', { value: 'armed', textContent: 'A coin is armed (the dip is in, waiting for the cross)' }), el('option', { value: 'all', textContent: 'Every coin that enters Watching, and when armed' }));
+  const evConf = el('input', { type: 'checkbox', checked: true, style: 'width:18px;height:18px' }), evTrades = el('input', { type: 'checkbox', checked: true, style: 'width:18px;height:18px' });
   const tgStatus = el('span', { className: 'small', role: 'status' }), tgState = el('p', { className: 'small', textContent: 'Loading…' });
   const tgShow = d => { tgChat.value = d.chat_id || ''; tgOn.checked = !!d.enabled; tgToken.value = '';
+    if (isCross) { const ev = d.events || { watching: 'armed', confirmed: true, trades: true }; evWatch.value = ev.watching; evConf.checked = ev.confirmed; evTrades.checked = ev.trades; if (p.onState) p.onState(d); }
     tgToken.placeholder = d.token_hint ? `Saved (ends ${d.token_hint}). Leave empty to keep it` : 'Bot token from @BotFather';
     tgState.textContent = !d.configured ? 'Not set up yet: no message is sent.' : d.enabled ? 'Alerts are on.' : 'Saved, but alerts are switched off.'; };
-  fetch('/api/telegram').then(r => r.json()).then(tgShow).catch(() => { tgState.textContent = 'Could not load the Telegram settings.'; });
+  fetch(base + '/telegram').then(r => r.json()).then(tgShow).catch(() => { tgState.textContent = 'Could not load the Telegram settings.'; });
   const tgPost = async (url, body, okText) => {
     tgSave.disabled = tgTest.disabled = true; tgStatus.textContent = 'Working…';
     try {
       const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || 'HTTP ' + res.status);
-      if (url === '/api/telegram') tgShow(d);
+      if (url === base + '/telegram') tgShow(d);
       tgStatus.textContent = okText;
     } catch (e) { tgStatus.textContent = 'Not done: ' + e.message; }
     tgSave.disabled = tgTest.disabled = false;
   };
-  tgSave.onclick = () => tgPost('/api/telegram', { token: tgToken.value.trim(), chat_id: tgChat.value.trim(), enabled: tgOn.checked }, 'Saved.');
-  tgTest.onclick = () => tgPost('/api/telegram/test', {}, 'Test message sent: check Telegram.');
-  const p = labPanel('Telegram alerts', 'Messages on Telegram about real trades.', [],
-    el('p', { textContent: 'Get a Telegram message when the trader buys or sells with real SOL, and when something needs your attention (an order that could not be confirmed, a sale that keeps failing, a wallet that cannot be loaded). Paper trades and dry runs send nothing.' }),
+  tgSave.onclick = () => tgPost(base + '/telegram', { token: tgToken.value.trim(), chat_id: tgChat.value.trim(), enabled: tgOn.checked, ...(isCross ? { events: { watching: evWatch.value, confirmed: evConf.checked, trades: evTrades.checked } } : {}) }, 'Saved.');
+  tgTest.onclick = () => tgPost(base + '/telegram/test', {}, 'Test message sent: check Telegram.');
+  const p = labPanel('Telegram alerts', isCross ? 'Messages on Telegram about the Crossing page: its own bot and chat, separate from the Settings page.' : 'Messages on Telegram about real trades.', [],
+    el('p', { textContent: isCross ? 'Choose what to be told about below. Live trade messages come from the Crossing trader (a real buy or sale, with a link to its transaction, and anything that needs your attention). Dry runs send nothing.' : 'Get a Telegram message when the trader buys or sells with real SOL, and when something needs your attention (an order that could not be confirmed, a sale that keeps failing, a wallet that cannot be loaded). Paper trades and dry runs send nothing.' }),
     el('ol', { className: 'steps' },
       el('li', { textContent: 'In Telegram, open @BotFather, send /newbot and follow the steps. It gives you a bot token.' }),
       el('li', { textContent: 'Open your new bot and press Start. A bot cannot write to you before you do.' }),
       el('li', { textContent: 'Open @userinfobot and press Start. It replies with your user ID (a number).' }),
       el('li', { textContent: 'Paste both below, tick the box, save, then send a test message.' })),
     el('div', { className: 'table-head', style: 'padding:8px 0' }, field('Bot token', tgToken), field('User ID', tgChat), field('', tgOn, 'Send alerts')),
+    ...(isCross ? [el('div', { className: 'table-head', style: 'padding:0 0 8px;flex-wrap:wrap' }, field('Watching coins', evWatch), field('', evConf, 'Confirmed crossings'), field('', evTrades, 'Live trades (buy and sell, with the transaction)'))] : []),
     el('div', { className: 'table-head', style: 'padding:0 0 4px' }, tgSave, tgTest, tgStatus), tgState,
     el('p', { className: 'small', textContent: 'The token is stored on the server and never shown again; anyone holding it can send messages as your bot, so do not share it. ' }));
-  p.id = 'telegram'; return p;
+  p.id = isCross ? 'telegram-crossing' : 'telegram'; return p;
 }
 
 // ---------- Trading tab ----------
@@ -2008,7 +2014,7 @@ let tradeDraws = [];
 const tradePrev = new Map();   // position id → its result at the last draw, for the flash when it moves
 const HUES = ['indigo', 'teal', 'sky', 'lime', 'orange', 'pink', 'violet', 'brown', 'blue', 'plum', 'rose', 'slate'];
 // each strategy keeps one colour on every page: the built-in ones fixed (so they never share one), others from their id
-const STRAT_HUE = { 'strategy-a': 'teal', 'strategy-b': 'indigo', 'strategy-c': 'orange', 'strategy-c-plus': 'pink', 'strategy-d': 'sky', 'strategy-b20': 'blue', 'strategy-b-plus': 'violet', 'strategy-b20-direct': 'rose', 'strategy-c-steady': 'lime', 'strategy-e': 'brown', auto: 'slate' };
+const STRAT_HUE = { 'strategy-a': 'teal', 'strategy-b': 'indigo', 'strategy-c': 'orange', 'strategy-c-plus': 'pink', 'strategy-d': 'sky', 'strategy-b20': 'blue', 'strategy-b-plus': 'violet', 'strategy-b20-direct': 'rose', 'strategy-c-steady': 'lime', 'strategy-e': 'brown', 'strategy-f': 'plum', auto: 'slate' };
 const hueOf = id => { if (STRAT_HUE[id]) return STRAT_HUE[id]; let h = 0; for (const c of String(id || '')) h = (h * 31 + c.charCodeAt(0)) >>> 0; return HUES[h % HUES.length]; };
 const hueVar = id => `var(--h-${hueOf(id)})`;
 // colours the header cells of per-strategy columns (ids in column order, starting at column `from`)
@@ -2191,7 +2197,7 @@ function renderTrading() {
   const liveOpen = open.filter(t => t.mode === 'live' && t.sol_in != null && t.last_value != null);
   const unreal = liveOpen.reduce((a, t) => a + t.last_value - t.sol_in, 0), realized = real.reduce((a, t) => a + tradeResult(t), 0);
   const recent = [...real].sort((a, b) => b.closed_ts - a.closed_ts).slice(0, 8);
-  out.push(el('section', { className: 'card lab' }, el('div', { className: 'lab-head' }, h2('Live profit'), ...(open.length ? [el('span', { className: 'livedot', title: 'Live' })] : []),
+  const liveProfit = (el('section', { className: 'card lab' }, el('div', { className: 'lab-head' }, h2('Live profit'), ...(open.length ? [el('span', { className: 'livedot', title: 'Live' })] : []),
     el('span', { className: 'small grow', textContent: 'Real trades only. Open positions are priced from what selling the whole position would return, after the pool fee and price impact; exits are checked every second or two.' })),
     labStats([['Total profit', sol(realized + unreal), plCls(realized + unreal)],
       ['Unrealized (open positions)', liveOpen.length ? sol(unreal) : '–', plCls(unreal)],
@@ -2217,6 +2223,8 @@ function renderTrading() {
       tintHeads(table(['Day', ...ids.map(id => '#' + stratShort(st, id)), '#Total'], [...days.map(d => [label(d), ...ids.map(id => cell(byDay.get(d)[id])), cell(sumOf(byDay.get(d)))]), [el('td', {}, el('b', { textContent: 'Last 14 days' })), ...ids.map(id => cell(total[id])), cell(sumOf(total))]]), ids)));
   }
 
+  out.push(liveProfit);      // (placed below P&L by day)
+
   // trade history: a ledger, newest first, with a filter and pages
   const done = trades.filter(t => !HELD.includes(t.status)), names = new Map(avail.map(s => [s.id, s.name])); for (const t of done) if (!names.has(t.strategy)) names.set(t.strategy, t.strategy);
   const sel = el('select', { 'aria-label': 'Strategy' }, el('option', { value: '', textContent: 'All strategies' }), ...[...names].map(([id, n]) => el('option', { value: id, textContent: n, selected: id === trade.strat })));
@@ -2235,12 +2243,12 @@ function renderTrading() {
     const held = closed && t.closed_ts && since ? Math.max(0, Math.round((t.closed_ts - since) / 60000)) : null;
     const strat = (st.strategies_available || []).find(s => s.id === t.strategy);
     return [el('td', {}, chip(stratShort(st, t.strategy), t.strategy), t.mode === 'dry' ? el('span', { className: 'mode-tag', textContent: 'dry run' }) : ''), tokCell(t.mint, t.symbol),
-      since ? subCell(when(since), [strat && strat.entry ? `minute ${strat.entry}` : '', t.lat_total_ms != null ? `confirmed ${(t.lat_total_ms / 1000).toFixed(1)} s after the signal` : ''].filter(Boolean).join(' · ')) : '–',
-      t.closed_ts ? when(t.closed_ts) : '–',
+      el('td', Object.assign({}, ...[[strat && strat.entry ? `bought at minute ${strat.entry}` : '', t.lat_total_ms != null ? `confirmed ${(t.lat_total_ms / 1000).toFixed(1)} s after the signal` : ''].filter(Boolean).join(' · ')].map(x => x ? { title: x } : {})), since ? when(since) : '–',
+        el('span', { className: 'subl', textContent: 'sold ' + (t.closed_ts ? when(t.closed_ts) : '–') })),
       t.entry_mcap_sol && st.sol_usd ? { className: 'num', textContent: usd(t.entry_mcap_sol * st.sol_usd) } : { className: 'num muted', textContent: '–' },
-      closed ? el('td', {}, el('span', { className: 'tag ' + (TRADE_EXIT[t.reason] || 'w'), textContent: t.reason || 'closed' }),
-          el('span', { className: 'subl', textContent: [held != null ? `${held} min` : '', !t.reason && t.error ? t.error : ''].filter(Boolean).join(' · ') }))
-        : el('td', {}, el('span', { className: 'tag n', textContent: STATUS_TEXT[t.status] || t.status }), t.error ? el('span', { className: 'subl', textContent: t.error }) : ''),
+      closed ? el('td', !t.reason && t.error ? { title: errText(t.error) } : {}, el('span', { className: 'tag ' + (TRADE_EXIT[t.reason] || 'w'), textContent: t.reason || 'closed' }),
+          el('span', { className: 'subl', textContent: held != null ? `${held} min` : '' }))
+        : el('td', t.error ? { title: errText(t.error) } : {}, el('span', { className: 'tag n', style: t.error ? 'cursor:help' : '', textContent: STATUS_TEXT[t.status] || t.status }), t.error ? el('span', { className: 'subl', style: 'cursor:help', textContent: 'hover for the reason' }) : ''),
       xCell(t.swap_cost && t.exit_value != null ? t.exit_value / t.swap_cost : null, t.swap_cost && (t.peak_value || t.exit_value) ? Math.max(t.peak_value || 0, t.exit_value || 0) / t.swap_cost : null),
       r == null ? { className: 'num muted', textContent: '–' } : { className: signed(r), textContent: pc(t.sol_out / t.sol_in - 1) },
       r == null ? { className: 'num muted', textContent: '–' } : subCell(sol(r, 4), `${amt(t.sol_in)} → ${amt(t.sol_out)}`, signed(r)),
@@ -2248,7 +2256,7 @@ function renderTrading() {
   const won = shownDone.filter(t => tradeResult(t) > 0).length;
   out.push(el('section', { className: 'card lab' }, el('div', { className: 'lab-head' }, h2('Trade history'),
     el('span', { className: 'small grow', textContent: shownDone.length ? `${shownDone.length} closed trade${shownDone.length > 1 ? 's' : ''}: ${won} won, ${sol(shownTot)}.` : '' }), sel, seg),
-    page.length ? table(['Strategy', 'Token', 'Bought', 'Sold', '#Entry mcap', 'Exit', '#Now / exit', '#Net', '#P&L', 'Transactions'], hist2) : el('p', { className: 'small', textContent: done.length ? 'No trades match this filter.' : 'Nothing yet. A trade starts when an ON strategy makes a live buy decision.' }),
+    page.length ? table(['Strategy', 'Token', 'Bought / sold', '#Entry mcap', 'Exit', '#Now / exit', '#Net', '#P&L', 'Transactions'], hist2) : el('p', { className: 'small', textContent: done.length ? 'No trades match this filter.' : 'Nothing yet. A trade starts when an ON strategy makes a live buy decision.' }),
     ...(pages > 1 ? [el('div', { className: 'pager', style: 'justify-content:center' }, newer, el('span', { className: 'small', textContent: `Page ${trade.page} of ${pages}` }), older)] : [])));
 
   // latency, folded away
@@ -2286,7 +2294,7 @@ function renderTrading() {
 
 // ---------- Crossing: coins that fall below their graduation market cap and then climb back above it ----------
 // crossing.py (its own service) follows every new graduate and writes crossing.json; this page only shows it. Nothing is bought.
-const cross = { d: null, tr: null, tradeBox: null, sellArmed: null, sellMsg: '', busy: false, miss: false, armed: null, sent: {}, err: {}, walletBox: null };
+const cross = { d: null, tr: null, tradeBox: null, sellBusy: false, sellMsg: '', busy: false, miss: false, sent: {}, err: {}, walletBox: null, tgBox: null };
 async function loadCrossing() {
   if (cross.busy) return; cross.busy = true;
   try { const res = await fetch('/api/crossing'); cross.miss = res.status === 404; cross.d = res.ok ? await res.json() : null; } catch (e) { cross.d = null; }
@@ -2348,13 +2356,13 @@ function renderCrossing() {
   if (!d) { root.replaceChildren(el('p', { className: 'small', textContent: cross.miss ? 'The crossing detector has not written anything yet. It starts with the server; give it a minute, or check that pump-graduated-crossing.service is running.' : 'Could not read the detector.' })); return; }
   const age = Date.now() - d.updated, stale = age > 30000, r = d.rule, st = d.stats;
   const tag = (txt, cls, title) => el('span', { className: 'tag ' + (cls || ''), textContent: txt, title: title || '' });
-  // buying by hand: a button per coin, two clicks (Buy, then Confirm). The request goes to the trader (/api/trading/buy), which applies the
+  // buying by hand: a button per coin, one click. The request goes to the trader (/api/trading/buy), which applies the
   // limits of the Trading tab (mode, wallet, size, most open, daily loss, price impact) and sells at the rule's take profit / stop loss / time stop.
   const trd = cross.tr, tmode = trd && trd.mode, size = trd && trd.settings ? trd.settings.sol_per_trade : null, ex = [((trd && trd.settings && trd.settings.take_profit_pct) || 50) / 100, ((trd && trd.settings && trd.settings.stop_loss_pct) || 50) / 100, r.exit[2]];      // take profit and stop loss come from the Crossing trading panel; the time stop from the rule
   const pct1 = x => String(+(x * 100).toFixed(1)), exText = `+${pct1(ex[0])}% / −${pct1(ex[1])}% / ${ex[2]} min`;
   const manualOf = mint => ((trd && trd.trades) || []).find(t => t.strategy === 'crossing-manual' && t.mint === mint);
   const sendBuy = async (mint, symbol) => {
-    cross.armed = null; cross.sent[mint] = Date.now(); delete cross.err[mint]; renderCrossing();
+    cross.sent[mint] = Date.now(); delete cross.err[mint]; renderCrossing();
     try {
       const res = await fetch('/api/ct/trading/buy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mint, symbol: symbol || '', tp: ex[0], sl: ex[1], hold: ex[2], confirm: true }) });
       const b = await res.json().catch(() => ({})); if (!res.ok) throw new Error(b.error || 'HTTP ' + res.status);
@@ -2362,7 +2370,7 @@ function renderCrossing() {
     renderCrossing(); loadCrossing();
   };
   const buyBox = (mint, symbol) => {
-    const box = el('span', { className: 'buybox' }), m = manualOf(mint), armed = cross.armed && cross.armed.mint === mint && Date.now() - cross.armed.at < 6000;
+    const box = el('span', { className: 'buybox' }), m = manualOf(mint);
     const sentNow = cross.sent[mint] && Date.now() - cross.sent[mint] < 25000 && !m;
     if (m && m.status !== 'failed') {
       const done = m.status === 'closed' && m.sol_in && m.sol_out != null;
@@ -2378,14 +2386,8 @@ function renderCrossing() {
     if (!trd || size == null) { box.append(el('button', { type: 'button', className: 'sm', disabled: true, textContent: 'Buy', title: 'The trader has not reported yet' })); return box; }
     if (tmode === 'off') { box.append(el('button', { type: 'button', className: 'sm', disabled: true, textContent: 'Buy', title: 'Trading is off: switch the Crossing trading mode to Live above' })); return box; }
     if (tmode === 'live' && !trd.wallet) { box.append(el('button', { type: 'button', className: 'sm', disabled: true, textContent: 'Buy', title: 'No wallet is loaded for the Crossing trader: add one in Trading wallets above' })); return box; }
-    if (armed) {
-      const go = el('button', { type: 'button', className: 'sm danger', textContent: `Confirm: buy ${size} SOL${dry ? ' (dry run)' : ''}`, title: `Sells at ${exText}` }), no = el('button', { type: 'button', className: 'sm', textContent: 'Cancel' });
-      go.onclick = () => { const age = Date.now() - cross.armed.at; if (age < 800 || age > 6000) return; sendBuy(mint, symbol); };      // (a fast double click on Buy must not also confirm; a stale Confirm does nothing)
-      no.onclick = () => { cross.armed = null; renderCrossing(); };
-      box.append(go, ' ', no); return box;
-    }
-    const b = el('button', { type: 'button', className: 'sm primary', textContent: `Buy ${size} SOL`, title: `${dry ? 'Dry run: nothing real is bought. ' : 'Buys with real SOL. '}Sells at ${exText}.` });
-    b.onclick = () => { cross.armed = { mint, at: Date.now() }; renderCrossing(); setTimeout(renderCrossing, 6100); };
+    const b = el('button', { type: 'button', className: 'sm primary', textContent: `Buy ${size} SOL`, title: `${dry ? 'Dry run: nothing real is bought. ' : 'Buys with real SOL at once. '}Sells at ${exText}.` });
+    b.onclick = () => { if (cross.sent[mint] && Date.now() - cross.sent[mint] < 25000) return; sendBuy(mint, symbol); };      // (one click buys; a second click on the same coin is ignored while the request is out)
     box.append(b); return box;
   };
   const sellTag = p => !p ? tag('reading…', 'w') : p.error ? tag('no data', 'w') : p.sellers_gone ? tag('sellers gone', 'p', 'Sellers were 15% or less of the dollars traded in the 60 s after the crossing, and 8 or more wallets bought') : tag('sellers present', 'w');
@@ -2404,33 +2406,36 @@ function renderCrossing() {
       el('li', {}, el('b', { textContent: 'The cross: ' }), `a minute closes at or above the graduation minute's high after one that closed below it, in minute ${r.first} to ${r.last} after graduation.`)),
     el('p', { className: 'small', style: 'margin:8px 0 0', textContent: `Each candidate is read every 15 to 30 seconds during its first 14 minutes.` }),
     el('b', { style: 'display:block;margin-top:12px', textContent: 'How buying works' }),
-    el('p', { className: 'small', style: 'margin:4px 0 0', textContent: 'A Buy button (in Watching now and on a crossing from the last 15 minutes) asks this page\'s own trader for one buy: two clicks, Buy then Confirm. It uses the wallet in Trading wallets and the size, limits, take profit and stop loss set in Crossing trading (both below). The trader then watches the position and sells it for you; you can also sell by hand in Live Trading.' })));
+    el('p', { className: 'small', style: 'margin:4px 0 0', textContent: 'A Buy button (in Watching now and on a crossing from the last 15 minutes) asks this page\'s own trader for one buy at once (no confirmation). It uses the wallet in Trading wallets and the size, limits, take profit and stop loss set in Crossing trading (both below). The trader then watches the position and sells it for you; you can also sell by hand in Live Trading.' })));
   // the wallet the buy buttons trade with (the same panel as on Settings), built once so a key being typed is not lost on the 3 s refresh
   if (!GUEST) out.push(cross.walletBox || (cross.walletBox = (() => { const p = walletPanel('/api/ct', true); p.id = 'wallet-crossing'; return foldPanel(p, 'crossingWalletsOpen'); })()));
   if (!GUEST) out.push(cross.tradeBox || (cross.tradeBox = foldPanel(crossTradingPanel(), 'crossingTradingOpen')));
+  if (!GUEST) out.push(cross.tgBox || (cross.tgBox = (() => { const p = telegramPanel('/api/ct', true), box = foldPanel(p, 'crossingTelegramOpen');
+    p.onState = d => box.setSummary && box.setSummary(!d.configured ? '· not set up' : !d.enabled ? '· saved, switched off' : '· on: ' + [d.events && d.events.watching !== 'off' ? 'watching' : '', !d.events || d.events.confirmed ? 'confirmed' : '', !d.events || d.events.trades ? 'live trades' : ''].filter(Boolean).join(', '));
+    return box; })()));
   if (cross.tradeBox && cross.tradeBox.refresh) cross.tradeBox.refresh(cross.tr);
   {   // what the folded sections say about themselves
     const t = cross.tr, wshort = a => a.slice(0, 4) + '…' + a.slice(-4);
     if (cross.walletBox && cross.walletBox.setSummary) cross.walletBox.setSummary(!t ? '· the trader has not reported yet' : t.wallet ? `· in use ${wshort(t.wallet)}${t.balance_sol != null ? ' · ' + (+t.balance_sol.toFixed(4)) + ' SOL' : ''}` : '· no wallet yet: open to add one');
     if (cross.tradeBox && cross.tradeBox.setSummary) cross.tradeBox.setSummary(!t || !t.settings ? '' : `· ${(t.wanted_mode || t.mode) === 'live' ? 'Live' : 'Off'} · ${t.settings.sol_per_trade} SOL a buy · at most ${t.settings.max_open} open · daily loss limit ${t.settings.daily_loss_limit_sol} SOL`);
   }
-  // the buys made here: open ones (Live Trading, with a Sell button: two clicks) and the last 20 finished ones (Trade History); both are placed below Watching now
+  // the buys made here: open ones (Live Trading, with a Sell button: one click) and the last 20 finished ones (Trade History); both are placed below Watching now
   let liveP = null, histP = null;
   {
-    const mine = ((cross.tr && cross.tr.trades) || []).filter(t => t.strategy === 'crossing-manual' && t.status !== 'failed');
+    const mine = ((cross.tr && cross.tr.trades) || []).filter(t => t.strategy === 'crossing-manual');      // (a buy that was refused is a failed row: it shows in Trade History with its reason as a tooltip)
     {
       const ts = t => t.opened_ts || t.entry_ts || 0;
       const open = mine.filter(t => HELD.includes(t.status)).sort((x, y) => ts(y) - ts(x)), done = mine.filter(t => !HELD.includes(t.status)).sort((x, y) => ts(y) - ts(x)).slice(0, 20);
-      const armed = id => cross.sellArmed && cross.sellArmed.id === id && Date.now() - cross.sellArmed.at < 6000;
       const postSell = async body => { try { const res = await fetch('/api/ct/trading/sell', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); const b = await res.json().catch(() => ({})); if (!res.ok) throw new Error(b.error || 'HTTP ' + res.status); cross.sellMsg = 'Sale asked. The Crossing trader sells within a few seconds.'; } catch (e) { cross.sellMsg = 'Not asked: ' + e.message; } cross.sellMsgAt = Date.now(); renderCrossing(); loadCrossing(); setTimeout(renderCrossing, 15500); };
-      const sellBtn = (label, body, id) => { const a = armed(id);
-        const b = el('button', { type: 'button', className: 'sm ' + (a ? 'danger' : ''), textContent: a ? 'Confirm: ' + label.toLowerCase() : label });
-        b.onclick = () => { if (!a) { cross.sellArmed = { id, at: Date.now() }; renderCrossing(); setTimeout(renderCrossing, 6100); } else if (Date.now() - cross.sellArmed.at >= 800) { cross.sellArmed = null; postSell(body); } };      // (disarmed before the request goes out: a double click posts once)
+      const sellBtn = (label, body) => {
+        const b = el('button', { type: 'button', className: 'sm', textContent: label, disabled: !!cross.sellBusy });
+        b.onclick = () => { if (cross.sellBusy) return; cross.sellBusy = true; b.disabled = true; postSell(body).finally(() => { cross.sellBusy = false; renderCrossing(); }); };      // (one click sells; no second post while the request is out)
         return b; };
       const txLink2 = (sig, n) => sig ? el('a', { className: 'small', href: 'https://solscan.io/tx/' + encodeURIComponent(sig), target: '_blank', rel: 'noopener noreferrer', textContent: n }) : '';
+      const why = t => errText(t.error);      // the reason a buy was refused, for the tooltip
       const mkRow = t => { const held = HELD.includes(t.status), r = t.sol_in && (held ? t.last_value : t.sol_out) != null ? (held ? t.last_value : t.sol_out) / t.sol_in - 1 : null;
-        return [el('td', {}, el('b', {}, el('a', { href: 'https://pump.fun/coin/' + encodeURIComponent(t.mint), target: '_blank', rel: 'noopener noreferrer', textContent: t.symbol || t.mint.slice(0, 6) })), t.mode === 'dry' ? el('span', { className: 'mode-tag', textContent: 'dry run' }) : ''),
-          subCell(when(t.opened_ts || t.entry_ts), held ? STATUS_TEXT[t.status] || t.status : t.reason || 'closed'),
+        return [el('td', t.status === 'failed' ? { title: why(t) } : {}, el('b', {}, el('a', { href: 'https://pump.fun/coin/' + encodeURIComponent(t.mint), target: '_blank', rel: 'noopener noreferrer', textContent: t.symbol || t.mint.slice(0, 6) })), t.mode === 'dry' ? el('span', { className: 'mode-tag', textContent: 'dry run' }) : ''),
+          t.status === 'failed' ? el('td', { title: why(t) }, when(t.opened_ts || t.entry_ts), el('span', { className: 'subl', style: 'cursor:help;color:var(--neg, #d4524a)', textContent: 'not bought' })) : subCell(when(t.opened_ts || t.entry_ts), held ? STATUS_TEXT[t.status] || t.status : t.reason || 'closed'),
           { className: 'num', textContent: t.sol_in != null ? t.sol_in.toFixed(3) : '–' },
           { className: 'num', textContent: (held ? t.last_value : t.sol_out) != null ? (held ? t.last_value : t.sol_out).toFixed(3) : '–' },
           { className: signed(r), textContent: r == null ? '–' : pc(r) },
@@ -2440,7 +2445,7 @@ function renderCrossing() {
       const head = ['Coin', 'Bought', '#Cost (SOL)', '#Value (SOL)', '#Net', 'Exits', ''];
       liveP = labPanel('Live Trading', `${open.length} open · bought here with the Buy buttons, sold at the exit rule or by hand`, open.length > 1 ? [sellBtn('Sell all', { all: true }, 'all')] : [],
         open.length ? table(head, open.map(mkRow)) : el('p', { className: 'small', textContent: 'No open position.' }), ...msg);
-      histP = labPanel('Trade History', `the last ${done.length} finished trade${done.length === 1 ? '' : 's'}, newest first`, [],
+      histP = labPanel('Trade History', `the last ${done.length} trade${done.length === 1 ? '' : 's'} (finished, or refused: hover "not bought" for the reason), newest first`, [],
         done.length ? table(head.map(h => h === '#Value (SOL)' ? '#Result (SOL)' : h), done.map(mkRow)) : el('p', { className: 'small', textContent: 'No finished trade yet.' }));
     }
   }
@@ -2513,7 +2518,7 @@ function showTab() {
   else if (tab === 'lab') { labLoaded ? (renderLab(), lm && $('lab-detail') && $('lab-detail').scrollIntoView()) : loadLab(); }
   else if (tab === 'settings') { if (!settingsPageLoaded) loadSettingsPage(); }
   else if (tab === 'trading') loadTrading();
-  else if (tab === 'crossing') { cross.walletBox = cross.tradeBox = null; loadCrossing(); }       // (the wallet panel is read again each time the tab is opened)
+  else if (tab === 'crossing') { cross.walletBox = cross.tradeBox = cross.tgBox = null; loadCrossing(); }       // (the wallet panel is read again each time the tab is opened)
   else if (tab === 'coins') loadCoins();
   else if (tab === 'wallets') loadWallets();
   else if (tab === 'monitor') loadMonitor();

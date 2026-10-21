@@ -653,7 +653,7 @@ def tell(settings, text):
     def go():
         try:
             cfg = notify.load(settings)
-            if notify.ready(cfg):
+            if notify.ready(cfg) and (not isinstance(cfg.get("events"), dict) or notify.events(cfg)["trades"]):      # (the Crossing page can switch trade alerts off)
                 notify.send(cfg, text)
         except Exception:
             pass
@@ -705,9 +705,12 @@ class Trader:
         db.execute("PRAGMA journal_mode=WAL")
         return db
 
+    def title(self):
+        return "🤖 Crossing trading" if getattr(self, "manual_only", False) else "🤖 Auto trading"
+
     def say(self, mode, text):
         if mode == "live":      # Telegram is for real trades only: a dry run sends nothing
-            tell(self.settings, f"<b>🤖 Auto trading</b>\n{text}")
+            tell(self.settings, f"<b>{self.title()}</b>\n{text}")
 
     def mcap_usd(self, swap_sol, tokens):
         """The market cap in USD at the price a swap of `swap_sol` for `tokens` raw units got (None when not known)."""
@@ -722,7 +725,7 @@ class Trader:
     def alert_once(self, key, text):
         if key not in self.alerted:
             self.alerted.add(key)
-            tell(self.settings, "<b>🤖 Auto trading</b>\n⚠️ " + text)
+            tell(self.settings, f"<b>{self.title()}</b>\n⚠️ " + text)
 
     # ---- startup: orders cut short by a restart ----
     def recover(self, cfg=None):   # cfg: accepted for older callers, not needed

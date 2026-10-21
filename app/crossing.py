@@ -26,6 +26,7 @@ import numpy as np
 
 import analyze as A
 import collector as C
+import notify
 import watch as W
 
 MIN = 60000
@@ -60,6 +61,7 @@ class Coin:
         self.price = None          # last close, as market cap in USD
         self.k = 0
         self.ref = None            # the price to cross (see step)
+        self.sent_watch = self.sent_armed = False      # Telegram alerts already sent for this coin
         self.rows = []             # the live status rows (timeline)
         self.below = 0             # closed minutes below 0.97 x the graduation price so far
         self.state = "new"
@@ -167,8 +169,28 @@ def fetch_trades(mint, since_ms, pages=8):
 
 
 class Monitor:
+    def alert(self, kind, c, text):
+        """A Telegram message for the Crossing page's alerts (settings/telegram.json of the Crossing folder: its own bot and what to send).
+        kind: 'watching' (a coin enters Watching or is armed), 'confirmed'. In the background; a slow Telegram never holds up a read."""
+        if now_ms() < self.quiet_until:      # (just after a restart every coin in its first minutes would be announced again)
+            return
+        def go():
+            try:
+                cfg = notify.load(os.path.join(self.data, "crossing", "settings"))
+                if not notify.ready(cfg):
+                    return
+                ev = notify.events(cfg)
+                if kind == "confirmed" and not ev["confirmed"] or kind in ("watching", "armed") and (ev["watching"] == "off" or kind == "watching" and ev["watching"] != "all"):
+                    return
+                links = f'<a href="https://pump.fun/coin/{notify.esc(c.mint)}">pump.fun</a> · <a href="https://dexscreener.com/solana/{notify.esc(c.info.get("pool") or c.mint)}">DexScreener</a>'
+                notify.send(cfg, f"{text}\n{links}")
+            except Exception:
+                pass
+        threading.Thread(target=go, daemon=True).start()
+
     def __init__(self, data, p0):
         self.data, self.p0 = data, p0
+        self.quiet_until = now_ms() + 45000
         self.lock = threading.Lock()
         self.coins = {}
         self.db_path = os.path.join(data, "crossing.db")
@@ -285,6 +307,13 @@ class Monitor:
                 self.detect(c, close, now, k)
             else:
                 c.state = "armed (waiting for the cross)" if armed else ("dip phase" if c.below else ("early" if k < 2 else "no dip"))
+        mc = lambda x: f"${x * 1e9 / 1e3:,.1f}K"      # noqa: E731
+        if base and not c.done and not c.sent_watch and not c.event:
+            c.sent_watch = True
+            self.alert("watching", c, f"👀 <b>${notify.esc(c.symbol)}</b> is watched (minute {k}): level to cross {mc(p0)}, now {mc(close[min(k, len(close) - 1)])}")
+        if c.state.startswith("armed") and not c.sent_armed:
+            c.sent_armed = True
+            self.alert("armed", c, f"🎯 <b>${notify.esc(c.symbol)}</b> is armed (minute {k}): the dip is in, a close above {mc(p0)} is a crossing. Now {mc(close[min(k, len(close) - 1)])}")
         try:
             c.rows = timeline(c, close, low, high, closed, k, close[min(k, len(close) - 1)], c.state)
         except Exception as e:
@@ -353,6 +382,8 @@ class Monitor:
                 ev["feat"] = {k: f.get(k) for k in ("mins_to_grad", "trades_last_5m", "vol_usd_last_5m", "avg_trade_usd_5m", "dev_buy_sol", "trades_total", "holders", "top10_pct", "bundlers_pct", "snipers_pct", "ret_last_5m")}
                 ev["flags"] = {"group": bool(mtg is not None and GROUP[0] <= mtg <= GROUP[1]), "quiet": bool(t5 is not None and t5 <= QUIET), "quiet500": bool(t5 is not None and t5 <= 500)}
                 print(f"CONFIRMED {c.symbol} minute {k_ev} group={ev['flags']['group']} quiet={ev['flags']['quiet']}", flush=True)
+                self.alert("confirmed", c, f"✅ <b>Crossing confirmed: ${notify.esc(c.symbol)}</b> (minute {k_ev})\nEntry {ev['entry'] and '$%.1fK' % (ev['entry'] / 1e3)}, level {'$%.1fK' % (c.ref * 1e9 / 1e3)}"
+                           f"{' · group' if ev['flags']['group'] else ''}{' · quiet' if ev['flags']['quiet'] else ''}")
                 c.state = "crossed"
             else:
                 ev["status"], ev["confirmed"] = "failed", now
