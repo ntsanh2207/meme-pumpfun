@@ -541,18 +541,72 @@ nav.tabs a.on, button.primary, a.btn.primary { color: var(--on-accent); }
 button.sw.on, button.sw.on:hover:not(:disabled) { background: var(--sw-on); color: var(--on-sw); }
 button.sw.off, button.sw.off:hover:not(:disabled) { background: var(--sw-off); color: var(--on-sw); }
 #watch > .scroll > table > thead > tr > th:first-child, #history .scroll > table > thead > tr > th:first-child { background: var(--surface-2); }
-html { scroll-padding-top: 96px; }   /* a section scrolled to is not hidden under the sticky top bar */
+html { scroll-padding-top: 24px; }   /* a section scrolled to keeps a little room above it */
 @media print { header.top { position: static; backdrop-filter: none; -webkit-backdrop-filter: none; } body { background-image: none; } .card, .summary .sum { box-shadow: none; } }
 @media (min-width: 1800px) { body { font-size: 14.5px; } }
+
+/* ---- sidebar menu (22 Oct 2026): the page tabs as a fixed left column, grouped, with icons; a drawer on phones; collapsible to icons ---- */
+:root { --side: 252px; }
+body.side-collapsed { --side: 76px; }
+header.top { position: fixed; inset: 0 auto 0 0; width: var(--side); z-index: 40; margin: 0; padding: 18px 14px 14px; display: flex; flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 6px;
+  background: var(--surface); border-right: 1px solid var(--line); border-bottom: 0; overflow-y: auto; overflow-x: hidden; backdrop-filter: none; -webkit-backdrop-filter: none; transition: width .18s ease, transform .2s ease; }
+header.top .brand { padding: 2px 8px 14px; flex-wrap: wrap; gap: 6px 10px; }
+header.top nav.tabs { order: 0; flex-direction: column; flex-wrap: nowrap; gap: 2px; width: auto; margin: 0; padding: 0; border: 0; border-radius: 0; box-shadow: none; background: transparent; overflow: visible; }
+header.top nav.tabs a { display: flex; align-items: center; gap: 12px; padding: 9px 12px; border-radius: 10px; font-size: 14px; font-weight: 600; white-space: nowrap; color: var(--muted); position: relative; }
+header.top nav.tabs a svg, .account a svg, .menu-btn svg, .collapse-btn svg { width: 19px; height: 19px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+header.top nav.tabs a:hover { color: var(--ink); background: var(--surface-2); }
+header.top nav.tabs a.on { color: var(--accent); background: var(--accent-soft); box-shadow: none; }
+header.top nav.tabs a.on::before { content: ""; position: absolute; left: -14px; top: 8px; bottom: 8px; width: 3px; border-radius: 0 3px 3px 0; background: var(--accent); }
+.navgroup { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .09em; color: var(--muted); padding: 16px 12px 5px; white-space: nowrap; }
+.navgroup:first-child { padding-top: 4px; }
+header.top .account { order: 9; margin: auto 0 0; padding: 12px 0 0; border: 0; border-top: 1px solid var(--line); display: flex; flex-direction: column; align-items: stretch; gap: 4px; }
+header.top .account a { display: flex; align-items: center; gap: 12px; padding: 9px 12px; border: 0; background: transparent; border-radius: 10px; font-size: 14px; color: var(--muted); white-space: nowrap; }
+header.top .account a:hover { background: var(--surface-2); color: var(--ink); }
+.collapse-btn { display: flex; align-items: center; justify-content: center; align-self: flex-end; width: 34px; height: 30px; margin-top: 2px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 9px; cursor: pointer; padding: 0; }
+.collapse-btn:hover { color: var(--ink); border-color: var(--accent); }
+.collapse-btn svg { transition: transform .18s; }
+body.side-collapsed .collapse-btn svg { transform: rotate(180deg); }
+body.side-collapsed .collapse-btn { align-self: center; }
+body.side-collapsed header.top .brandtag, body.side-collapsed header.top .brand b, body.side-collapsed .lbl, body.side-collapsed .navgroup { display: none; }
+body.side-collapsed header.top .brand { justify-content: center; padding: 2px 0 12px; }
+body.side-collapsed header.top nav.tabs a, body.side-collapsed header.top .account a { justify-content: center; padding: 10px 0; }
+body.side-collapsed header.top nav.tabs a.on::before { left: -14px; }
+main { margin-left: var(--side); padding-top: 26px; transition: margin-left .18s ease; }
+.menu-btn { display: none; position: fixed; top: 10px; left: 10px; z-index: 50; width: 40px; height: 40px; align-items: center; justify-content: center; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); color: var(--ink); box-shadow: var(--shadow); cursor: pointer; padding: 0; }
+.scrim { display: none; position: fixed; inset: 0; z-index: 35; background: rgba(8, 12, 22, .5); }
+@media (max-width: 900px) {
+  header.top { transform: translateX(-102%); width: min(84vw, 300px); box-shadow: 0 0 40px rgba(0, 0, 0, .35); visibility: hidden; transition: transform .2s ease, visibility 0s linear .2s; }      /* (hidden: its links are not reachable by keyboard or screen reader while off-canvas) */
+  body.menu-open header.top { transform: none; visibility: visible; transition-delay: 0s; }
+  body.menu-open .scrim { display: block; }
+  .menu-btn { display: flex; }
+  header.top .brand { padding-left: 54px; }      /* (the menu button sits over the drawer's corner) */
+  main { margin-left: 0; padding-top: 62px; }
+  .collapse-btn { display: none; }
+  body.side-collapsed { --side: 252px; }
+  body.side-collapsed header.top .brandtag, body.side-collapsed header.top .brand b, body.side-collapsed .lbl, body.side-collapsed .navgroup { display: revert; }
+  body.side-collapsed header.top nav.tabs a, body.side-collapsed header.top .account a { justify-content: flex-start; padding: 9px 12px; }
+}
+/* collapsed sidebar: moving the mouse over it (or tabbing into it) opens it over the page, and it folds back to icons when the mouse leaves, as on pons launchpad */
+@media (hover: hover) and (min-width: 901px) {
+  body.side-collapsed header.top:is(:hover, :focus-within, .peek) { width: 252px; box-shadow: 10px 0 34px rgba(0, 0, 0, .3); transition-delay: .06s; }
+  body.side-collapsed header.top:is(:hover, :focus-within, .peek) :is(.brandtag, .brand b, .lbl, .navgroup) { display: revert; }
+  body.side-collapsed header.top:is(:hover, :focus-within, .peek) .brand { justify-content: flex-start; padding: 2px 8px 14px; }
+  body.side-collapsed header.top:is(:hover, :focus-within, .peek) :is(nav.tabs a, .account a) { justify-content: flex-start; padding: 9px 12px; }
+  body.side-collapsed header.top:is(:hover, :focus-within, .peek) .collapse-btn { align-self: flex-end; }
+}
+@media print { header.top, .menu-btn, .scrim { display: none; } main { margin-left: 0; padding-top: 0; } }
 </style>
 </head>
 <body>
+<button type="button" class="menu-btn" id="menuBtn" aria-label="Menu" aria-controls="side" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+<div class="scrim" id="scrim"></div>
+<header class="top" id="side">
+  <div class="brand"><b>PUMPFUN</b><span class="brandtag">Graduates</span></div>
+  <nav class="tabs" aria-label="Pages"><span class="navgroup">Overview</span><a href="#tokens" data-tab="tokens" title="Record live"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg><span class="lbl">Record live</span></a><a href="#history" data-tab="history" title="Strategy history"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7v5l3 2M3 12a9 9 0 1 0 3-6.7M3 4v5h5"/></svg><span class="lbl">Strategy history</span></a><span class="navgroup">Strategies</span><a href="#lab" data-tab="lab" title="Lab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6M10 3v6L4.5 19a1.5 1.5 0 0 0 1.3 2h12.4a1.5 1.5 0 0 0 1.3-2L14 9V3"/></svg><span class="lbl">Lab</span></a><a href="#trading" data-tab="trading" title="Trading"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l6-6 4 4 7-8M15 7h5v5"/></svg><span class="lbl">Trading</span></a><a href="#crossing" data-tab="crossing" title="Crossing"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 16c3 0 3-9 6-9s3 9 6 9 3-9 6-9"/></svg><span class="lbl">Crossing</span></a><a href="#patterns" data-tab="patterns" title="Pattern Discover"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM21 21l-4.3-4.3M8.5 11h5M11 8.5v5"/></svg><span class="lbl">Pattern Discover</span></a><span class="navgroup">Research</span><a href="#coins" data-tab="coins" title="Coins Review"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v10M9.5 9.5c0-1 1-1.5 2.5-1.5s2.5.6 2.5 1.7-1 1.5-2.5 1.8-2.5.7-2.5 1.8 1 1.7 2.5 1.7 2.5-.6 2.5-1.5"/></svg><span class="lbl">Coins Review</span></a><a href="#wallets" data-tab="wallets" title="Wallets Review"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h13v4M3 7v11a2 2 0 0 0 2 2h15v-4M17 13h4v4h-4a2 2 0 0 1 0-4z"/></svg><span class="lbl">Wallets Review</span></a><a href="#monitor" data-tab="monitor" title="Monitor"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/></svg><span class="lbl">Monitor</span></a><span class="navgroup">Account</span><a href="#settings" data-tab="settings" title="Settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16M9 4v4M15 10v4M8 16v4"/></svg><span class="lbl">Settings</span></a></nav>
+  <div class="account"><a href="/logout" title="Sign out"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H3"/></svg><span class="lbl">Sign out</span></a>
+    <button type="button" class="collapse-btn" id="collapseBtn" title="Collapse the menu to icons (it opens again while the mouse is over it)" aria-label="Collapse the menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button></div>
+</header>
 <main>
-  <header class="top">
-    <div class="brand"><b>PUMPFUN</b><span class="brandtag">Graduates</span></div>
-    <nav class="tabs" aria-label="Pages"><a href="#tokens" data-tab="tokens">Record live</a><a href="#history" data-tab="history">Strategy history</a><a href="#lab" data-tab="lab">Lab</a><a href="#trading" data-tab="trading">Trading</a><a href="#crossing" data-tab="crossing">Crossing</a><a href="#coins" data-tab="coins">Coins Review</a><a href="#wallets" data-tab="wallets">Wallets Review</a><a href="#monitor" data-tab="monitor">Monitor</a><a href="#settings" data-tab="settings">Settings</a></nav>
-    <div class="account"><a href="/logout">Sign out</a></div>
-  </header>
   <section id="tab-tokens">
   <p class="sub" id="sub" hidden>Tokens that completed the bonding curve and migrated to PumpSwap in the last 7 days.</p>
 
@@ -612,6 +666,7 @@ html { scroll-padding-top: 96px; }   /* a section scrolled to is not hidden unde
   <section id="tab-settings" class="rep" hidden><div id="settingspage">Loading…</div></section>
   <section id="tab-trading" class="rep" hidden><div id="trading">Loading…</div></section>
   <section id="tab-crossing" class="rep" hidden><div id="crossing">Loading…</div></section>
+  <section id="tab-patterns" class="rep" hidden><div id="patterns">Loading…</div></section>
   <section id="tab-coins" class="rep" hidden><div id="coins">Loading…</div></section>
   <section id="tab-wallets" class="rep" hidden><div id="walletsPage">Loading…</div></section>
   <section id="tab-monitor" class="rep" hidden><div id="monitor">Loading…</div></section>
@@ -1036,7 +1091,7 @@ function renderWatch() {
     const a = el('a', { href: '#tokens', className: k === watchTab ? 'on' : '', textContent: `${label} (${n})` });
     a.onclick = ev => { ev.preventDefault(); watchTab = k; watchPage = 0; renderWatch(); };
     return a; }));
-  const ruleText = s => `${s.entry} min after graduation` + (s.conditions.length ? ', if ' + s.conditions.map(condText).join(' and ') : ', every tradable token') + `; sell at ${pc(s.tp, 0)}, ${pc(-s.sl, 0)} or after ${s.hold} min` + (s.be ? `; the stop moves to ${s.be_stop ? pc(s.be_stop, 0) + ' above' : ''} the buy price once the price is ${pc(s.be, 0)} up` : '');
+  const ruleText = s => `${entryText(s)} min after graduation` + (s.conditions.length ? ', if ' + s.conditions.map(condText).join(' and ') : ', every tradable token') + `; sell at ${pc(s.tp, 0)}, ${pc(-s.sl, 0)} or after ${s.hold} min` + (s.be ? `; the stop moves to ${s.be_stop ? pc(s.be_stop, 0) + ' above' : ''} the buy price once the price is ${pc(s.be, 0)} up` : '');
   const strat = table(['Strategy', 'What it does', '#Backtest: average (trades)', '#Tokens checked', '#Bought', '#Finished', '#Total', '#Average', '#With a profit', '#Same buys, held to the time stop', '#Tokens it passed, if bought'], W.strategies.map(s => { const v = s.live, b = s.backtest;
     const hm = v.held_n ? v.held_mean : null, hh = { length: v.held_n || 0 };
     return [{ className: 'wrap', textContent: s.name }, { className: 'why', textContent: ruleText(s) },
@@ -1136,7 +1191,7 @@ const plTag = v => el('span', { className: 'tag ' + (v > 0 ? 'p' : 'n'), textCon
 const invalid = x => /superseded/.test(x.model || '');
 const outcomeTag = x => invalid(x) ? el('span', { className: 'tag', style: 'border:1px solid var(--line)', textContent: 'Not valid' })
   : !x.all.trades ? el('span', { className: 'tag', style: 'border:1px solid var(--line)', textContent: 'No trades' }) : plTag(x.all.pnl_usd);
-const ruleText = x => x.rule ? `Buy ${x.rule.entry} min after graduation${x.rule.conditions.length ? ' if ' + x.rule.conditions.map(condText).join(' and ') : ' (every tradable token)'}; sell at ${pc(x.rule.tp, 0)}, ${pc(-x.rule.sl, 0)} or after ${x.rule.hold} min` + (x.rule.be ? `; the stop moves to ${x.rule.be_stop ? pc(x.rule.be_stop, 0) + ' above' : ''} the buy price once the price is ${pc(x.rule.be, 0)} up` : '') : 'No rule';
+const ruleText = x => x.rule ? `Buy ${entryText(x.rule)} min after graduation${x.rule.conditions.length ? ' if ' + x.rule.conditions.map(condText).join(' and ') : ' (every tradable token)'}; sell at ${pc(x.rule.tp, 0)}, ${pc(-x.rule.sl, 0)} or after ${x.rule.hold} min` + (x.rule.be ? `; the stop moves to ${x.rule.be_stop ? pc(x.rule.be_stop, 0) + ' above' : ''} the buy price once the price is ${pc(x.rule.be, 0)} up` : '') : 'No rule';
 const moneyCell = (x, v) => ({ className: invalid(x) ? 'num' : signed(v), textContent: money(v) });
 
 // What one rule's finished round trips teach, and what to try before the next round
@@ -1214,7 +1269,7 @@ function renderHistory(h) {
         { className: 'num', textContent: held == null ? '' : held + ' min' },
         { className: signed(r[T.net_return]), textContent: pc(r[T.net_return]) }, { className: signed(r[T.pnl_usd]), textContent: money(r[T.pnl_usd]) },
         el('td', {}, chartLinks(r[T.mint], false))]; })),
-      el('p', { className: 'small', textContent: `Buy: ${rule.entry} minutes after graduation, at the buy price shown (USD per token; hover a price for the market cap). Sell: at the take profit, at the stop loss or after ${rule.hold} minutes, whichever comes first. "Price change" is the sell price against the buy price; "Result after costs" also takes off fees, the price impact of the order and slippage on a stop. A stop loss can sell far below its level when the price falls through it inside one minute.` }));
+      el('p', { className: 'small', textContent: `Buy: ${entryText(rule)} minutes after graduation${rule.entry_to ? ' (at the first minute of that range at which every condition holds)' : ''}, at the buy price shown (USD per token; hover a price for the market cap). Sell: at the take profit, at the stop loss or after ${rule.hold} minutes, whichever comes first. "Price change" is the sell price against the buy price; "Result after costs" also takes off fees, the price impact of the order and slippage on a stop. A stop loss can sell far below its level when the price falls through it inside one minute.` }));
     info.textContent = `${rows.length.toLocaleString()} round trips, total ${money(sum)}. Page ${pg + 1} of ${pages}`;
     prev.disabled = pg === 0; next.disabled = pg >= pages - 1;
   };
@@ -1259,6 +1314,8 @@ const HELD = ['buying', 'buy_sent', 'open', 'selling', 'sell_sent', 'check', 'st
 const exitTag = { target: ['take profit', 'p'], stop: ['stop loss', 'n'], time: ['time stop', 'w'] };
 // why a trade did not go through, for a tooltip: the stored error without the 'not bought: ' prefix, a RuntimeError('…') wrapper or a trailing ': not bought'
 const errText = e => String(e || 'The trade did not go through.').replace(/^not bought: /, '').replace(/^RuntimeError\((['"])(.*)\1\)$/, '$2').replace(/: not bought$/, '').slice(0, 300);
+// "6 to 13" for a rule that buys at the first minute in a range (entry_to), else "20"
+const entryText = r => r.entry_to ? `${r.entry} to ${r.entry_to}` : String(r.entry);
 const subCell = (main, sub, cls) => el('td', { className: cls || '' }, main, el('span', { className: 'subl', textContent: sub || '' }));
 // a token: its symbol (pump.fun) over a short mint (DexScreener)
 const tokCell = (mint, symbol) => el('td', {}, el('b', {}, el('a', { href: 'https://pump.fun/coin/' + encodeURIComponent(mint), target: '_blank', rel: 'noopener noreferrer', textContent: symbol || mint.slice(0, 6) })),
@@ -1378,15 +1435,15 @@ const emptyLive = (def, rule, like) => ({ id: def.id, name: def.name, rule, stak
 // def: the rule as defined now (the saved list, or a built-in); live and bt: the files the watch and the backtest wrote for it, which may
 // still be for an earlier version of the rule just after an edit: such a file is not shown, and its replacement appears within a minute
 function labRule(def, live0, bt0) {
-  const F = labCfg.features, rule = { entry: def.entry, tp: def.tp, sl: def.sl, hold: def.hold, be: def.be || 0, be_stop: def.be_stop || 0, conditions: def.conditions.map(c => ({ ...c, label: F[c.feature].label, kind: F[c.feature].kind })) };
-  const key = o => o && JSON.stringify([o.entry, o.tp, o.sl, o.hold, o.be || 0, o.be_stop || 0, (o.conditions || []).map(c => [c.feature, c.op, c.value, c.at || null])]), mine = key(rule);
+  const F = labCfg.features, rule = { entry: def.entry, ...(def.entry_to ? { entry_to: def.entry_to } : {}), tp: def.tp, sl: def.sl, hold: def.hold, be: def.be || 0, be_stop: def.be_stop || 0, conditions: def.conditions.map(c => ({ ...c, label: F[c.feature].label, kind: F[c.feature].kind })) };
+  const key = o => o && JSON.stringify([o.entry, ...(o.entry_to ? [o.entry_to] : []), o.tp, o.sl, o.hold, o.be || 0, o.be_stop || 0, (o.conditions || []).map(c => [c.feature, c.op, c.value, c.at || null])]), mine = key(rule);
   const liveOk = live0 && key(live0.rule) === mine, btOk = bt0 && key(bt0.rule) === mine;
   const live = liveOk ? live0 : emptyLive(def, rule, live0 || bt0), bt = btOk ? bt0 : null;
   // the record file still describes the previous definition (the watch rewrites it within a minute of an edit): list it as an earlier version
   if (live0 && !liveOk && live0.rule) live.earlier_versions = [...(live0.bought && live0.bought.length ? [{ rule: live0.rule, bought: live0.bought }] : []), ...(live0.earlier_versions || [])];
   const C = Object.fromEntries(live.bought_columns.map((c, i) => [c, i])), P = Object.fromEntries(live.passed_columns.map((c, i) => [c, i]));
   const stakeSol = live.stake_sol, byFeature = condsByKey(rule.conditions);
-  const buyAt = r => r[C.graduated_ts] ? r[C.graduated_ts] + rule.entry * 60000 : r[C.decided_ts], soldAt = r => buyAt(r) + (r[C.minutes_held] || 0) * 60000;
+  const buyAt = r => r[C.graduated_ts] ? r[C.graduated_ts] + (r[C.entry] || rule.entry) * 60000 : r[C.decided_ts], soldAt = r => buyAt(r) + (r[C.minutes_held] || 0) * 60000;
   const done = r => r[C.status] === 'closed' && r[C.net_return] != null;
   const closed = live.bought.filter(done).sort((a, b) => buyAt(b) - buyAt(a)), open = live.bought.filter(r => !done(r)).sort((a, b) => buyAt(b) - buyAt(a));
   const nets = closed.map(r => r[C.net_return]), total = nets.reduce((a, b) => a + b, 0), best3 = [...nets].sort((a, b) => b - a).slice(3).reduce((a, b) => a + b, 0);
@@ -1397,7 +1454,8 @@ function labRule(def, live0, bt0) {
 // an earlier version of a rule (live.earlier_versions[i]) as a pseudo rule: its own exit rule, buy time and sell time
 function labVersionX(x, ver) {
   const C = x.C, vr = { ...x.rule, ...ver.rule, conditions: (ver.rule.conditions || []).map(c => ({ ...c, label: (labCfg.features[c.feature] || {}).label || c.feature, kind: (labCfg.features[c.feature] || {}).kind || 'num' })) };
-  const vx = { ...x, rule: vr, buyAt: r => r[C.graduated_ts] ? r[C.graduated_ts] + vr.entry * 60000 : r[C.decided_ts], soldAt: r => vx.buyAt(r) + (r[C.minutes_held] || 0) * 60000 };
+  vr.entry_to = ver.rule.entry_to || 0;      // (an earlier version has its own range, or none: never the current rule's)
+  const vx = { ...x, rule: vr, buyAt: r => r[C.graduated_ts] ? r[C.graduated_ts] + (r[C.entry] || vr.entry) * 60000 : r[C.decided_ts], soldAt: r => vx.buyAt(r) + (r[C.minutes_held] || 0) * 60000 };
   return vx;
 }
 const fmtFeat = (c, v) => c.kind === 'flag' ? (v ? 'yes' : 'no') : fmtVal(v, c.kind);
@@ -1556,7 +1614,7 @@ const labSwitch = (isOn, title, click) => { const b = el('button', { type: 'butt
 function labLive(rules) {
   const rows = rules.flatMap(x => x.open.map(r => ({ x, r }))).sort((a, b) => b.x.buyAt(b.r) - a.x.buyAt(a.r)), W = rules[0];
   const t = rows.length ? table(['Rule', 'Token', 'Bought', '#Entry mcap', '#Now / exit', '#Net now', '#Best so far', '#Held', 'Exits'], rows.map(({ x, r }) => [el('td', { title: x.name }, chip(short(x.name), x.id)), tokCell(r[x.C.mint], r[x.C.symbol]),
-    subCell(when(x.buyAt(r)), `minute ${x.rule.entry}${r[x.C.late] ? ' · reconstructed' : ''}`), { className: 'num', textContent: usd(r[x.C.entry_price] * 1e9) },
+    subCell(when(x.buyAt(r)), `minute ${r[x.C.entry] || x.rule.entry}${r[x.C.late] ? ' · reconstructed' : ''}`), { className: 'num', textContent: usd(r[x.C.entry_price] * 1e9) },
     xCell(r[x.C.x], r[x.C.peak], r[x.C.x] != null && r[x.C.entry_price] ? usd(r[x.C.entry_price] * 1e9 * r[x.C.x]) : ''),
     subCell(pc(r[x.C.net_return]), sol((r[x.C.net_return] || 0) * x.stakeSol, 4), signed(r[x.C.net_return])), { className: signed(r[x.C.best]), textContent: pc(r[x.C.best]) },
     subCell(`${r[x.C.minutes_held] || 0} min`, `of ${x.rule.hold} min`, 'num'), subCell(`${pc(x.rule.tp, 0)} / ${pc(-x.rule.sl, 0)}`, `time stop ${hhmm(x.buyAt(r) + x.rule.hold * 60000)}`)]))
@@ -1575,7 +1633,7 @@ function labHistory(rules) {
   const rows = [...all, ...old].sort((a, b) => b.x.soldAt(b.r) - a.x.soldAt(a.r)).slice(0, 200);
   const total = all.reduce((a, { x, r }) => a + r[x.C.net_return] * x.stakeSol, 0), alt = rules.map(x => x.live.alt_tp).find(Boolean);
   const note = all.length || old.length ? `${all.length} closed trade${all.length === 1 ? '' : 's'}: ${all.filter(({ x, r }) => r[x.C.net_return] > 0).length} won, ${sol(total)}.` + (old.length ? ` ${old.length} more from earlier versions of a rule are listed too, marked earlier version, and are not in these figures.` : '') + (all.length + old.length > rows.length ? ` Newest ${rows.length} shown.` : '') : '';
-  const t = rows.length ? table(['Rule', 'Token', 'Bought', 'Sold', '#Entry mcap', 'Exit', '#Now / exit', '#Net', '#P&L', '#If held', ...(alt ? ['#At ' + pc(alt, 0)] : [])], rows.map(({ x, r, vi, base }) => [el('td', { title: base ? `${x.name}\nEarlier version ${vi + 1}: buy at minute ${x.rule.entry}, sell at ${pc(x.rule.tp, 0)}, ${pc(-x.rule.sl, 0)} or after ${x.rule.hold} min` + (x.rule.be ? `; stop to ${x.rule.be_stop ? pc(x.rule.be_stop, 0) : 'the buy price'} at ${pc(x.rule.be, 0)}` : '') + '\nConditions:\n' + (x.rule.conditions.length ? x.rule.conditions.map(condText).join('\n') : 'every tradable token') : x.name }, chip(short(x.name), x.id)), ...labTradeCells(x, r, alt)]))
+  const t = rows.length ? table(['Rule', 'Token', 'Bought', 'Sold', '#Entry mcap', 'Exit', '#Now / exit', '#Net', '#P&L', '#If held', ...(alt ? ['#At ' + pc(alt, 0)] : [])], rows.map(({ x, r, vi, base }) => [el('td', { title: base ? `${x.name}\nEarlier version ${vi + 1}: buy at minute ${entryText(x.rule)}, sell at ${pc(x.rule.tp, 0)}, ${pc(-x.rule.sl, 0)} or after ${x.rule.hold} min` + (x.rule.be ? `; stop to ${x.rule.be_stop ? pc(x.rule.be_stop, 0) : 'the buy price'} at ${pc(x.rule.be, 0)}` : '') + '\nConditions:\n' + (x.rule.conditions.length ? x.rule.conditions.map(condText).join('\n') : 'every tradable token') : x.name }, chip(short(x.name), x.id)), ...labTradeCells(x, r, alt)]))
     : el('p', { className: 'small', textContent: 'No closed trades yet.' });
   return labPanel('Trade history', note, [el('label', { className: 'chk' }, 'Rule ', sel)], t,
     ...(rows.length ? [el('p', { className: 'small', style: 'margin:8px 0 0', textContent: `"If held" is the same buy simply held for ${rules[0].live.follow_minutes} minutes and never sold (its best point below)${alt ? `; "At ${pc(alt, 0)}" aims for that target instead, with the same stop` : ''}.` })] : []));
@@ -1587,7 +1645,7 @@ const xCell = (now, peak, more) => now == null ? { className: 'num muted', textC
   : subCell('×' + now.toFixed(2), [peak != null ? 'peak ×' + peak.toFixed(2) : '', more || ''].filter(Boolean).join(' · '), 'num' + (now > 1 ? ' p' : now < 1 ? ' n' : ''));
 function labTradeCells(x, r, alt) {
   const C = x.C, [name, cls] = exitTag[r[C.exit]] || [r[C.exit], 'w'], a = r[C.alt];
-  return [tokCell(r[C.mint], r[C.symbol]), subCell(when(x.buyAt(r)), `minute ${x.rule.entry}${r[C.late] ? ' · reconstructed' : ''}`), when(x.soldAt(r)), { className: 'num', textContent: usd(r[C.entry_price] * 1e9) },
+  return [tokCell(r[C.mint], r[C.symbol]), subCell(when(x.buyAt(r)), `minute ${r[C.entry] || x.rule.entry}${r[C.late] ? ' · reconstructed' : ''}`), when(x.soldAt(r)), { className: 'num', textContent: usd(r[C.entry_price] * 1e9) },
     el('td', {}, el('span', { className: 'tag ' + cls, textContent: name }), el('span', { className: 'subl', textContent: `${r[C.minutes_held]} min` })),
     xCell(r[C.x], r[C.peak]),
     { className: signed(r[C.net_return]), textContent: pc(r[C.net_return]) }, { className: signed(r[C.net_return]), textContent: sol(r[C.net_return] * x.stakeSol, 4) },
@@ -1599,7 +1657,7 @@ function labTradeCells(x, r, alt) {
 function labDetail(x) {
   const lv = x.live, C = x.C, P = x.P, alt = lv.alt_tp, conds = x.rule.conditions, out = [];
   out.push(labStats(labStatRow(x)));
-  out.push(el('p', { className: 'small', textContent: lv.decided ? `Record since ${when(lv.since_ts)}: ${lv.decided.toLocaleString()} new graduates checked ${x.rule.entry} minutes after graduation.${lv.earlier_rule ? ` ${lv.earlier_rule.toLocaleString()} earlier decisions made under an older version of the rule are left out.` : ''}${lv.before_rule ? ` ${lv.before_rule.toLocaleString()} tokens that graduated before this version of the rule existed are left out (they are in its backtest).` : ''}` : 'No new graduate has been checked with this version of the rule yet.' }));
+  out.push(el('p', { className: 'small', textContent: lv.decided ? `Record since ${when(lv.since_ts)}: ${lv.decided.toLocaleString()} new graduates checked ${entryText(x.rule)} minutes after graduation.${lv.earlier_rule ? ` ${lv.earlier_rule.toLocaleString()} earlier decisions made under an older version of the rule are left out.` : ''}${lv.before_rule ? ` ${lv.before_rule.toLocaleString()} tokens that graduated before this version of the rule existed are left out (they are in its backtest).` : ''}` : 'No new graduate has been checked with this version of the rule yet.' }));
   // the live counts are kept per feature: two conditions on one feature (a range such as 0% to +20%) share one row,
   // and a token without a reading was counted once for each of them
   const byFeat = []; for (const c of conds) { const g = byFeat.find(g => condKey(g[0]) === condKey(c)); g ? g.push(c) : byFeat.push([c]); }
@@ -1607,7 +1665,7 @@ function labDetail(x) {
     return [{ className: 'wrap cond', textContent: g.length > 1 && g[0].at ? g.map(c => condText({ ...c, at: null })).join(' and ') + ` at minute ${g[0].at}` : g.map(condText).join(' and ') }, { className: 'num', textContent: f.failed.toLocaleString() }, { className: 'num', textContent: Math.round(f.no_reading / g.length).toLocaleString() }]; })));
   const bought = [...lv.bought].sort((a, b) => x.buyAt(b) - x.buyAt(a));
   out.push(el('h3', { className: 'label', textContent: 'Bought' }), bought.length ? table(['Token', 'Bought', 'Sold', '#Entry mcap', 'Exit', '#Now / exit', '#Net', '#P&L', '#If held', ...(alt ? ['#At ' + pc(alt, 0)] : []), ...x.shown.map(c => '#' + c.label)], bought.map(r => {
-    const done = r[C.status] === 'closed' && r[C.net_return] != null, cells = done ? labTradeCells(x, r, alt) : [tokCell(r[C.mint], r[C.symbol]), subCell(when(x.buyAt(r)), `minute ${x.rule.entry}${r[C.late] ? ' · reconstructed' : ''}`), '–',
+    const done = r[C.status] === 'closed' && r[C.net_return] != null, cells = done ? labTradeCells(x, r, alt) : [tokCell(r[C.mint], r[C.symbol]), subCell(when(x.buyAt(r)), `minute ${r[C.entry] || x.rule.entry}${r[C.late] ? ' · reconstructed' : ''}`), '–',
       { className: 'num', textContent: usd(r[C.entry_price] * 1e9) }, el('td', {}, el('span', { className: 'tag w', textContent: 'open' }), el('span', { className: 'subl', textContent: `${r[C.minutes_held] || 0} min so far` })),
       xCell(r[C.x], r[C.peak]), { className: signed(r[C.net_return]), textContent: pc(r[C.net_return]) }, { className: signed(r[C.net_return]), textContent: sol((r[C.net_return] || 0) * x.stakeSol, 4) }, { className: 'num muted', textContent: '–' }, ...(alt ? [{ className: 'num muted', textContent: '–' }] : [])];
     return [...cells, ...x.shown.map((c, i) => ({ className: 'num', textContent: fmtFeat(c, r[C.measured][i]) }))]; }))
@@ -1619,14 +1677,14 @@ function labDetail(x) {
     const vb = [...ver.bought].sort((a, b) => vx.buyAt(b) - vx.buyAt(a));
     const det = el('details', { open: labEarlierOpen.has(x.id + vi) }, el('summary', { textContent: `Earlier version ${vi + 1}: ${ver.bought.length} bought` + (vdone.length ? `, ${vn.filter(v => v > 0).length} of ${vdone.length} won, ${pc(vt / vdone.length)} a trade` : '') + ` · ${ruleText({ rule: vr })}` }),
       table(['Token', 'Bought', 'Sold', '#Entry mcap', 'Exit', '#Now / exit', '#Net', '#P&L', '#If held', ...(alt ? ['#At ' + pc(alt, 0)] : []), ...x.shown.map(c => '#' + c.label)], vb.map(r => {
-        const cells = r[C.status] === 'closed' && r[C.net_return] != null ? labTradeCells(vx, r, alt) : [tokCell(r[C.mint], r[C.symbol]), subCell(when(vx.buyAt(r)), `minute ${vr.entry}`), '–', { className: 'num', textContent: usd(r[C.entry_price] * 1e9) }, el('td', {}, el('span', { className: 'tag w', textContent: 'open' })), xCell(r[C.x], r[C.peak]), { className: signed(r[C.net_return]), textContent: pc(r[C.net_return]) }, { className: signed(r[C.net_return]), textContent: sol((r[C.net_return] || 0) * x.stakeSol, 4) }, { className: 'num muted', textContent: '–' }, ...(alt ? [{ className: 'num muted', textContent: '–' }] : [])];
+        const cells = r[C.status] === 'closed' && r[C.net_return] != null ? labTradeCells(vx, r, alt) : [tokCell(r[C.mint], r[C.symbol]), subCell(when(vx.buyAt(r)), `minute ${r[C.entry] || vr.entry}`), '–', { className: 'num', textContent: usd(r[C.entry_price] * 1e9) }, el('td', {}, el('span', { className: 'tag w', textContent: 'open' })), xCell(r[C.x], r[C.peak]), { className: signed(r[C.net_return]), textContent: pc(r[C.net_return]) }, { className: signed(r[C.net_return]), textContent: sol((r[C.net_return] || 0) * x.stakeSol, 4) }, { className: 'num muted', textContent: '–' }, ...(alt ? [{ className: 'num muted', textContent: '–' }] : [])];
         return [...cells, ...x.shown.map((c, i) => ({ className: 'num', textContent: (r[C.measured] || [])[i] == null ? '–' : fmtFeat(c, r[C.measured][i]) }))]; })));
     det.ontoggle = () => det.open ? labEarlierOpen.add(x.id + vi) : labEarlierOpen.delete(x.id + vi);
     out.push(det);
   }
   if (lv.passed.length) {
     const box = el('details', { open: labPassedOpen.has(x.id) }, el('summary', { textContent: `Passed tokens (${x.passed.toLocaleString()}; newest ${lv.passed.length} shown)` }),
-      table(['Token', 'Decided', 'Failed conditions', '#Had it been bought'], lv.passed.map(r => [tokCell(r[P.mint], r[P.symbol]), when(r[P.graduated_ts] ? r[P.graduated_ts] + x.rule.entry * 60000 : r[P.decided_ts]),
+      table(['Token', 'Decided', 'Failed conditions', '#Had it been bought'], lv.passed.map(r => [tokCell(r[P.mint], r[P.symbol]), when(r[P.graduated_ts] ? r[P.graduated_ts] + (r[P.entry] || x.rule.entry) * 60000 : r[P.decided_ts]),
         { className: 'wrap cond', textContent: r[P.failed].filter(([k], i, all) => all.findIndex(([k2]) => k2 === k) === i).map(([k, v]) => `${(x.byFeature[k] || { label: k }).label}: ${v == null ? 'no reading' : fmtFeat(x.byFeature[k] || { kind: 'num' }, v)}`).join('; ') },
         r[P.net_return] == null ? subCell('–', r[P.status] === 'closed' ? '' : 'following', 'num') : { className: signed(r[P.net_return]), textContent: pc(r[P.net_return]) }])));
     box.ontoggle = () => box.open ? labPassedOpen.add(x.id) : labPassedOpen.delete(x.id);
@@ -1648,7 +1706,7 @@ function labBacktest(x, opts = {}) {
   else out.push(labStats([['Bought', st.all.trades.toLocaleString()], ['Won', `${Math.round(st.all.win * st.all.trades)} of ${st.all.trades}`], ['P&L', sol(pnl(st.all)), plCls(st.all.mean)],
     ['Without best 3', st.all.trades > 3 ? sol(nets.slice(3).reduce((a, b) => a + b, 0) * stake) : '–'], ['Earlier 70%', st.train.trades ? sol(pnl(st.train)) : '–', plCls(st.train.mean)], ['Recent 30%', st.test.trades ? sol(pnl(st.test)) : '–', plCls(st.test.mean)],
     ['Exits', [['take profit', ex.target], ['stop loss', ex.stop], ['time stop', ex.time]].filter(e => e[1]).map(e => `${e[0]} ${e[1]}`).join(', ') || '–']]));
-  out.push(el('h3', { className: 'label', textContent: 'Which tokens each condition kept' }), el('p', { className: 'small', textContent: `${s.sample.tradable.toLocaleString()} of the ${s.sample.coins.toLocaleString()} tokens could be bought ${s.rule.entry} minutes after graduation; each condition is then applied in turn.` }),
+  out.push(el('h3', { className: 'label', textContent: 'Which tokens each condition kept' }), el('p', { className: 'small', textContent: `${s.sample.tradable.toLocaleString()} of the ${s.sample.coins.toLocaleString()} tokens could be bought ${entryText(s.rule)} minutes after graduation; each condition is then applied in turn.` }),
     table(['Condition', '#Tokens left', '#Passing this one alone', '#Tokens with a reading'], s.funnel.map(c => [{ className: 'wrap cond', textContent: condText(c) }, { className: 'num', textContent: c.left.toLocaleString() },
       { className: 'num', textContent: c.alone.toLocaleString() }, { className: 'num', textContent: c.known.toLocaleString() }])));
   if (s.per_day.length) out.push(el('h3', { className: 'label', textContent: 'By day (UTC)' }), table(['Day', '#Trades', '#P&L'], [...s.per_day].reverse().map(d => [new Date(d.day).toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' }),
@@ -1737,7 +1795,7 @@ function openRuleEditor(x) {
   const dlg = el('dialog', { 'aria-labelledby': 'ruleDlgTitle' });
   const num = (value, attrs) => el('input', { type: 'number', step: 'any', value, ...attrs });
   const name = el('input', { type: 'text', maxLength: 60, value: def ? def.name : '', 'aria-label': 'Name' });
-  const entry = num(def ? def.entry : 20, { min: L.entry[0], max: L.entry[1], step: 1 }), hold = num(def ? def.hold : 30, { min: L.hold[0], max: L.hold[1], step: 1 });
+  const entry = num(def ? def.entry : 20, { min: L.entry[0], max: L.entry[1], step: 1 }), entryTo = num(def && def.entry_to ? def.entry_to : '', { min: L.entry[0], max: L.entry[1], step: 1, placeholder: 'none' }), hold = num(def ? def.hold : 30, { min: L.hold[0], max: L.hold[1], step: 1 });
   const tp = num(def ? +(def.tp * 100).toFixed(2) : 40, { min: L.tp[0] * 100, max: L.tp[1] * 100 }), sl = num(def ? +(def.sl * 100).toFixed(2) : 30, { min: L.sl[0] * 100, max: L.sl[1] * 100 });
   const be = num(def && def.be ? +(def.be * 100).toFixed(2) : '', { min: L.be[0] * 100, max: L.be[1] * 100, placeholder: 'off' }), beStop = num(def && def.be ? +((def.be_stop || 0) * 100).toFixed(2) : '', { min: L.be_stop[0] * 100, max: L.be_stop[1] * 100, placeholder: '0' });
   const live = el('input', { type: 'checkbox', checked: !!(def && def.live) });
@@ -1770,7 +1828,7 @@ function openRuleEditor(x) {
   for (const c of def ? def.conditions : [{ feature: 'mcap_usd', op: '>=', value: 50000 }]) { const r = condRow(c); rows.push(r); conds.append(r.box); }
   const add = el('button', { type: 'button', className: 'sm', textContent: 'Add condition' });
   add.onclick = () => { if (rows.length >= L.max_conditions) { err.textContent = `At most ${L.max_conditions} conditions.`; return; } const r = condRow({ feature: 'mcap_usd', op: '>=', value: '' }); rows.push(r); conds.append(r.box); };
-  const read = () => ({ ...(def ? { id: def.id, enabled: def.enabled } : { enabled: true }), name: name.value.trim(), live: live.checked, entry: parseFloat(entry.value), hold: parseFloat(hold.value),
+  const read = () => ({ ...(def ? { id: def.id, enabled: def.enabled } : { enabled: true }), name: name.value.trim(), live: live.checked, entry: parseFloat(entry.value), ...(entryTo.value !== '' ? { entry_to: parseFloat(entryTo.value) } : {}), hold: parseFloat(hold.value),
     tp: parseFloat(tp.value) / 100, sl: parseFloat(sl.value) / 100, be: be.value === '' ? 0 : parseFloat(be.value) / 100, be_stop: beStop.value === '' ? 0 : parseFloat(beStop.value) / 100, conditions: rows.map(r => ({ feature: r.c.feature, op: r.c.op, value: r.c.value === '' ? NaN : r.c.value, ...(r.c.at ? { at: r.c.at } : {}) })) });
   const cancel = el('button', { type: 'button', textContent: 'Cancel' }), test = el('button', { type: 'button', textContent: 'Backtest without saving' }), save = el('button', { type: 'submit', className: 'primary', textContent: 'Save' });
   cancel.onclick = () => dlg.close();
@@ -1779,7 +1837,7 @@ function openRuleEditor(x) {
   const form = el('form', { className: 'dlg', method: 'dialog' }, el('h2', { id: 'ruleDlgTitle', textContent: def ? `Edit ${def.name}` : 'New rule' }),
     ...(def && def.builtin && !def.saved ? [el('p', { className: 'small', textContent: 'This is a built-in rule. Saving replaces it with your version.' })] : []),
     field('Name', name),
-    el('div', { className: 'grid2' }, field('Buy at minute', entry, `Minutes after graduation (${L.entry[0]} to ${L.entry[1]}).`), field('Hold at most (minutes)', hold, `Buy minute + hold up to ${L.max_entry_plus_hold}.`),
+    el('div', { className: 'grid2' }, field('Buy at minute', entry, `Minutes after graduation (${L.entry[0]} to ${L.entry[1]}).`), field('…or at the first minute up to', entryTo, 'Optional. Empty = buy only at the minute on the left. Otherwise it buys at the first minute from the left one to this one at which every condition holds.'), field('Hold at most (minutes)', hold, `Buy minute + hold up to ${L.max_entry_plus_hold}.`),
       field('Take profit (%)', tp, '40 = sell at +40%.'), field('Stop loss (%)', sl, '30 = sell at -30%.'),
       field('Move the stop after a gain of (%)', be, 'Optional. 50 = once the price has been 50% above the buy price. Empty = never.'), field('Move the stop to (% above the buy price)', beStop, 'Where the stop goes then: 0 = the buy price, 10 = +10%. Must be below the gain.')),
     el('div', { className: 'field' }, el('span', { className: 'label', textContent: 'Conditions (all must hold)' }), conds, el('div', {}, add)),
@@ -1968,7 +2026,7 @@ function telegramPanel(base = '/api', isCross = false) {
   const tgChat = el('input', { type: 'text', placeholder: 'Your Telegram user ID, e.g. 123456789', style: 'width:260px;max-width:100%', 'aria-label': 'Telegram user ID' });
   const tgOn = el('input', { type: 'checkbox', style: 'width:18px;height:18px' });
   const tgSave = el('button', { textContent: 'Save Telegram settings' }), tgTest = el('button', { textContent: 'Send a test message' });
-  const evWatch = el('select', { 'aria-label': 'Watching alerts' }, el('option', { value: 'off', textContent: 'Nothing' }), el('option', { value: 'armed', textContent: 'A coin is armed (the dip is in, waiting for the cross)' }), el('option', { value: 'all', textContent: 'Every coin that enters Watching, and when armed' }));
+  const evWatch = el('select', { 'aria-label': 'Watching alerts' }, el('option', { value: 'off', textContent: 'Nothing' }), el('option', { value: 'armed', textContent: 'A coin is armed (rules 1 to 4 hold and its last close is below the level)' }), el('option', { value: 'all', textContent: 'Every coin that enters Watching, and when armed' }));
   const evConf = el('input', { type: 'checkbox', checked: true, style: 'width:18px;height:18px' }), evTrades = el('input', { type: 'checkbox', checked: true, style: 'width:18px;height:18px' });
   const tgStatus = el('span', { className: 'small', role: 'status' }), tgState = el('p', { className: 'small', textContent: 'Loading…' });
   const tgShow = d => { tgChat.value = d.chat_id || ''; tgOn.checked = !!d.enabled; tgToken.value = '';
@@ -2014,7 +2072,7 @@ let tradeDraws = [];
 const tradePrev = new Map();   // position id → its result at the last draw, for the flash when it moves
 const HUES = ['indigo', 'teal', 'sky', 'lime', 'orange', 'pink', 'violet', 'brown', 'blue', 'plum', 'rose', 'slate'];
 // each strategy keeps one colour on every page: the built-in ones fixed (so they never share one), others from their id
-const STRAT_HUE = { 'strategy-a': 'teal', 'strategy-b': 'indigo', 'strategy-c': 'orange', 'strategy-c-plus': 'pink', 'strategy-d': 'sky', 'strategy-b20': 'blue', 'strategy-b-plus': 'violet', 'strategy-b20-direct': 'rose', 'strategy-c-steady': 'lime', 'strategy-e': 'brown', 'strategy-f': 'plum', auto: 'slate' };
+const STRAT_HUE = { 'strategy-a': 'teal', 'strategy-b': 'indigo', 'strategy-c': 'orange', 'strategy-c-plus': 'pink', 'strategy-d': 'sky', 'strategy-b20': 'blue', 'strategy-b-plus': 'violet', 'strategy-b20-direct': 'rose', 'strategy-c-steady': 'lime', 'strategy-e': 'brown', 'strategy-f': 'plum', 'strategy-g': 'slate', auto: 'slate' };
 const hueOf = id => { if (STRAT_HUE[id]) return STRAT_HUE[id]; let h = 0; for (const c of String(id || '')) h = (h * 31 + c.charCodeAt(0)) >>> 0; return HUES[h % HUES.length]; };
 const hueVar = id => `var(--h-${hueOf(id)})`;
 // colours the header cells of per-strategy columns (ids in column order, starting at column `from`)
@@ -2162,7 +2220,7 @@ function renderTrading() {
     return { n: ts.length, open: ts.filter(t => HELD.includes(t.status)).length, tot, done: done.length, wins: done.filter(t => tradeResult(t) > 0).length }; };
   const rows = [...avail].sort((a, b) => (enabled.has(b.id) - enabled.has(a.id)) || (b.record_live - a.record_live)).map(s => {
     const r = per(s.id), bt = s.backtest;
-    return [el('td', { className: 'rulecell' }, chip(s.name, s.id), el('span', { className: 'rulesum', textContent: `Buys at minute ${s.entry}, sells at +${Math.round(s.tp * 100)}% / −${Math.round(s.sl * 100)}% or after ${s.hold} min` })),
+    return [el('td', { className: 'rulecell' }, chip(s.name, s.id), el('span', { className: 'rulesum', textContent: `Buys at minute ${entryText(s)}, sells at +${Math.round(s.tp * 100)}% / −${Math.round(s.sl * 100)}% or after ${s.hold} min` })),
       el('td', {}, GUEST ? el('span', { className: 'tag ' + (enabled.has(s.id) ? 'p' : 'w'), textContent: enabled.has(s.id) ? 'ON' : 'OFF' })
         : sw(enabled.has(s.id), lock || (enabled.has(s.id) ? 'Enabled: click to disable' : 'Disabled: click to enable'), () => toggle(s, !enabled.has(s.id)), isDry)),
       bt && bt.trades ? subCell(sol(bt.mean * bt.trades * (bt.stake_sol || 0.1)), `${bt.trades} trades · average ${pc(bt.mean)}${bt.recent_trades ? ` · recent ${sol(bt.recent_mean * bt.recent_trades * (bt.stake_sol || 0.1))} over ${bt.recent_trades}` : ''}`, signed(bt.mean)) : { className: 'num muted', textContent: 'none' },
@@ -2302,6 +2360,82 @@ async function loadCrossing() {
   cross.busy = false; renderCrossing();
 }
 setInterval(() => { if ($('tab-crossing').hidden || document.hidden) return; loadCrossing(); }, 3000);
+
+// ---------- Pattern Discover: patterns found by looking at the shapes of the first minutes, backtested, and watched on new data ----------
+// patterns.py (a pass every 2 hours, or when the Run now button asks) writes patterns.json; this page shows it. Nothing is bought.
+const pat = { d: null, busy: false, miss: false, sel: null, msg: '', msgAt: 0 };
+async function loadPatterns() {
+  if (pat.busy) return; pat.busy = true;
+  try { const res = await fetch('/api/patterns'); pat.miss = res.status === 404; pat.d = res.ok ? await res.json() : null; } catch (e) { pat.d = null; }
+  pat.busy = false; renderPatterns();
+}
+setInterval(() => { if ($('tab-patterns').hidden || document.hidden) return; loadPatterns(); }, 30000);
+function renderPatterns() {
+  const root = $('patterns'), d = pat.d, out = [];
+  if (!d) { root.replaceChildren(el('p', { className: 'small', textContent: pat.miss ? 'The pattern pass has not run yet. It starts about 10 minutes after the server starts and then every 2 hours; the Run now button starts one at once.' : 'Could not read the patterns.' }), ...(pat.miss ? [el('button', { type: 'button', className: 'primary', textContent: 'Run now', onclick: runPatterns })] : []), ...(pat.msg && Date.now() - pat.msgAt < 20000 ? [el('p', { className: 'small', role: 'status', textContent: pat.msg })] : [])); return; }
+  const tag = (txt, cls, title) => el('span', { className: 'tag ' + (cls || ''), textContent: txt, title: title || '' });
+  const chip = (label, val, cls, title) => el('span', { className: 'xc', style: 'flex:1 1 130px', title: title || '' }, el('span', { className: 'small', style: 'color:var(--muted)', textContent: label }), el('b', { className: cls || '', style: 'font-size:18px', textContent: val }));
+  const lr = d.last_run || {}, c = d.criteria || {}, P = d.patterns || [];
+  const next = (lr.ts || 0) + (d.interval_s || 7200) * 1000, left = next - Date.now();
+  const count = s => P.filter(p => p.status === s).length;
+  const run = el('button', { type: 'button', className: 'sm primary', textContent: 'Run now', title: 'Start a pass now (about a minute)' });
+  run.onclick = runPatterns;
+  out.push(labPanel('Pattern Discover', 'Looks for price patterns every 2 hours, backtests them, and keeps the profitable ones on a list that is backtested again with every new pass and with the coins that graduated after each was found.', [run],
+    el('div', { style: 'display:flex;flex-wrap:wrap;gap:8px;margin:0 0 8px' },
+      chip('Last pass', ago(lr.ts), '', `${lr.seconds || '?'} s`), chip('Next pass', left > 0 ? 'in ' + dur(left) : 'due now'), chip('Seeds', String(lr.seeds || 0), '', `coins that closed minute 0 between ${usd(c.m0 && c.m0[0])} and ${usd(c.m0 && c.m0[1])} and peaked above ${usd(c.seed_peak)} within ${c.seed_minutes} minutes (earlier 70% of the coins)`),
+      chip('Candidates tried', String(lr.candidates || 0)), chip('Passed the backtest', String(lr.distinct || 0), lr.distinct ? 'p' : '', `${lr.passed || 0} candidates passed, ${lr.distinct || 0} trade different coins`), chip('Watched', String(P.length)),
+      chip('Confirmed', String(count('confirmed')), count('confirmed') ? 'p' : ''), chip('Testing', String(count('testing'))), chip('Failing', String(count('failing')), count('failing') ? 'n' : '')),
+    ...(pat.msg && Date.now() - pat.msgAt < 20000 ? [el('p', { className: 'small', role: 'status', textContent: pat.msg })] : []),
+    el('b', { textContent: 'How a pass works' }),
+    el('ol', { className: 'steps' },
+      el('li', { textContent: `Seeds: coins that closed their graduation minute between ${usd(c.m0 && c.m0[0])} and ${usd(c.m0 && c.m0[1])} and peaked above ${usd(c.seed_peak)} in the first ${c.seed_minutes} minutes, taken from the earlier 70% of the coins only, so a pattern can be tested on the newest 30%.` }),
+      el('li', { textContent: 'Candidates: patterns whose numbers come from the seeds (how quiet their first minutes were, how big a jump or a crossing came), in two families, each with three exits, plus the patterns found by hand.' }),
+      el('li', { textContent: `Backtest: every candidate on every saved coin with the usual costs. A pattern is profitable when it has at least ${c.min_trades} trades and is positive overall, on the earlier 70%, on the newest 30% and without its 3 best trades. Candidates that trade nearly the same coins count once.` }),
+      el('li', { textContent: `Watch list: each profitable pattern is backtested again at every pass, and its record on the coins that graduated after it was found ("since found") decides its status: testing under ${c.forward_min} such trades, then confirmed or failing.` })),
+    el('p', { className: 'small', style: 'margin:8px 0 0', textContent: `${lr.candidates || 0} candidates are tried at each pass, so some pass by luck, and the newest 30% takes part in choosing them (and in the patterns found by hand): treat "passed the backtest" as a lead and the "since found" record as the only real test. New coins reach the data about 5 hours after they graduate.` })));
+  const stat = (v) => ({ className: signed(v), textContent: v == null ? '–' : pc(v) });
+  const rows = P.map(p => {
+    const n = p.now || {}, f = p.forward || {};
+    const det = el('button', { type: 'button', className: 'sm', textContent: pat.sel === p.id ? 'Hide' : 'Details' });
+    det.onclick = () => { pat.sel = pat.sel === p.id ? null : p.id; renderPatterns(); };
+    return [el('td', { className: 'wrap', title: p.text, style: 'min-width:240px;max-width:360px;white-space:normal' }, el('b', { textContent: p.name }), p.origin === 'hand' ? el('span', { className: 'tag', style: 'margin-left:8px', textContent: 'found by hand' }) : ''),
+      el('td', {}, tag(p.status, p.status === 'confirmed' ? 'p' : p.status === 'failing' ? 'n' : 'w', p.status === 'testing' ? `fewer than ${c.forward_min} trades since it was found` : '')),
+      { textContent: when(p.found_ts), className: 'small' }, { className: 'num', textContent: n.trades }, stat(n.mean), { className: 'num', textContent: n.won == null ? '–' : Math.round(n.won * 100) + '%' },
+      stat(n.earlier && n.earlier.mean), stat(n.newest && n.newest.mean),
+      el('td', { className: 'num ' + (f.trades && f.mean != null ? (f.mean > 0 ? 'p' : 'n') : '') }, f.trades ? `${f.trades} · ${pc(f.mean)}` : '0'), el('td', {}, det)];
+  });
+  out.push(labPanel('Profitable patterns', `${P.length} on the watch list. Backtested again at every pass on all the data.`, [],
+    P.length ? table(['Pattern', 'Status', 'Found', '#Trades', '#Average', '#Won', '#Earlier 70%', '#Newest 30%', '#Since found', ''], rows) : el('p', { className: 'small', textContent: 'No pattern has passed the backtest yet. Each pass tries again as the data grows.' })));
+  const p = P.find(x => x.id === pat.sel);
+  if (p) {
+    const n = p.now || {}, f0 = p.found || {}, fw = p.forward || {};
+    const rm = el('button', { type: 'button', className: 'sm danger', textContent: 'Remove from the list' });
+    rm.onclick = async () => { if (!confirm('Remove this pattern from the watch list for good?')) return; try { await jsonCall('/api/patterns/remove', 'POST', { id: p.id }); pat.sel = null; pat.d.patterns = pat.d.patterns.filter(x => x.id !== p.id); } catch (e) { pat.msg = 'Not removed: ' + e.message; pat.msgAt = Date.now(); } renderPatterns(); };
+    const line = (label, s) => [label, { className: 'num', textContent: s && s.trades != null ? s.trades : '–' }, stat(s && s.mean), { className: 'num', textContent: s && s.won != null ? Math.round(s.won * 100) + '%' : '–' }, stat(s && s.wo3), { className: 'num', textContent: s && s.boot_lo != null ? `${pc(s.boot_lo)} to ${pc(s.boot_hi)}` : '–' }];
+    out.push(labPanel(p.name, p.text, [rm],
+      table(['', '#Trades', '#Average', '#Won', '#Without the best 3', '#Plausible range of the average'], [
+        line('When it was found (' + when(p.found_ts) + ')', f0), line('Now (all the data)', n),
+        ['Since it was found (coins that graduated after)', { className: 'num', textContent: fw.trades }, stat(fw.mean), { className: 'num', textContent: fw.trades ? Math.round(100 * fw.won / fw.trades) + '%' : '–' }, '–', '–']]),
+      el('h3', { style: 'margin:14px 0 6px', textContent: 'Each pass' }),
+      table(['Pass', '#Trades', '#Average', '#Earlier 70%', '#Newest 30%', '#Since found'], (p.history || []).slice().reverse().slice(0, 12).map(h => [when(h.ts), { className: 'num', textContent: h.trades }, stat(h.mean), stat(h.earlier), stat(h.newest), { className: 'num ' + (h.fwd_trades && h.fwd_mean != null ? (h.fwd_mean > 0 ? 'p' : 'n') : ''), textContent: h.fwd_trades ? `${h.fwd_trades} · ${pc(h.fwd_mean)}` : '0' }])),
+      el('h3', { style: 'margin:14px 0 6px', textContent: `The newest coins it traded (${(p.coins || []).length} shown)` }),
+      table(['Coin', 'Graduated', '#Bought at minute', '#Result', ''], (p.coins || []).map(x => [el('td', {}, el('b', { textContent: x.symbol || x.mint.slice(0, 6) })), { className: 'small', textContent: when(x.graduated_ts) }, { className: 'num', textContent: x.minute }, stat(x.net),
+        el('td', {}, el('a', { className: 'small', href: x.dex, target: '_blank', rel: 'noopener noreferrer', textContent: 'DexScreener' }))]))));
+  }
+  const seeds = d.seeds || [];
+  if (seeds.length) out.push(labPanel('Seeds of the last pass', `${seeds.length} of ${lr.seeds || 0} seed coins, picked at random`, [],
+    table(['Coin', 'Graduated', '#Peak (first hour)', ''], seeds.map(s => [el('td', {}, el('b', { textContent: s.symbol || s.mint.slice(0, 6) })), { className: 'small', textContent: when(s.graduated_ts) }, { className: 'num', textContent: usd(s.peak) },
+      el('td', {}, el('a', { className: 'small', href: s.dex, target: '_blank', rel: 'noopener noreferrer', textContent: 'DexScreener' }))]))));
+  const R = d.retired || [];
+  if (R.length) out.push(labPanel('Retired patterns', 'Dropped from the list: their average over all the data turned negative.', [],
+    table(['Pattern', 'Found', '#Trades', '#Average at the end'], R.slice().reverse().map(r => [el('td', { className: 'wrap', title: r.text }, r.name), { className: 'small', textContent: when(r.found_ts) }, { className: 'num', textContent: (r.now || {}).trades }, stat((r.now || {}).mean)]))));
+  patchKids(root, out, false);
+}
+async function runPatterns() {
+  try { await jsonCall('/api/patterns/run', 'POST', {}); pat.msg = 'A pass was asked for (nothing starts if one is already running). It takes about a minute: the numbers update by themselves.'; } catch (e) { pat.msg = 'Not asked: ' + e.message; }
+  pat.msgAt = Date.now(); renderPatterns(); setTimeout(loadPatterns, 90000);
+}
+
 // A panel (labPanel) turned into a collapsible section: its title and note become the summary line, its body the folded part; open or closed
 // as last left in this browser. setSummary(text) puts a short live status after the title.
 function foldPanel(p, key) {
@@ -2318,7 +2452,7 @@ function foldPanel(p, key) {
 // "Crossing trading": the mode and limits of the Crossing page's own trader (it has no automatic strategy: it buys only what a Buy button asks for)
 function crossTradingPanel() {
   const num = (step, min, max, w) => el('input', { type: 'number', step, min, max, style: `width:${w}px` });
-  const f = { size: num('0.01', '0.01', '1', 90), open: num('1', '1', '5', 70), loss: num('0.1', '0.01', '10', 90), impact: num('any', '1', '20', 80), tp: num('any', '5', '1000', 80), sl: num('any', '5', '95', 80),
+  const f = { size: num('0.01', '0.01', '1', 90), open: num('1', '1', '5', 70), loss: num('0.1', '0.01', '10', 90), impact: num('any', '1', '20', 80), tp: num('any', '5', '1000', 80), sl: num('any', '5', '95', 80), ts: num('1', '1', '240', 70),
     mode: el('select', { 'aria-label': 'Crossing trading mode' }, el('option', { value: 'off', textContent: 'Off: nothing is bought' }), el('option', { value: 'live', textContent: 'Live: real SOL' })),
     confirm: el('input', { type: 'text', placeholder: 'type LIVE', autocomplete: 'off', style: 'width:90px', 'aria-label': 'Type LIVE to trade with real SOL' }),
     save: el('button', { type: 'button', className: 'primary', textContent: 'Save' }), status: el('span', { className: 'small', role: 'status' }), seen: '', live: false };
@@ -2329,14 +2463,14 @@ function crossTradingPanel() {
   f.mode.onchange = sync;
   f.save.onclick = async () => {
     f.save.disabled = true; say('Saving…');
-    try { await jsonCall('/api/ct/trading', 'POST', { mode: f.mode.value, sol_per_trade: +f.size.value, max_open: +f.open.value, daily_loss_limit_sol: +f.loss.value, max_buy_impact_pct: +f.impact.value, take_profit_pct: +f.tp.value, stop_loss_pct: +f.sl.value, ...(f.mode.value === 'live' && !f.live ? { confirm: f.confirm.value.trim() } : {}) });
+    try { await jsonCall('/api/ct/trading', 'POST', { mode: f.mode.value, sol_per_trade: +f.size.value, max_open: +f.open.value, daily_loss_limit_sol: +f.loss.value, max_buy_impact_pct: +f.impact.value, take_profit_pct: +f.tp.value, stop_loss_pct: +f.sl.value, time_stop_min: +f.ts.value, ...(f.mode.value === 'live' && !f.live ? { confirm: f.confirm.value.trim() } : {}) });
       f.confirm.value = ''; f.seen = ''; say('Saved. The Crossing trader picks it up within a second or two.'); loadCrossing(); }
     catch (e) { say('Not saved: ' + e.message, true); }
     f.save.disabled = false;
   };
   const p = labPanel('Crossing trading', 'The mode and limits of the trader behind the Buy buttons below. It is separate from the Trading tab: its own wallet, size, limits and trades.', [],
     el('div', { className: 'auto-row' }, field('Mode', f.mode), field('SOL per buy', f.size), field('Most open at once', f.open), field('Daily loss limit (SOL)', f.loss), field('Highest price impact of a buy (%)', f.impact)),
-    el('div', { className: 'auto-row' }, field('Take profit (%)', f.tp), field('Stop loss (%)', f.sl), el('span', { className: 'small', textContent: 'Checked for every open position about every second (the trader prices it from the pool): it sells as soon as the value is that far above or below the cost.' })),
+    el('div', { className: 'auto-row' }, field('Take profit (%)', f.tp), field('Stop loss (%)', f.sl), field('Time stop (minutes)', f.ts), el('span', { className: 'small', textContent: 'Checked for every open position about every second (the trader prices it from the pool): it sells as soon as the value is that far above or below the cost.' })),
     f.confirmRow, el('div', { className: 'auto-row' }, f.save, f.status),
     el('p', { className: 'small', style: 'margin:8px 0 0', textContent: 'A Buy button asks this trader for one buy: it applies these limits and the price impact limit at the quote, then sells at the exit rule of this page (take profit, stop loss, time stop). RPC address, slippage and priority fee start as on the Trading tab.' }));
   p.refresh = st => {      // fill the form from the trader's state when it changes, without overwriting what is being typed
@@ -2346,7 +2480,7 @@ function crossTradingPanel() {
     f.seen = sig; f.live = (st.wanted_mode || st.mode) === 'live';
     f.mode.value = f.live ? 'live' : 'off'; f.size.value = st.settings.sol_per_trade; f.open.value = st.settings.max_open; f.loss.value = st.settings.daily_loss_limit_sol;
     f.impact.value = st.settings.max_buy_impact_pct == null ? 7 : st.settings.max_buy_impact_pct;
-    f.tp.value = st.settings.take_profit_pct == null ? 50 : st.settings.take_profit_pct; f.sl.value = st.settings.stop_loss_pct == null ? 50 : st.settings.stop_loss_pct; sync();
+    f.tp.value = st.settings.take_profit_pct == null ? 35 : st.settings.take_profit_pct; f.sl.value = st.settings.stop_loss_pct == null ? 50 : st.settings.stop_loss_pct; f.ts.value = st.settings.time_stop_min == null ? 10 : st.settings.time_stop_min; sync();
   };
   sync(); p.id = 'crossing-trading'; return p;
 }
@@ -2358,7 +2492,7 @@ function renderCrossing() {
   const tag = (txt, cls, title) => el('span', { className: 'tag ' + (cls || ''), textContent: txt, title: title || '' });
   // buying by hand: a button per coin, one click. The request goes to the trader (/api/trading/buy), which applies the
   // limits of the Trading tab (mode, wallet, size, most open, daily loss, price impact) and sells at the rule's take profit / stop loss / time stop.
-  const trd = cross.tr, tmode = trd && trd.mode, size = trd && trd.settings ? trd.settings.sol_per_trade : null, ex = [((trd && trd.settings && trd.settings.take_profit_pct) || 50) / 100, ((trd && trd.settings && trd.settings.stop_loss_pct) || 50) / 100, r.exit[2]];      // take profit and stop loss come from the Crossing trading panel; the time stop from the rule
+  const trd = cross.tr, tmode = trd && trd.mode, size = trd && trd.settings ? trd.settings.sol_per_trade : null, ex = [((trd && trd.settings && trd.settings.take_profit_pct) || 35) / 100, ((trd && trd.settings && trd.settings.stop_loss_pct) || 50) / 100, (trd && trd.settings && trd.settings.time_stop_min) || 10];      // take profit, stop loss and time stop come from the Crossing trading panel
   const pct1 = x => String(+(x * 100).toFixed(1)), exText = `+${pct1(ex[0])}% / −${pct1(ex[1])}% / ${ex[2]} min`;
   const manualOf = mint => ((trd && trd.trades) || []).find(t => t.strategy === 'crossing-manual' && t.mint === mint);
   const sendBuy = async (mint, symbol) => {
@@ -2394,16 +2528,18 @@ function renderCrossing() {
   // 1. what this is: the purpose in a line, the live status, the pattern as steps, and how buying works
   const nWatch = d.watching.length, chip = (label, val, cls) => el('span', { className: 'xc', style: 'flex:1 1 130px' }, el('span', { className: 'small', style: 'color:var(--muted)', textContent: label }), el('b', { className: cls || '', style: 'font-size:18px', textContent: val }));
   const fell = st.failed || 0, hit = st.confirmed || 0;
-  out.push(labPanel('Crossing', 'A coin graduates, dips below the highest price of its graduation minute, then climbs back above it. This page spots that moment live. Nothing is bought unless you press a Buy button.', [],
+  out.push(labPanel('Crossing', 'A coin graduates, never trades above the highest price of its graduation minute, then closes back above it after a close below it. This page spots that moment live. Nothing is bought unless you press a Buy button.', [],
     el('div', { style: 'display:flex;flex-wrap:wrap;gap:8px;margin:0 0 6px' },
       chip('Detector', stale ? 'stopped?' : 'running', stale ? 'n' : 'p'), chip('Coins watched now', String(nWatch)),
       chip('Crossings recorded', String(st.events)), chip('Confirmed', String(hit), 'p'), chip('Fell back', String(fell), fell ? 'n' : '')),
     el('p', { className: 'small ' + (stale ? 'n' : ''), style: 'margin:0 0 10px', role: 'status', textContent: stale ? `The detector has not updated for ${Math.round(age / 1000)} s: it may have stopped.` : `Updated ${Math.round(age / 1000)} s ago${d.ignored ? ` · ${d.ignored} more graduate${d.ignored === 1 ? ' is' : 's are'} ignored (another graduation price, or out of the pattern)` : ''}. A crossing shows within seconds and is confirmed when its minute closes.` }),
     el('b', { textContent: 'What counts as a crossing' }),
     el('ol', { className: 'steps' },
-      el('li', {}, el('b', { textContent: 'Graduation: ' }), `the coin closes its graduation minute between ${usd(r.start_mcap)} and ${usd(r.pre_mcap)} (the coin's own level to beat is the highest price of that minute).`),
-      el('li', {}, el('b', { textContent: 'The dip: ' }), `from minute 1 on, at least ${r.dip_minutes} minute${r.dip_minutes === 1 ? '' : 's'} close${r.dip_minutes === 1 ? 's' : ''} below ${Math.round(r.below * 100)}% of that high. It never trades under ${usd(r.floor_mcap)} in those minutes, and never closes above ${usd(r.pre_mcap)} before the dip starts. Also, from minute 1 on, at least ${r.lowhigh || 2} minutes (minute 1 counts itself) have a highest price no higher than the highest price of minute 1.`),
-      el('li', {}, el('b', { textContent: 'The cross: ' }), `a minute closes at or above the graduation minute's high after one that closed below it, in minute ${r.first} to ${r.last} after graduation.`)),
+      el('li', {}, el('b', { textContent: 'Graduation minute (minute 0): ' }), `closes between ${usd(r.start_mcap)} and ${usd(r.pre_mcap)}. Its highest price is the coin's own level to cross.`),
+      el('li', {}, el('b', { textContent: 'Minutes 1 and 2: ' }), `their highest prices are not above the highest price of minute 0.`),
+      el('li', {}, el('b', { textContent: 'Floor: ' }), `no minute before the crossing has a low under ${usd(r.floor_mcap)}.`),
+      el('li', {}, el('b', { textContent: 'Ceiling: ' }), `no minute from 1 to the one before the crossing closes above the level. A wick above it is fine from minute 3 on, and the crossing minute closes above it.`),
+      el('li', {}, el('b', { textContent: 'The cross: ' }), `the previous minute closed below the level and the crossing minute closes at or above it, in minute ${r.first} to ${r.last} after graduation.`)),
     el('p', { className: 'small', style: 'margin:8px 0 0', textContent: `Each candidate is read every 15 to 30 seconds during its first 14 minutes.` }),
     el('b', { style: 'display:block;margin-top:12px', textContent: 'How buying works' }),
     el('p', { className: 'small', style: 'margin:4px 0 0', textContent: 'A Buy button (in Watching now and on a crossing from the last 15 minutes) asks this page\'s own trader for one buy at once (no confirmation). It uses the wallet in Trading wallets and the size, limits, take profit and stop loss set in Crossing trading (both below). The trader then watches the position and sells it for you; you can also sell by hand in Live Trading.' })));
@@ -2458,9 +2594,9 @@ function renderCrossing() {
       el('div', { className: 'xhead' }, el('span', { className: 'sym', textContent: w.symbol }), stateTag(w.state), el('span', { className: 'small', style: 'color:var(--muted)', textContent: w.ref_mcap ? `level to cross ${usd(w.ref_mcap)}` : '' })),
       table(['Time', '#Minute', 'What happened'], w.rows.map(r => [{ className: 'small', textContent: when2(r) }, { className: 'num', textContent: r.minute == null ? '' : String(r.minute) }, { className: 'small ' + (r.cls || ''), textContent: r.text }])));
   };
-  const stateTag = s => s === 'CROSSING NOW' ? tag(s, 'p') : s === 'crossed' ? tag('crossed', 'p') : s.startsWith('armed') ? tag('armed', 'w', 'Has been below the graduation minute\'s high for enough minutes: the next close above it is a crossing') : s === 'missed' ? tag('missed', '') : s === 'fell back' ? tag('fell back', 'n') : tag(s, '');
-  out.push(labPanel('Watching now', 'Graduates in their first 14 minutes. "Armed" means the dip is there and a close back above the high of the graduation minute would be a crossing.', [],
-    d.watching.length ? table(['Coin', '#Age', '#Market cap', '#vs grad. high', '#Minutes below', 'State', '#To graduate', 'Links', 'Buy'], d.watching.map(w => [
+  const stateTag = s => s === 'CROSSING NOW' ? tag(s, 'p') : s === 'crossed' ? tag('crossed', 'p') : s.startsWith('armed') ? tag('armed', 'w', 'Rules 1 to 4 hold and the last close is below the level: the next close at or above it is a crossing') : s === 'missed' ? tag('missed', '') : s === 'fell back' ? tag('fell back', 'n') : tag(s, '');
+  out.push(labPanel('Watching now', 'Graduates in their first 14 minutes. "Armed" means the rules hold so far, the last close is below the level (the high of minute 0) and a close at or above it would be a crossing.', [],
+    d.watching.length ? table(['Coin', '#Age', '#Market cap', '#vs grad. high', '#Closes below the level', 'State', '#To graduate', 'Links', 'Buy'], d.watching.map(w => [
       tokCell(w.mint, w.symbol), { className: 'num', textContent: w.age.toFixed(1) + ' min' }, { className: 'num', textContent: usd(w.mcap) },
       { className: signed(w.vs_grad - 1), textContent: pc(w.vs_grad - 1, 0) }, { className: 'num', textContent: w.below }, el('td', {}, stateTag(w.state)),
       { className: 'num', textContent: w.mtg == null ? '–' : w.mtg + ' min' }, { className: 'small', textContent: [w.x ? 'X' : '', w.web ? 'web' : ''].filter(Boolean).join(' · ') || '–' }, el('td', {}, buyBox(w.mint, w.symbol))]))
@@ -2487,7 +2623,7 @@ function renderCrossing() {
         el('span', { className: 'small', textContent: `${when(e.detected)} · minute ${e.m}` }),
         el('a', { className: 'small', href: 'https://dexscreener.com/solana/' + encodeURIComponent(e.pool || e.mint), target: '_blank', rel: 'noopener noreferrer', textContent: 'DexScreener' }),
         el('span', { className: 'buyslot' }, (Date.now() - (e.t_cross || e.detected) <= 15 * 60000 || manualOf(e.mint)) ? buyBox(e.mint, e.symbol) : ''),
-        el('span', { className: 'tags' }, ...(f ? [f.group ? tag('group', 'p') : tag('not in group', ''), f.quiet ? tag('quiet', 'p') : tag('busy', '')] : []), ...(e.x ? [tag('X', '')] : []), ...(e.web ? [tag('web', '')] : []), sellTag(e.post))),
+        el('span', { className: 'tags' }, ...(f ? [f.group ? tag('group', 'p') : tag('not in group', ''), f.quiet ? tag('quiet', 'p') : tag('busy', '')] : []), ...(f && f.pattern ? [tag('pattern', 'p', 'Matches the pattern of the four charted coins: the pattern strategy (' + (r.pattern_exit ? `+${Math.round(r.pattern_exit[0] * 100)}% / −${Math.round(r.pattern_exit[1] * 100)}% / ${r.pattern_exit[2]} min` : '') + ')')] : []), ...(e.x ? [tag('X', '')] : []), ...(e.web ? [tag('web', '')] : []), sellTag(e.post))),
       el('div', { className: 'xcards' },
         card('', 'Crossing', [mc(e.price)], vs == null ? null : `${pc(vs, 1)} vs ${e.ref ? 'the graduation high' : 'the graduation price'}`, ft.mins_to_grad != null ? `graduated ${ft.mins_to_grad.toFixed(1)} min after creation` : null, ft.trades_last_5m != null ? `${Math.round(ft.trades_last_5m).toLocaleString()} trades in the last 5 min` : null),
         card('', '60 s before', pair(pre, 'reading…'), wallets(pre), dollars(pre), pre && pre.partial ? 'a busy coin: some trades may be missing' : null),
@@ -2502,16 +2638,20 @@ function renderCrossing() {
     table(['Crossings', '#Finished', '#Average', '#Won', '#Total', 'Backtest (earlier data)'], [
       row('All confirmed', st.all, '187 trades, −10.8%'), row('Group (0.1 to 10 min to graduate)', st.group, '75 trades, −3.4%'), row('Group and quiet', st.quiet, '31 trades, +11.3% (22 trades, +30.3% at ≤ 500)'),
       row('Sellers gone in the 60 s after', st.sellers_gone, 'not tested yet: KEN and Mimi had it'), row('Sellers present', st.not_sellers_gone, 'not tested yet')]),
+    el('h3', { style: 'margin:16px 0 6px', textContent: 'Pattern strategy' }),
+    el('p', { className: 'small', style: 'margin:0 0 8px', textContent: `Crossings that match the pattern (minute 0 closes at 72% to 90% of the level; minutes 1 to 4 each close at most 93% of it, with a high not above it, a body of at most 25% of it and a low not under $25K; so a crossing from minute 5 on). Paper trade with its own exit: +${Math.round((r.pattern_exit || [0.35])[0] * 100)}% / −${Math.round((r.pattern_exit || [0, 0.5])[1] * 100)}% / ${(r.pattern_exit || [0, 0, 10])[2]} min. ${st.pattern_events || 0} crossing${st.pattern_events === 1 ? '' : 's'} flagged so far.` }),
+    table(['Strategy', '#Finished', '#Average', '#Won', '#Total', 'Backtest (earlier data)'], [
+      row('Pattern, its own exit', st.pattern || { n: 0 }, '36 trades, +9.1% at +35% / −50% / 10 min (+25% to +40% gave +9% to +12%); at +30% a 1-3 s delay gave +8% to +13%'), row('Pattern, the all-crossings exit (+100% / −40% / 15 min)', st.pattern_old_exit || { n: 0 }, '36 trades, +1.2%')]),
     el('p', { className: 'small', style: 'margin:8px 0 0', textContent: 'Small numbers prove nothing: expect about 19 crossings a day, 3 of them group-and-quiet. Wait for 20 to 30 finished trades before reading the averages.' })));
   patchKids(root, out, false);
 }
 
 function showTab() {
   const lm = location.hash.match(/^#(?:lab|strategy)\/([^/]+)$/);
-  let tab = lm || location.hash === '#lab' ? 'lab' : { '#history': 'history', '#rules': 'lab', '#settings': 'settings', '#trading': 'trading', '#crossing': 'crossing', '#monitor': 'monitor' }[location.hash] || (/^#coins(\/|$)/.test(location.hash) ? 'coins' : /^#wallets(\/|$)/.test(location.hash) ? 'wallets' : 'tokens');
+  let tab = lm || location.hash === '#lab' ? 'lab' : { '#history': 'history', '#rules': 'lab', '#settings': 'settings', '#trading': 'trading', '#crossing': 'crossing', '#patterns': 'patterns', '#monitor': 'monitor' }[location.hash] || (/^#coins(\/|$)/.test(location.hash) ? 'coins' : /^#wallets(\/|$)/.test(location.hash) ? 'wallets' : 'tokens');
   if (GUEST && !['lab', 'trading', 'coins', 'wallets'].includes(tab)) tab = 'lab';
   if (lm) labSel = decodeURIComponent(lm[1]);
-  for (const t of ['tokens', 'history', 'lab', 'settings', 'trading', 'crossing', 'coins', 'wallets', 'monitor']) $('tab-' + t).hidden = tab !== t;
+  for (const t of ['tokens', 'history', 'lab', 'settings', 'trading', 'crossing', 'patterns', 'coins', 'wallets', 'monitor']) $('tab-' + t).hidden = tab !== t;
   document.querySelectorAll('nav.tabs:not(.sub) a').forEach(a => a.classList.toggle('on', a.dataset.tab === tab));
   const onTab = document.querySelector('nav.tabs:not(.sub) a.on'); if (onTab) onTab.scrollIntoView({ inline: 'nearest', block: 'nearest' });   // (phones: the tab row swipes)
   if (tab === 'history') { if (!historyLoaded) loadHistory(); }
@@ -2519,15 +2659,31 @@ function showTab() {
   else if (tab === 'settings') { if (!settingsPageLoaded) loadSettingsPage(); }
   else if (tab === 'trading') loadTrading();
   else if (tab === 'crossing') { cross.walletBox = cross.tradeBox = cross.tgBox = null; loadCrossing(); }       // (the wallet panel is read again each time the tab is opened)
+  else if (tab === 'patterns') loadPatterns();
   else if (tab === 'coins') loadCoins();
   else if (tab === 'wallets') loadWallets();
   else if (tab === 'monitor') loadMonitor();
   else if (all.length) chart();
 }
+
+// the sidebar: a drawer on phones (menu button, scrim, Esc, a link closes it), collapsible to icons on larger screens (remembered), empty groups hidden (a guest has few pages)
+(() => {
+  const body = document.body, btn = $('menuBtn'), col = $('collapseBtn');
+  const setOpen = on => { if (!on && $('side').contains(document.activeElement)) btn.focus(); body.classList.toggle('menu-open', on); btn.setAttribute('aria-expanded', String(on)); };      // (focus goes back to the menu button when the drawer closes)
+  btn.onclick = () => setOpen(!body.classList.contains('menu-open'));
+  $('scrim').onclick = () => setOpen(false);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') setOpen(false); });
+  document.querySelectorAll('nav.tabs:not(.sub) a').forEach(a => a.addEventListener('click', () => setOpen(false)));
+  try { if (localStorage.getItem('sideCollapsed') === '1') body.classList.add('side-collapsed'); } catch (e) { /* not kept */ }
+  col.onclick = () => { const on = body.classList.toggle('side-collapsed'); try { localStorage.setItem('sideCollapsed', on ? '1' : '0'); } catch (e) { /* not kept */ } };
+})();
+function pruneNavGroups() {      // a group label with no page after it (a guest sees few pages) is removed
+  document.querySelectorAll('nav.tabs:not(.sub) .navgroup').forEach(g => { let n = g.nextElementSibling, any = false; while (n && !n.classList.contains('navgroup')) { if (n.tagName === 'A') any = true; n = n.nextElementSibling; } if (!any) g.remove(); });
+}
 window.addEventListener('hashchange', showTab);
 if (GUEST) {   // only the pages a guest may see (the Lab and Trading to look at, Coins Review and Wallets Review to use), and a note instead of the account links
-  document.querySelectorAll('nav.tabs:not(.sub) a').forEach(a => { if (!['lab', 'trading', 'coins', 'wallets'].includes(a.dataset.tab)) a.remove(); });
-  document.querySelector('header .account').replaceChildren(el('span', { className: 'small', textContent: 'Guest' }), ' ', el('a', { href: '/logout', textContent: 'Sign out' }));
+  document.querySelectorAll('nav.tabs:not(.sub) a').forEach(a => { if (!['lab', 'trading', 'coins', 'wallets'].includes(a.dataset.tab)) a.remove(); }); pruneNavGroups();
+  { const acc = document.querySelector('header .account'); acc.insertBefore(el('span', { className: 'small lbl', style: 'padding:0 12px 6px;color:var(--muted)', textContent: 'Signed in as a guest' }), acc.firstChild); }
 }
 let resizeT = null, lastW = innerWidth;   // phones fire resize when the address bar shows or hides: only a new width redraws
 window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(() => { if (innerWidth === lastW) return; lastW = innerWidth;

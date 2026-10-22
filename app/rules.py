@@ -3,6 +3,7 @@
 A rule is a dict:
   {"id": str, "name": str, "enabled": bool, "live": bool (follow it in the live watch),
    "entry": minutes after graduation to buy,
+   "entry_to": optional, a later minute than "entry": the rule buys at the FIRST minute from "entry" to "entry_to" at which its conditions hold (one buy a token; added 22 Oct 2026 for the pattern crossing, which happens at a different minute for every coin),
    "conditions": [{"feature": name, "op": ">=" | "<=" | "=", "value": number}, ...],
    "tp": take profit as a fraction (0.4 = +40%), "sl": stop loss as a fraction,
    "be": optional (0 = none): once the price has been this far above the entry (0.5 = +50%), the stop moves up to the entry price plus "be_stop" (0.1 = +10%; default 0 = the entry price),
@@ -53,10 +54,22 @@ FEATURES = {
     "top_snipers": ("Snipers among the 50 largest holders", "num"),
     "top_bundlers": ("Bundled wallets among the 50 largest holders", "num"),
     "fees_sol": ("Trading fees paid on the token so far", "sol"),
+    # shapes of the first minutes, from the 1-minute bars only (added 21 Oct 2026; the crossing pattern's own measures among them)
+    "grad_high_vs_price": ("Price against the highest price of the graduation minute", "pct"),
+    "dip_depth": ("Lowest close since the graduation minute, against that minute's high", "pct"),
+    "mins_below_high": ("Minutes that closed below 97% of the graduation minute's high", "num"),
+    "lower_high_minutes": ("Minutes whose high was no higher than the high of minute 1", "num"),
+    "range_5m": ("Average candle range over the last 5 minutes", "pct"),
+    "red_minutes_5m": ("Minutes that closed below their open in the last 5", "num"),
+    "vol_trend_5m": ("Volume of the last 5 minutes against the 5 before", "pct"),
+    "mins_since_creation": ("Minutes since the token was created", "min"),
+    # the Crossing page's pattern strategy as one condition (22 Oct 2026): the coin's first crossing (analyze.crossing_minute) was the minute
+    # before the entry minute and matches analyze.cross_pattern. Meant for a rule with entry_to (6 to 13); the search does not try it
+    "pattern_cross_now": ("A crossing that matches the pattern closed in the last minute", "flag"),
 }
 
 # entry + hold may not pass the price history kept after each graduation (295 minutes)
-LIMITS = {"max_rules": 40, "max_conditions": 8, "entry": [5, 240], "hold": [5, 240],
+LIMITS = {"max_rules": 40, "max_conditions": 8, "entry": [5, 240], "max_entry_span": 20, "hold": [5, 240],
           "max_entry_plus_hold": 295, "tp": [0.05, 10.0], "sl": [0.05, 0.95], "be": [0.05, 10.0], "be_stop": [0.0, 9.0]}
 
 PRESETS = [
@@ -269,6 +282,18 @@ WATCH_EXTRA = [
                     {"feature": "mcap_usd", "op": ">=", "value": 90000.0},
                     {"feature": "drawdown_from_high", "op": "<=", "value": -0.05}],
      "tp": 1.0, "sl": 0.5, "hold": 30},
+    # added 22 Oct 2026: the Crossing page's pattern strategy as a Lab rule. A coin that crosses (analyze.cross_at: its close goes back above the
+    # high of its graduation minute after closing below it, with no low under $15K, the highs of minutes 1 and 2 not above the level and no
+    # close above it before) AND matches the pattern (analyze.cross_pattern: minute 0 closed at 72-90% of its high; minutes 1-4 each closed at
+    # most 93% of the level with a high not above it, a body of at most 25% of it and a low not under $25K) is bought at the close of the
+    # crossing minute, which is minute 5 to 12, so the entry is minute 6 to 13 (entry_to: the first minute at which the condition holds).
+    # Backtest on the saved coins (36 pattern crossings): +9.1% a trade at this exit, 75% won (earlier 70% +3.8%, newest 30% +13.9%, without the
+    # best 3 +7.1%, bootstrap -2.3% to +20.1%); at +30% the 1-3 s delay replay gave +8% to +13.5%. The pattern was drawn from four coins that kept
+    # rising and the exit chosen on the same coins, so only this record can confirm it. Paper only until 20 live trades agree
+    {"id": "strategy-g", "name": "Strategy G: pattern crossing (buy at minute 6 to 13)",
+     "enabled": True, "entry": 6, "entry_to": 13,
+     "conditions": [{"feature": "pattern_cross_now", "op": "=", "value": 1.0}],
+     "tp": 0.35, "sl": 0.5, "hold": 10},
 ]
 
 # Every rule the system runs shows on the Lab page. analyze.py writes strategies/<id>.json (its backtest) and watch.py writes
@@ -376,7 +401,13 @@ def validate(rules):
         hold = _number(r.get("hold"), *LIMITS["hold"], f"'{name}': time stop")
         if entry != int(entry) or hold != int(hold):
             raise ValueError(f"'{name}': entry minute and time stop must be whole minutes")
-        if entry + hold > LIMITS["max_entry_plus_hold"]:
+        entry_to = None
+        if r.get("entry_to") not in (None, "", 0):
+            entry_to = _number(r.get("entry_to"), entry + 1, LIMITS["entry"][1], f"'{name}': last entry minute")
+            if entry_to != int(entry_to) or entry_to - entry > LIMITS["max_entry_span"]:
+                raise ValueError(f"'{name}': the entry minutes must be whole minutes, at most {LIMITS['max_entry_span']} apart")
+            entry_to = int(entry_to)
+        if (entry_to or entry) + hold > LIMITS["max_entry_plus_hold"]:
             raise ValueError(f"'{name}': entry minute plus time stop must be at most "
                              f"{LIMITS['max_entry_plus_hold']} (prices are kept for that long after graduation)")
         be = float(_number(r["be"], *LIMITS["be"], f"'{name}': breakeven trigger")) if r.get("be") else 0.0
@@ -387,7 +418,7 @@ def validate(rules):
             "id": rid, "name": name, "enabled": bool(r.get("enabled", True)),
             # recorded by the live watch; once any rule has this, the watch follows only those
             "live": bool(r.get("live", False)),
-            "entry": int(entry), "conditions": clean,
+            "entry": int(entry), **({"entry_to": entry_to} if entry_to else {}), "conditions": clean,
             "tp": float(_number(r.get("tp"), *LIMITS["tp"], f"'{name}': take profit")),
             "sl": float(_number(r.get("sl"), *LIMITS["sl"], f"'{name}': stop loss")),
             "hold": int(hold),

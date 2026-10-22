@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Watch every new graduate for the crossing pattern, live.
 
-The pattern (analyze.cross_at, found in the research of 19 Oct 2026): a coin graduates at the standard price, spends minutes
-below it, then closes back above it. This service follows each young graduate from watch.db, reads its 1-minute candles every
-15-30 s (the current minute included), flags the moment its price first tops the graduation price again, reads the trades around
+The pattern (analyze.cross_at, rewritten 21 Oct 2026): a coin graduates with its first minute closing between $35K and $50K, never
+trades above the highest price of that minute (its level) and then closes back above it after a close below it. This service follows each young graduate from watch.db, reads its 1-minute candles every
+15-30 s (the current minute included), flags the moment its price first tops the level, reads the trades around
 that moment (who bought and sold in the 60 s before and after), confirms the crossing when the minute closes, and later records what
 a buy at that price would have done (+100% / -40% / 15 minutes, as in the backtest). Nothing is bought: it is a monitor and a
 forward test. It writes data/crossing.json (the Crossing page) and keeps every event in data/crossing.db.
@@ -31,7 +31,7 @@ import watch as W
 
 MIN = 60000
 TICK = 2.0              # seconds between looks at the list of coins
-POLL_ARMED, POLL_IDLE = 15, 30   # seconds between candle reads of a coin in the dip phase / before it
+POLL_ARMED, POLL_IDLE = 15, 30   # seconds between candle reads of a coin that is armed / before that
 WATCH_AGE = 14 * MIN    # a graduate is followed for its first 14 minutes (the pattern needs minutes 4-12)
 KEEP_AGE = 45 * MIN     # and kept in memory while an event of it waits for its trades or its result
 SETTLE = 2500           # ms after a minute ends before its candle is read as final
@@ -63,9 +63,9 @@ class Coin:
         self.ref = None            # the price to cross (see step)
         self.sent_watch = self.sent_armed = False      # Telegram alerts already sent for this coin
         self.rows = []             # the live status rows (timeline)
-        self.below = 0             # closed minutes below 0.97 x the graduation price so far
+        self.below = 0             # closed minutes below the level so far
         self.state = "new"
-        self.dev = None            # creator's first buy in SOL (looked up once, when the coin first gets close to the dip)
+        self.dev = None            # creator's first buy in SOL (looked up once, when the coin first gets close to being armed)
         self.event = None          # the event being followed (a dict) or None
         self.done = False
 
@@ -75,19 +75,20 @@ class Coin:
         return bool(ev and (ev["status"] == "live" or ev["post"] is None or (ev["status"] == "confirmed" and ev.get("outcome") is None)))
 
 
-def out_reason(close, low, closed, p0):
+def out_reason(close, high, low, closed, p0):
     """Why a coin can no longer become a crossing (a limit that only gets worse as minutes pass), or None.
-    closed = the number of final minutes (0..closed-1)."""
+    closed = the number of final minutes (0..closed-1); p0 = the level (the highest price of minute 0). Called after the crossing
+    check of the minute that just closed, so a minute that closed above the level while it crossed is already an event."""
     if closed < 2:
         return None
     with np.errstate(invalid="ignore"), warnings.catch_warnings():
         warnings.simplefilter("ignore", RuntimeWarning)          # (a slice without any bar: nothing to compare)
-        if np.nanmin(low[1:closed]) < A.CROSS_FLOOR_MCAP / A.SUPPLY:
+        if np.nanmin(low[0:closed]) < A.CROSS_FLOOR_MCAP / A.SUPPLY:
             return f"out: fell under ${A.CROSS_FLOOR_MCAP / 1e3:.0f}K"
-        below = close[1:closed] < A.CROSS_BELOW * p0
-        limit = 1 + int(np.argmax(below)) if below.any() else closed       # the dip has not started: every close so far counts as before it
-        if np.nanmax(close[:limit]) > A.CROSS_PRE_MCAP / A.SUPPLY:
-            return f"out: above ${A.CROSS_PRE_MCAP / 1e3:.0f}K before the dip"
+        if np.nanmax(high[1:min(closed, 3)]) > p0:
+            return "out: the high of minute 1 or 2 was above the level"
+        if np.nanmax(close[1:closed]) > p0:
+            return "out: closed above the level before crossing it"
     return None
 
 
@@ -100,31 +101,27 @@ def timeline(c, close, low, high, closed, k, price_now, state=""):
         ok = bool(A.cross_base(close, H))
         rows.append({"t0": c.grad_min, "t1": c.grad_min + MIN, "minute": 0, "cls": "" if ok else "n",
                      "text": f"Graduation minute. Highest price {mc(high[0])}: the level to cross. Closed {mc(close[0])}" + (f", inside {A.CROSS_START_MCAP / 1e3:.0f}K to {A.CROSS_PRE_MCAP / 1e3:.0f}K." if ok else f", outside {A.CROSS_START_MCAP / 1e3:.0f}K to {A.CROSS_PRE_MCAP / 1e3:.0f}K: not a candidate.")})
-    dipped = False
     for m in range(1, min(closed, A.T)):
-        cl, lo = close[m], low[m]
-        bits = [f"Closed {mc(cl)}"]
-        if cl < A.CROSS_BELOW * H:
-            bits.append(f"below {A.CROSS_BELOW * 100:.0f}% of the high ({mc(A.CROSS_BELOW * H)})" + ("" if dipped else ". This is the dip"))
-            dipped = True
-        elif cl >= H:
-            bits.append(f"at or above the high ({mc(H)})" + (": a cross" if dipped and close[m - 1] < H else ""))
-        else:
-            bits.append(f"not below {A.CROSS_BELOW * 100:.0f}% of the high ({mc(A.CROSS_BELOW * H)})")
-        if m >= 2 and high[m] > high[1] and not (cl >= H and dipped and close[m - 1] < H):      # (not on the crossing minute: the rule looks only at the minutes before it)
-            bits.append(f"high {mc(high[m])} above the high of minute 1 ({mc(high[1])})")
+        cl, lo, hi = close[m], low[m], high[m]
+        cross = bool(A.cross_at(close, low, H, m, high))
+        bits = [f"Closed {mc(cl)}, {'at or above' if cl >= H else 'below'} the level"]
+        if hi > H:
+            bits.append(f"high {mc(hi)} above the level" + (": out (rule 2)" if m <= 2 else " (allowed: only closes count from minute 3)"))
+        if cl > H and not cross:
+            bits.append("closed above the level: out")
         if lo < A.CROSS_FLOOR_MCAP / A.SUPPLY:
             bits.append(f"low {mc(lo)} under the {A.CROSS_FLOOR_MCAP / 1e3:.0f}K floor")
-        rows.append({"t0": c.grad_min + m * MIN, "t1": c.grad_min + (m + 1) * MIN, "minute": m, "text": ", ".join(bits) + ".", "cls": "p" if cl >= H and dipped else ""})
+        rows.append({"t0": c.grad_min + m * MIN, "t1": c.grad_min + (m + 1) * MIN, "minute": m, "text": ", ".join(bits) + (". A crossing" if cross else "") + ".", "cls": "p" if cross else ""})
     if k >= 1 and price_now is not None and k < A.T and not state.startswith("not at"):
         gap = price_now / H - 1
         rows.append({"t0": c.grad_min + k * MIN, "t1": None, "minute": k, "cls": "w",
-                     "text": f"Now {mc(price_now)} ({gap * 100:+.1f}% vs the high). " + (
-                         "Above the high: it crosses if this minute closes there." if state == "CROSSING NOW" else
+                     "text": f"Now {mc(price_now)} ({gap * 100:+.1f}% vs the level). " + (
+                         "Above the level: it crosses if this minute closes there." if state == "CROSSING NOW" else
                          f"Out: {state[5:]}." if state.startswith("out:") else "Past minute 12: missed." if k > A.CROSS_LAST or state == "missed" else
-                         "Waiting for a close back above the high." if dipped else "Waiting for a close below the dip level first.")})
+                         "Too early: the earliest crossing is minute 3." if k < A.CROSS_FIRST else
+                         "Waiting for a close at or above the level." if state.startswith("armed") else
+                         "The last close was above the level: it must close below it first.")})
     return rows
-
 
 
 def now_ms():
@@ -284,16 +281,16 @@ class Monitor:
         c.price = fnum(close[min(k, len(close) - 1)] * 1e9, 1)
         closed = min(k, A.T - 1)                   # minutes 0..closed-1 are final
         base = A.cross_base(close, p0) if closed >= 1 else None
-        c.below = int((close[1:closed] < A.CROSS_BELOW * p0).sum()) if closed >= 2 else 0
-        armed = bool(base) and A.CROSS_FIRST - 1 <= k <= A.CROSS_LAST and A.cross_dip(close, low, p0, k, high) if closed >= 2 else False
-        # the creator's first buy: looked up once, when the coin first gets close to the dip phase
+        c.below = int((close[1:closed] < p0).sum()) if closed >= 2 else 0      # closes below the level
+        armed = bool(base) and A.CROSS_FIRST <= k <= A.CROSS_LAST and closed >= 3 and A.cross_setup(close, low, high, p0, k) and bool(close[k - 1] < p0)      # rules 1-4 hold so far and the last close is below the level
+        # the creator's first buy: looked up once, when the coin first gets close to being armed
         if c.dev is None and base and k >= 2:
             try:
                 c.dev = W.dev_buy(c.mint, quick=True)
             except Exception:
                 c.dev = float("nan")
         ev = c.event
-        gone = out_reason(close, low, closed, p0) if base else None
+        gone = out_reason(close, high, low, closed, p0) if base else None
         if ev is None:
             if k - 1 >= A.CROSS_FIRST and bool(base) and A.cross_at(close, low, p0, k - 1, high):
                 self.detect(c, close, now, k - 1)       # the minute k-1 crossed and closed between two looks
@@ -306,14 +303,14 @@ class Monitor:
             elif armed and A.cross_at(close, low, p0, k, high):
                 self.detect(c, close, now, k)
             else:
-                c.state = "armed (waiting for the cross)" if armed else ("dip phase" if c.below else ("early" if k < 2 else "no dip"))
+                c.state = "armed (waiting for the cross)" if armed else ("early" if k < A.CROSS_FIRST else "above the level")
         mc = lambda x: f"${x * 1e9 / 1e3:,.1f}K"      # noqa: E731
         if base and not c.done and not c.sent_watch and not c.event:
             c.sent_watch = True
             self.alert("watching", c, f"👀 <b>${notify.esc(c.symbol)}</b> is watched (minute {k}): level to cross {mc(p0)}, now {mc(close[min(k, len(close) - 1)])}")
         if c.state.startswith("armed") and not c.sent_armed:
             c.sent_armed = True
-            self.alert("armed", c, f"🎯 <b>${notify.esc(c.symbol)}</b> is armed (minute {k}): the dip is in, a close above {mc(p0)} is a crossing. Now {mc(close[min(k, len(close) - 1)])}")
+            self.alert("armed", c, f"🎯 <b>${notify.esc(c.symbol)}</b> is armed (minute {k}): its last close is below the level, a close at or above {mc(p0)} is a crossing. Now {mc(close[min(k, len(close) - 1)])}")
         try:
             c.rows = timeline(c, close, low, high, closed, k, close[min(k, len(close) - 1)], c.state)
         except Exception as e:
@@ -380,19 +377,25 @@ class Monitor:
                 mtg, t5 = f.get("mins_to_grad"), f.get("trades_last_5m")
                 ev["status"], ev["confirmed"], ev["entry"] = "confirmed", now, fnum(close[k_ev] * 1e9, 1)
                 ev["feat"] = {k: f.get(k) for k in ("mins_to_grad", "trades_last_5m", "vol_usd_last_5m", "avg_trade_usd_5m", "dev_buy_sol", "trades_total", "holders", "top10_pct", "bundlers_pct", "snipers_pct", "ret_last_5m")}
-                ev["flags"] = {"group": bool(mtg is not None and GROUP[0] <= mtg <= GROUP[1]), "quiet": bool(t5 is not None and t5 <= QUIET), "quiet500": bool(t5 is not None and t5 <= 500)}
-                print(f"CONFIRMED {c.symbol} minute {k_ev} group={ev['flags']['group']} quiet={ev['flags']['quiet']}", flush=True)
+                ev["flags"] = {"group": bool(mtg is not None and GROUP[0] <= mtg <= GROUP[1]), "quiet": bool(t5 is not None and t5 <= QUIET), "quiet500": bool(t5 is not None and t5 <= 500),
+                               "pattern": bool(A.cross_pattern(close, arr["high"][0].astype(float), low, arr["open"][0].astype(float), c.ref, k_ev))}
+                print(f"CONFIRMED {c.symbol} minute {k_ev} group={ev['flags']['group']} quiet={ev['flags']['quiet']} pattern={ev['flags']['pattern']}", flush=True)
                 self.alert("confirmed", c, f"✅ <b>Crossing confirmed: ${notify.esc(c.symbol)}</b> (minute {k_ev})\nEntry {ev['entry'] and '$%.1fK' % (ev['entry'] / 1e3)}, level {'$%.1fK' % (c.ref * 1e9 / 1e3)}"
-                           f"{' · group' if ev['flags']['group'] else ''}{' · quiet' if ev['flags']['quiet'] else ''}")
+                           f"{' · group' if ev['flags']['group'] else ''}{' · quiet' if ev['flags']['quiet'] else ''}{' · PATTERN (strategy: +%d%% / -%d%% / %d min)' % (A.PATTERN_EXIT[0] * 100, A.PATTERN_EXIT[1] * 100, A.PATTERN_EXIT[2]) if ev['flags']['pattern'] else ''}")
                 c.state = "crossed"
             else:
                 ev["status"], ev["confirmed"] = "failed", now
                 c.event, c.state = None, "fell back"
                 print(f"FAILED {c.symbol} minute {k_ev}: closed below the graduation price", flush=True)
             self.save(ev)
-        # 3. what a buy at the close of the crossing minute did (+100% / -40% / 15 minutes)
+        # 3. what a buy at the close of the crossing minute did (+100% / -40% / 15 minutes), and under the pattern strategy's exit (PATTERN_EXIT)
         if ev["status"] == "confirmed" and ev.get("outcome") is None:
             e = k_ev + 1
+            px = A.PATTERN_EXIT
+            if ev.get("outcome2") is None and now >= c.grad_min + (e + px[2] + 1) * MIN + SETTLE:
+                g2, reason2, em2 = A.simulate(arr, e, px[0], px[1], [px[2]])
+                ev["outcome2"] = {"net": fnum(A.net_return(arr, trd, e, g2[px[2]])[0]), "exit": {1: "stop", 2: "target", 3: "time"}[int(reason2[0])], "held": int(em2[0]) - e + 1}
+                self.save(ev)
             if now >= c.grad_min + (e + EXIT[2] + 1) * MIN + SETTLE:
                 g, reason, em = A.simulate(arr, e, EXIT[0], EXIT[1], [EXIT[2]])
                 r = A.net_return(arr, trd, e, g[EXIT[2]])[0]
@@ -429,17 +432,20 @@ class Monitor:
         if evs is None:
             return
         conf = [e for e in evs if e["status"] == "confirmed" and e.get("outcome")]
-        def stat(sel):
-            r = [e["outcome"]["net"] for e in sel if e["outcome"]["net"] is not None]
+        pat = [e for e in evs if e["status"] == "confirmed" and (e.get("flags") or {}).get("pattern")]
+
+        def stat(sel, key="outcome"):
+            r = [e[key]["net"] for e in sel if e.get(key) and e[key]["net"] is not None]
             return {"n": len(r), "mean": fnum(float(np.mean(r))) if r else None, "won": int(sum(x > 0 for x in r)), "total": fnum(float(np.sum(r))) if r else None}
         stats = {"events": len(evs), "confirmed": sum(e["status"] == "confirmed" for e in evs), "failed": sum(e["status"] == "failed" for e in evs), "finished": len(conf),
                  "all": stat(conf), "group": stat([e for e in conf if e["flags"]["group"]]), "quiet": stat([e for e in conf if e["flags"]["group"] and e["flags"]["quiet"]]),
                  "quiet500": stat([e for e in conf if e["flags"]["group"] and e["flags"]["quiet500"]]),
+                 "pattern": stat([e for e in pat if e.get("outcome2")], "outcome2"), "pattern_events": len(pat), "pattern_old_exit": stat([e for e in pat if e.get("outcome")]),
                  "sellers_gone": stat([e for e in conf if (e.get("post") or {}).get("sellers_gone")]),
                  "not_sellers_gone": stat([e for e in conf if e.get("post") and not e["post"].get("error") and not e["post"].get("sellers_gone")])}
         doc = {"updated": now, "p0_mcap": round(self.p0 * 1e9), "watching": watching, "ignored": other, "events": evs[:100], "stats": stats,
-               "rule": {"first": A.CROSS_FIRST, "last": A.CROSS_LAST, "dip_minutes": A.CROSS_DIP, "lowhigh": A.CROSS_LOWHIGH, "below": A.CROSS_BELOW, "floor_mcap": A.CROSS_FLOOR_MCAP, "pre_mcap": A.CROSS_PRE_MCAP, "start_mcap": A.CROSS_START_MCAP, "group": GROUP, "quiet": QUIET,
-                        "exit": EXIT, "sell_share_max": SELL_SHARE_MAX, "buyers_min": BUYERS_MIN}}
+               "rule": {"first": A.CROSS_FIRST, "last": A.CROSS_LAST, "floor_mcap": A.CROSS_FLOOR_MCAP, "pre_mcap": A.CROSS_PRE_MCAP, "start_mcap": A.CROSS_START_MCAP, "group": GROUP, "quiet": QUIET,
+                        "exit": EXIT, "pattern_exit": A.PATTERN_EXIT, "sell_share_max": SELL_SHARE_MAX, "buyers_min": BUYERS_MIN}}
         W.write_json(os.path.join(self.data, "crossing.json"), doc)
 
     def run(self):

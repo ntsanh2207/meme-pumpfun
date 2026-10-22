@@ -50,7 +50,13 @@ CHECKED = 4000               # best-ranked rule sets checked in detail
 MIN_CHECK_TRADES = 10        # trades a rule must make in the checking part
 MIN_DAY_SHARE = 0.5          # share of days with trades that must end in profit (ranking + checking parts)
 PASS_TEST_TRADES = 20        # test trades needed for a "pass"
-SEARCH_SKIP = {"hour_utc"}   # features rules may use but the search does not try
+SEARCH_SKIP = {"hour_utc", "mins_since_creation", "pattern_cross_now"}   # features rules may use but the search does not try (the last is mins_to_grad plus the entry minute: the same cuts)
+# conditions measured at an earlier minute (added 21 Oct 2026): the search also tries each feature as it was AT_BACK minutes before the
+# entry (never before minute 5), as Strategy B20 does by hand. They are combined with the best single entry-minute conditions
+# (TOP_SINGLES) and may be the third condition of the best pairs, so the number of rule sets grows by about a third, not several times
+AT_BACK = (5, 10)
+AT_SKIP = SEARCH_SKIP | {"dev_buy_sol", "mins_to_grad", "mins_since_creation"}   # the same at any minute, or only shifted by a constant
+TOP_SINGLES = 60
 # what separates this backtest from earlier saved runs; shown next to each run in the history
 MODEL = "stops fill at the minute close; conditions need full data"
 TRAIN_SHARE = 0.7
@@ -277,6 +283,35 @@ def simulate(arr, entry, tp, sl, holds, stop_fill="close", be=0.0, be_stop=0.0):
     return out, reason, exit_min
 
 
+def shape_features(tok, arr, vol, entry, p0, span, vol5):
+    """Shapes of the first minutes, from the 1-minute bars only; nothing after the entry minute is read (added 21 Oct 2026)."""
+    n = len(p0)
+    nan = np.full(n, np.nan)
+    # (only the minutes before the entry are copied: a full float64 copy of every bar would cost 10 MB per array)
+    c, h, lo, op = (arr[k][:, :entry].astype(np.float64) for k in ("close", "high", "low", "open"))
+    h0 = h[:, 0]
+    out = {k: nan.copy() for k in ("grad_high_vs_price", "dip_depth", "mins_below_high", "lower_high_minutes", "range_5m",
+                                   "red_minutes_5m", "vol_trend_5m")}
+    with np.errstate(divide="ignore", invalid="ignore"), warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)           # (a row without any bar: all-NaN slices)
+        out["grad_high_vs_price"] = p0 / h0 - 1
+        if entry >= 2:
+            cl = c[:, 1:entry]
+            ok = np.isfinite(h0)
+            out["dip_depth"] = np.where(ok, np.nanmin(cl, axis=1) / h0 - 1, np.nan)
+            out["mins_below_high"] = np.where(ok, (cl < 0.97 * h0[:, None]).sum(axis=1), np.nan).astype(np.float64)
+            h1 = h[:, 1]
+            out["lower_high_minutes"] = np.where(np.isfinite(h1), (h[:, 1:entry] <= h1[:, None]).sum(axis=1), np.nan).astype(np.float64)
+        w = slice(entry - span, entry)
+        out["range_5m"] = np.nanmean((h[:, w] - lo[:, w]) / c[:, w], axis=1)
+        out["red_minutes_5m"] = np.where(np.isfinite(c[:, w]).all(axis=1) & np.isfinite(op[:, w]).all(axis=1), (c[:, w] < op[:, w]).sum(axis=1) * (5 / span), np.nan)
+        if entry >= 10:
+            prev = vol[:, entry - 10:entry - 5].sum(axis=1).astype(np.float64)
+            out["vol_trend_5m"] = np.where(prev > 0, vol5 / prev - 1, np.nan)
+    out["mins_since_creation"] = np.asarray(tok["mins_to_grad"], dtype=np.float64) + entry
+    return out
+
+
 def features(tok, arr, vol, trd, entry):
     """Everything here is known at the moment of entry."""
     c = arr["close"].astype(np.float64)
@@ -315,6 +350,8 @@ def features(tok, arr, vol, trd, entry):
             "has_website": tok["has_website"],
             "has_telegram": tok["has_telegram"],
             **holder_features(tok, entry),
+            **shape_features(tok, arr, vol, entry, p0, span, vol5),
+            "pattern_cross_now": pattern_cross_now(arr, entry),
         }
 
 
@@ -333,38 +370,37 @@ CREATE TABLE IF NOT EXISTS sec_windows (       -- 1-second windows already fetch
 """
 
 
-# ---- the crossing pattern (research of 19 Oct 2026, rules of 20 Oct 2026) ----
-# A coin that graduated at the standard price (the close of its graduation minute above CROSS_START_MCAP and not above CROSS_PRE_MCAP),
-# then closed below 0.97x p_grad for at least CROSS_DIP of the minutes 1..m-1, with no low under CROSS_FLOOR_MCAP in them and no close
-# above CROSS_PRE_MCAP before the dip started (the dip starts at the first minute that closes below 0.97x p_grad), and whose minute m is
-# the first to close back at or above p_grad (minute m-1 closed below it). m runs from CROSS_FIRST to CROSS_LAST.
-# The three market-cap limits are in US dollars (every coin has 1e9 tokens: market cap = price x SUPPLY).
-# crossing.py watches live graduates with the same functions; c and lo are 1-D arrays by minute after the graduation minute.
-CROSS_FIRST, CROSS_LAST, CROSS_DIP, CROSS_BELOW = 2, 12, 2, 0.97      # (CROSS_DIP was 1 until 20 Oct 2026 afternoon)
-CROSS_LOWHIGH = 2      # and at least this many of the minutes 1..m-1 have a high no higher than the high of minute 1 (so a price that keeps making new highs is not a dip); added 20 Oct 2026
+# ---- the crossing pattern (research of 19 Oct 2026, rules rewritten 21 Oct 2026) ----
+# 1. the graduation minute (minute 0) closes between CROSS_START_MCAP and CROSS_PRE_MCAP; its highest price is the LEVEL;
+# 2. the highs of minutes 1 and 2 are not above the level; 3. no minute before the crossing has a low under CROSS_FLOOR_MCAP;
+# 4. no minute from 1 to the one before the crossing closed above the level; 5. minute m-1 closed below the level and minute m
+# closes at or above it, m from CROSS_FIRST to CROSS_LAST. The market-cap limits are in US dollars (every coin has 1e9 tokens: market cap
+# = price x SUPPLY). crossing.py watches live graduates with the same functions; c, lo and hi are 1-D arrays by minute after the graduation minute.
+CROSS_FIRST, CROSS_LAST = 3, 12      # (2 until 21 Oct 2026; the dip rules (CROSS_DIP, CROSS_BELOW 0.97, CROSS_LOWHIGH) were dropped the same day)
 CROSS_FLOOR_MCAP, CROSS_PRE_MCAP, CROSS_START_MCAP, SUPPLY = 15000.0, 50000.0, 35000.0, 1e9
 
 
 def cross_base(c, p0):
-    """The graduation minute closed between CROSS_START_MCAP and the pre-dip limit (known once that minute has closed). p0 is not used."""
+    """Rule 1: the graduation minute (minute 0) closed between CROSS_START_MCAP and CROSS_PRE_MCAP (known once that minute has closed). p0 is not used."""
     return bool(CROSS_START_MCAP / SUPPLY < c[0] <= CROSS_PRE_MCAP / SUPPLY)
 
 
-def cross_dip(c, lo, p0, m, hi=None):
-    """Minutes 1..m-1 hold the dip: enough closes below p0 (the level to cross: the highest price of the graduation minute in crossing.py since 20 Oct 2026, the standard graduation price before), no collapse, and nothing above the pre-dip limit before it."""
+def cross_setup(c, lo, hi, p0, m):
+    """Rules 2 to 4 for a crossing in minute m (p0 = the level = the highest price of minute 0; c, hi and lo are the bars' closes, highs and lows):
+    the highs of minutes 1 and 2 are not above the level, no minute before m has a low under the floor (minute 0 included) and no
+    minute from 1 to m-1 closed above the level (a wick above it is fine after minute 2; the crossing minute itself closes above it).
+    (Rule 4 looked at highs until 22 Oct 2026: a wick above the level then disqualified a coin that crossed later, as Ginger's did.)"""
+    if m < 3:
+        return False
     with np.errstate(invalid="ignore"):
-        below = c[1:m] < CROSS_BELOW * p0
-        if below.sum() < CROSS_DIP:
-            return False
-        if hi is not None and (hi[1:m] <= hi[1]).sum() < CROSS_LOWHIGH:      # (minute 1 counts itself)
-            return False
-        start = 1 + int(np.argmax(below))          # the dip starts at the first minute that closed below
-        return bool(np.nanmin(lo[1:m]) >= CROSS_FLOOR_MCAP / SUPPLY and np.nanmax(c[:start]) <= CROSS_PRE_MCAP / SUPPLY)
+        return bool(hi[1] <= p0 and hi[2] <= p0 and np.nanmax(c[1:m]) <= p0 and np.nanmin(lo[0:m]) >= CROSS_FLOOR_MCAP / SUPPLY)
 
 
-def cross_at(c, lo, p0, m, hi=None):
-    """Minute m is a crossing: the dip is there and minute m closes at/above p0 after m-1 closed below it."""
-    return bool(CROSS_FIRST <= m <= CROSS_LAST and cross_base(c, p0) and cross_dip(c, lo, p0, m, hi) and c[m] >= p0 and c[m - 1] < p0)
+def cross_at(c, lo, p0, m, hi):
+    """Minute m is a crossing: rules 1 to 4 hold and minute m closes at/above the level p0 after m-1 closed below it, in minute CROSS_FIRST to CROSS_LAST."""
+    if hi is None or not CROSS_FIRST <= m <= CROSS_LAST:
+        return False
+    return bool(cross_base(c, p0) and cross_setup(c, lo, hi, p0, m) and c[m] >= p0 and c[m - 1] < p0)
 
 
 def crossing_minute(c, lo, p0, hi=None):
@@ -373,6 +409,60 @@ def crossing_minute(c, lo, p0, hi=None):
         if cross_at(c, lo, p0, m, hi):
             return m
     return -1
+
+
+# The "pattern" flag of a crossing (21-22 Oct 2026, from four charted coins that kept rising): minute 0 closed at 72% to 90% of its own high (the
+# level) and each of minutes 1 to 4 closed at most 93% of the level with a high not above it, a body of at most 25% of the level and a low not under
+# PATTERN_LOW_MCAP. It needs minutes 1 to 4 closed before the crossing, so a crossing in minute 5 or later. 36 of 152 crossings matched it; bought at
+# the crossing close with PATTERN_EXIT it averaged +9.1% (won 75%; earlier 70% +3.8%, newest 30% +13.9%, without the best 3 +7.1%, bootstrap -2.3% to +20.1%); at +30% the 1-3 s delay replay gave +8% to +13.5%. Found on the same coins.
+PATTERN_EXIT = (0.35, 0.50, 10)      # take profit, stop loss, minutes held of the pattern strategy (+25% to +40% was a plateau)
+PATTERN_LOW_MCAP = 25000.0
+
+
+def cross_pattern(c, hi, lo, op, p0, m):
+    """The crossing in minute m matches the pattern (see above). c, hi, lo, op = the bars' closes, highs, lows and opens; p0 = the level."""
+    if m < 5 or not np.isfinite(p0) or p0 <= 0:
+        return False
+    cc, hh, ll, oo = c[1:5], hi[1:5], lo[1:5], op[1:5]
+    if not np.isfinite([c[0], *cc, *hh, *ll, *oo]).all():
+        return False
+    return bool(0.72 <= c[0] / p0 <= 0.90 and cc.max() / p0 <= 0.93 and hh.max() <= p0 and np.abs(cc - oo).max() <= 0.25 * p0 and ll.min() >= PATTERN_LOW_MCAP / SUPPLY)
+
+
+_CROSS_CACHE = {}
+
+
+def first_crossings(arr):
+    """The first crossing minute of every coin of arr (-1: none), under the current rules. Cached for a big sample (the backtest asks for it
+    at every entry minute); a one-coin frame of the live watch is cheap and never cached."""
+    c, lo, hi = arr["close"], arr["low"], arr["high"]
+    n = c.shape[0]
+    key = (id(c), c.shape, int(np.nansum(c[:, :3] > 0)) if n > 1 else 0) if n > 1000 else None
+    if key is not None and key in _CROSS_CACHE and _CROSS_CACHE[key][0] is c:
+        return _CROSS_CACHE[key][1]
+    cm = np.full(n, -1, dtype=np.int16)
+    for i in range(n):
+        p0 = hi[i, 0]
+        if np.isfinite(p0) and p0 > 0:
+            cm[i] = crossing_minute(c[i].astype(np.float64), lo[i].astype(np.float64), float(p0), hi[i].astype(np.float64))
+    if key is not None:
+        _CROSS_CACHE.clear()
+        _CROSS_CACHE[key] = (c, cm)
+    return cm
+
+
+def pattern_cross_now(arr, entry):
+    """1 for a coin whose first crossing was the minute before the entry minute (the last whole minute) and matches the pattern, else 0.
+    A crossing needs minute 5 or later to match, so entry minutes 6 to 13 are the ones that can see one."""
+    n = arr["close"].shape[0]
+    out = np.zeros(n)
+    m = entry - 1
+    if not 5 <= m <= CROSS_LAST:
+        return out
+    c, lo, hi, op = (arr[k] for k in ("close", "low", "high", "open"))
+    for i in np.flatnonzero(first_crossings(arr) == m):
+        out[i] = float(cross_pattern(c[i].astype(np.float64), hi[i].astype(np.float64), lo[i].astype(np.float64), op[i].astype(np.float64), float(hi[i, 0]), m))
+    return out
 
 
 def sec_bars(db, mint, pool, to_ms):
@@ -747,6 +837,46 @@ def study_rule(f, r, took, train, test, reason):
             "base": {"train_mean": base_tr, "test_mean": base_te}}
 
 
+def entry_view(tok, arr, vol, trd, rule, at=None):
+    """A rule on every coin, with a range of entry minutes handled: for each coin the FIRST minute from rule["entry"] to rule.get("entry_to")
+    at which the coin can be bought and every condition holds is the minute it is bought at. A rule with one entry minute is the same
+    thing with one minute. Returns a dict of per-coin arrays at that minute (a coin that never matches carries its values at the first minute):
+    e (entry minute; 0 = no buy), took, f (features), r (net return), gr (price multiple), reason, exit_min, p0 (price at the buy), plus
+    per_e = [(minute, features there, tradable there)] for the funnel."""
+    at = at or features_at(tok, arr, vol, trd)
+    n = len(arr["close"])
+    es = list(range(rule["entry"], rule.get("entry_to", rule["entry"]) + 1))
+    e_arr = np.zeros(n, dtype=np.int32)
+    took = np.zeros(n, dtype=bool)
+    out = {}
+    per_e = []
+    for e in es:
+        f = features(tok, arr, vol, trd, e)
+        by_hold, reason, exit_min = simulate(arr, e, rule["tp"], rule["sl"], [rule["hold"]], be=rule.get("be", 0.0), be_stop=rule.get("be_stop", 0.0))
+        gr = by_hold[rule["hold"]]
+        r = net_return(arr, trd, e, gr)
+        ok = np.isfinite(r) & matches(f, rule["conditions"], at)
+        per_e.append((e, f, np.isfinite(r)))
+        take = ok & ~took            # the first minute at which a coin matches
+        if not out:
+            out = {"f": {k: np.array(v, dtype=np.float64, copy=True) for k, v in f.items()}, "r": np.array(r, dtype=np.float64, copy=True), "gr": np.array(gr, dtype=np.float64, copy=True),
+                   "reason": np.array(reason, copy=True), "exit_min": np.array(exit_min, copy=True)}
+            e_arr[:] = e                 # (before any match: the first minute's values)
+        if take.any():
+            for k, v in f.items():
+                out["f"][k][take] = np.asarray(v, dtype=np.float64)[take]
+            for k, v in (("r", r), ("gr", gr), ("reason", reason), ("exit_min", exit_min)):
+                out[k][take] = np.asarray(v)[take]
+            e_arr[take] = e
+            took |= take
+    out["took"] = took & np.isfinite(out["r"])
+    out["e"] = np.where(took, e_arr, 0)
+    out["entry_min"] = e_arr
+    out["p0"] = arr["close"][np.arange(n), np.maximum(e_arr, 1) - 1].astype(np.float64)
+    out["per_e"] = per_e
+    return out
+
+
 def run_rules(db, user_rules, tok, arr, vol, trd, train, test):
     """Backtest each enabled saved rule on every sample coin and save it as a run.
 
@@ -764,6 +894,8 @@ def run_rules(db, user_rules, tok, arr, vol, trd, train, test):
         if not rule["enabled"]:
             continue
         core = {k: rule[k] for k in ("entry", "conditions", "tp", "sl", "hold")}
+        if rule.get("entry_to"):
+            core["entry_to"] = rule["entry_to"]      # (left out when none, so the saved runs of other rules stay valid)
         if rule.get("be"):
             core["be_stop"] = rule.get("be_stop", 0.0)
             core["be"] = rule["be"]       # (left out when none, so the saved runs of other rules stay valid)
@@ -775,16 +907,14 @@ def run_rules(db, user_rules, tok, arr, vol, trd, train, test):
                        (rule["name"], rule["id"], digest))
             continue
         e, hold = rule["entry"], rule["hold"]
-        f = features(tok, arr, vol, trd, e)
-        mask = matches(f, rule["conditions"], features_at(tok, arr, vol, trd))
-        by_hold, reason, exit_min = simulate(arr, e, rule["tp"], rule["sl"], [hold], be=rule.get("be", 0.0), be_stop=rule.get("be_stop", 0.0))
-        gr = by_hold[hold]
-        r = net_return(arr, trd, e, gr)
+        view = entry_view(tok, arr, vol, trd, rule)
+        f, mask, reason, exit_min, gr, r = view["f"], view["took"], view["reason"], view["exit_min"], view["gr"], view["r"]
+        e_of = view["entry_min"]        # the minute each coin is bought at (one minute for a rule without entry_to)
         idx = np.flatnonzero(mask & np.isfinite(r))
         s_tr, s_te = stats(r[mask & train]), stats(r[mask & test])
         total = float(r[idx].sum()) if len(idx) else 0.0
         verdict = "no_trades" if not len(idx) else "profit" if total > 0 else "loss"
-        shown = {"entry": e, "tp": rule["tp"], "sl": rule["sl"], "hold": hold, "be": rule.get("be", 0.0), "be_stop": rule.get("be_stop", 0.0),
+        shown = {"entry": e, **({"entry_to": rule["entry_to"]} if rule.get("entry_to") else {}), "tp": rule["tp"], "sl": rule["sl"], "hold": hold, "be": rule.get("be", 0.0), "be_stop": rule.get("be_stop", 0.0),
                  "conditions": [{**c, "label": FEATURES[c["feature"]][0], "kind": FEATURES[c["feature"]][1]}
                                 for c in rule["conditions"]]}
         took = mask & np.isfinite(r)
@@ -796,12 +926,12 @@ def run_rules(db, user_rules, tok, arr, vol, trd, train, test):
             (int(time.time() * 1000), n, int(train.sum()), int(test.sum()), int(gts[0]), int(gts[-1]),
              json.dumps(params), json.dumps(clean(shown)), json.dumps(clean(s_tr)), json.dumps(clean(s_te)),
              verdict, "rule", rule["id"], rule["name"], digest, json.dumps(clean(study))))
-        p0 = arr["close"][:, e - 1]
+        p0 = view["p0"]
         # every round trip keeps what the token looked like when it was bought, for later study
         db.executemany(
             "INSERT INTO backtest_trades (run_id, mint, split, entry_ts, entry_price, exit_min, "
             "exit_reason, price_multiple, net_return, features) VALUES (?,?,?,?,?,?,?,?,?,?)",
-            [(cur.lastrowid, tok["mint"][i], "test" if test[i] else "train", int(gts[i] + e * MIN),
+            [(cur.lastrowid, tok["mint"][i], "test" if test[i] else "train", int(gts[i] + int(e_of[i]) * MIN),
               float(p0[i]), int(exit_min[i]), names[int(reason[i])], float(gr[i]), float(r[i]),
               json.dumps(clean({k: float(v[i]) for k, v in f.items()}))) for i in idx])
         done += 1
@@ -816,39 +946,46 @@ def strategy_doc(rule, tok, arr, vol, trd, train, test):
     gts, stake = tok["graduated_ts"], arr["stake"]
     names = {1: "stop", 2: "target", 3: "time"}
     e, hold = rule["entry"], rule["hold"]
-    f = features(tok, arr, vol, trd, e)
     at = features_at(tok, arr, vol, trd)
-    by_hold, reason, exit_min = simulate(arr, e, rule["tp"], rule["sl"], [hold], be=rule.get("be", 0.0), be_stop=rule.get("be_stop", 0.0))
-    gr = by_hold[hold]
-    r = net_return(arr, trd, e, gr)
-    tradable = np.isfinite(r)
-    took = tradable.copy()
+    view = entry_view(tok, arr, vol, trd, rule, at)
+    f, reason, exit_min, gr, r, e_of, p0 = view["f"], view["reason"], view["exit_min"], view["gr"], view["r"], view["entry_min"], view["p0"]
+    tradable = np.zeros(len(r), dtype=bool)
+    for _, _, trad in view["per_e"]:
+        tradable |= trad
+    # the funnel counts a token once if it passes at any of the rule's entry minutes (one minute for most rules)
+    cum = [trad.copy() for _, _, trad in view["per_e"]]
     funnel = []
     for c in rule["conditions"]:
-        alone = tradable & matches(f, [c], at)
-        took &= alone
-        known = tradable & np.isfinite((at(c["at"]) if c.get("at") else f)[c["feature"]])
+        alone, known = np.zeros(len(r), dtype=bool), np.zeros(len(r), dtype=bool)
+        for k, (em, f_e, trad) in enumerate(view["per_e"]):
+            ok = trad & matches(f_e, [c], at)
+            alone |= ok
+            cum[k] &= ok
+            known |= trad & np.isfinite((at(c["at"]) if c.get("at") else f_e)[c["feature"]])
+        left = np.zeros(len(r), dtype=bool)
+        for m_ in cum:
+            left |= m_
         funnel.append({**c, "label": FEATURES[c["feature"]][0], "kind": FEATURES[c["feature"]][1],
-                       "left": int(took.sum()), "alone": int(alone.sum()), "known": int(known.sum()),
+                       "left": int(left.sum()), "alone": int(alone.sum()), "known": int(known.sum()),
                        # holder numbers exist only for tokens that graduated while the recorder ran
                        "known_from": int(gts[known].min()) if known.any() else None})
+    took = view["took"]
     idx = np.flatnonzero(took)
     equity, total, days = [], 0.0, {}
     for k, i in enumerate(idx, 1):
         total += float(r[i])
-        ts = int(gts[i] + e * MIN)
+        ts = int(gts[i] + int(e_of[i]) * MIN)
         equity.append({"i": k, "ts": ts, "total": total, "is_test": bool(test[i])})
         days.setdefault(ts // 86400000 * 86400000, []).append(i)
     per_day = [{"day": d, "trades": len(v), "total": float(r[v].sum()), "mean": float(r[v].mean()),
                 "is_test": bool(test[v].mean() > 0.5)} for d, v in sorted(days.items())]
     measured = rulebook.page_columns(rule["conditions"])
     reading = lambda k: at(int(k.split("@")[1]))[k.split("@")[0]] if "@" in k else f[k]   # noqa: E731
-    p0 = arr["close"][:, e - 1]
-    trades = [[tok["mint"][i], tok["symbol"][i], "test" if test[i] else "train", int(gts[i] + e * MIN),
-               int(exit_min[i]) - e + 1, names[int(reason[i])], float(r[i]), float(r[i]) * stake,
+    trades = [[tok["mint"][i], tok["symbol"][i], "test" if test[i] else "train", int(gts[i] + int(e_of[i]) * MIN),
+               int(exit_min[i]) - int(e_of[i]) + 1, names[int(reason[i])], float(r[i]), float(r[i]) * stake,
                float(p0[i]), float(gr[i])] + [float(reading(k)[i]) for k in measured] for i in idx[::-1]]
     doc = {"generated_at": int(time.time() * 1000), "id": rule["id"], "name": rule["name"],
-           "rule": {"entry": e, "tp": rule["tp"], "sl": rule["sl"], "hold": hold, "be": rule.get("be", 0.0), "be_stop": rule.get("be_stop", 0.0),
+           "rule": {"entry": e, **({"entry_to": rule["entry_to"]} if rule.get("entry_to") else {}), "tp": rule["tp"], "sl": rule["sl"], "hold": hold, "be": rule.get("be", 0.0), "be_stop": rule.get("be_stop", 0.0),
                     "conditions": [{**c, "label": FEATURES[c["feature"]][0], "kind": FEATURES[c["feature"]][1]}
                                    for c in rule["conditions"]]},
            "sample": {"coins": len(gts), "train": int(train.sum()), "test": int(test.sum()),
@@ -969,8 +1106,8 @@ def write_history(db, path, user_rules):
     # the latest run of each saved rule, in the order of the settings page, then the search
     def same(run, rule):
         got = run["rule"] or {}
-        return (got.get("entry"), got.get("tp"), got.get("sl"), got.get("hold"), got.get("be") or 0.0, got.get("be_stop") or 0.0) == \
-            (rule["entry"], rule["tp"], rule["sl"], rule["hold"], rule.get("be") or 0.0, rule.get("be_stop") or 0.0) and \
+        return (got.get("entry"), got.get("entry_to") or 0, got.get("tp"), got.get("sl"), got.get("hold"), got.get("be") or 0.0, got.get("be_stop") or 0.0) == \
+            (rule["entry"], rule.get("entry_to") or 0, rule["tp"], rule["sl"], rule["hold"], rule.get("be") or 0.0, rule.get("be_stop") or 0.0) and \
             [rulebook.cond_core(c) for c in got.get("conditions", [])] == \
             [rulebook.cond_core(c) for c in rule["conditions"]]
 
@@ -1006,23 +1143,23 @@ def write_history(db, path, user_rules):
                     "result_pct", "profit_usd"] + list(FEATURES))
         for rid in current:
             run = by_id[rid]
-            for mint, symbol, split, entry_ts, exit_min, reason, net, feats in db.execute(
+            for mint, symbol, split, entry_ts, exit_min, reason, net, feats, grad_ts in db.execute(
                     "SELECT b.mint, k.symbol, b.split, b.entry_ts, b.exit_min, b.exit_reason, b.net_return, "
-                    "b.features FROM backtest_trades b LEFT JOIN tokens k USING (mint) "
+                    "b.features, k.graduated_ts FROM backtest_trades b LEFT JOIN tokens k USING (mint) "
                     "WHERE b.run_id = ? ORDER BY b.entry_ts", (rid,)):
                 feats = json.loads(feats) if feats else {}
                 w.writerow([run["rule_name"], rid, mint, symbol, "recent 30%" if split == "test" else "earlier 70%",
                             time.strftime("%Y-%m-%d %H:%M", time.gmtime(entry_ts / 1000)),
-                            exit_min - run["rule"]["entry"] + 1, reason, round(net * 100, 2),
+                            exit_min - ((entry_ts - grad_ts // MIN * MIN) // MIN if grad_ts else run["rule"]["entry"]) + 1, reason, round(net * 100, 2),
                             round(net * run["stake_usd"], 2)] + [feats.get(k, "") for k in FEATURES])
     os.replace(csv_path + ".tmp", csv_path)
     for rid in current:
         run, rows = by_id[rid], []
-        for mint, symbol, split, entry_ts, exit_min, reason, net, price, multiple in db.execute(
+        for mint, symbol, split, entry_ts, exit_min, reason, net, price, multiple, grad_ts in db.execute(
                 "SELECT b.mint, k.symbol, b.split, b.entry_ts, b.exit_min, b.exit_reason, b.net_return, "
-                "b.entry_price, b.price_multiple FROM backtest_trades b LEFT JOIN tokens k USING (mint) "
+                "b.entry_price, b.price_multiple, k.graduated_ts FROM backtest_trades b LEFT JOIN tokens k USING (mint) "
                 "WHERE b.run_id = ? ORDER BY b.entry_ts DESC", (rid,)):
-            held = exit_min - run["rule"]["entry"] + 1 if run["rule"] else None
+            held = exit_min - ((entry_ts - grad_ts // MIN * MIN) // MIN if grad_ts else run["rule"]["entry"]) + 1 if run["rule"] else None
             # the buy price, and the sell price as a multiple of it (before fees and price impact)
             rows.append([mint, symbol, split, entry_ts, held, reason, net, net * run["stake_usd"], price, multiple])
         trades[str(rid)] = rows
@@ -1164,6 +1301,7 @@ def main():
     check_m = train & ~rank_m
     cands = []
     tested = positive = 0
+    fcache = {}      # features at the earlier minutes of the conditions with "at"
     for e in ENTRIES:
         f = features(tok, arr, vol, trd, e)
         R = np.stack([net[(e, *x)][rank_m] for x in exits]).astype(np.float32)   # exits x coins
@@ -1179,17 +1317,34 @@ def main():
             if name not in usable or name in SEARCH_SKIP or np.isfinite(x[base_ok]).mean() < 0.98:
                 continue
             if kind == "flag":
-                rules.append(((name, "=", 1.0), x == 1))
+                rules.append(((name, "=", 1.0, None), x == 1))
                 continue
             vals = x[base_ok & np.isfinite(x)]
             if not len(vals):
                 continue
             for thr in sorted({float(v) for v in np.quantile(vals, QUANTILES)}):
-                rules.append(((name, ">=", thr), x >= thr))
-                rules.append(((name, "<=", thr), x <= thr))
+                rules.append(((name, ">=", thr, None), x >= thr))
+                rules.append(((name, "<=", thr, None), x <= thr))
+        n_main = len(rules)
+        for back in AT_BACK:        # the same features as they were `back` minutes before the entry
+            am = e - back
+            if am < 5:
+                continue
+            if am not in fcache:
+                fcache[am] = features(tok, arr, vol, trd, am)
+            for name, (label, kind) in FEATURES.items():
+                x = fcache[am][name]
+                if name not in usable or name in AT_SKIP or kind == "flag" or np.isfinite(x[base_ok]).mean() < 0.98:
+                    continue
+                vals = x[base_ok & np.isfinite(x)]
+                if not len(vals):
+                    continue
+                for thr in sorted({float(v) for v in np.quantile(vals, QUANTILES)}):
+                    rules.append(((name, ">=", thr, am), x >= thr))
+                    rules.append(((name, "<=", thr, am), x <= thr))
 
         def score_all(combos):
-            """(score, best exit index) of each combo (indices into `rules`) as arrays; -inf when too few trades."""
+            """(score, best exit index) of each combo (a row of indices into `rules`, an int array) as arrays; -inf when too few trades."""
             nonlocal tested, positive
             sc, ex = np.full(len(combos), -np.inf), np.zeros(len(combos), dtype=np.int32)
             for i in range(0, len(combos), 400):
@@ -1208,29 +1363,59 @@ def main():
                 ex[i:i + len(chunk)], sc[i:i + len(chunk)] = best, score[best, np.arange(len(chunk))]
             return sc, ex
 
-        feat = [r[0][0] for r in rules]
-        combos = [(a,) for a in range(len(rules))] + [(a, b) for a, b in itertools.combinations(range(len(rules)), 2)
-                                                      if feat[a] != feat[b]]
-        sc, ex = score_all(combos)
+        # (the combinations are int arrays, not tuples: with the earlier-minute conditions there are several times more of them)
+        names_f = [r[0][0] if r[0][3] is None else f"{r[0][0]}@{r[0][3]}" for r in rules]
+        fid = {nm: q for q, nm in enumerate(sorted(set(names_f)))}
+        featid = np.array([fid[nm] for nm in names_f])
+        ia, ib = np.triu_indices(n_main, 1)
+        keep_p = featid[ia] != featid[ib]
+        groups = [np.arange(len(rules), dtype=np.int32)[:, None], np.stack([ia[keep_p], ib[keep_p]], axis=1).astype(np.int32)]
+        del ia, ib, keep_p
+        scs, exs = zip(*[score_all(g) for g in groups])
+        scs, exs = list(scs), list(exs)
+        # the best single entry-minute conditions, each with every earlier-minute condition
+        top1 = [int(j) for j in np.argsort(-scs[0][:n_main]) if np.isfinite(scs[0][j])][:TOP_SINGLES]
+        at_pairs = np.array([(a, k) for a in top1 for k in range(n_main, len(rules)) if featid[k] != featid[a]], dtype=np.int32).reshape(-1, 2)
+        if len(at_pairs):
+            s_at, x_at = score_all(at_pairs)
+            groups.append(at_pairs); scs.append(s_at); exs.append(x_at)
         # three conditions: the best pairs, each with one more condition on another feature
-        pair_rank = [j for j in np.argsort(-sc) if len(combos[j]) == 2 and np.isfinite(sc[j])][:BEAM]
-        triples = sorted({tuple(sorted(combos[j] + (k,))) for j in pair_rank for k in range(len(rules))
-                          if feat[k] not in (feat[combos[j][0]], feat[combos[j][1]])})
-        sc3, ex3 = score_all(triples)
-        combos, sc, ex = combos + triples, np.concatenate([sc, sc3]), np.concatenate([ex, ex3])
+        pall, pscore = np.concatenate(groups[1:]), np.concatenate(scs[1:])
+        order = [int(j) for j in np.argsort(-pscore) if np.isfinite(pscore[j])][:BEAM]
+        trip = []
+        for j in order:
+            a_, b_ = pall[j]
+            ks = np.flatnonzero((featid != featid[a_]) & (featid != featid[b_]))
+            trip.append(np.sort(np.column_stack([np.full(len(ks), a_), np.full(len(ks), b_), ks]), axis=1))
+        if trip:
+            triples = np.unique(np.concatenate(trip).astype(np.int32), axis=0)
+            s3, x3 = score_all(triples)
+            groups.append(triples); scs.append(s3); exs.append(x3)
+        del pall, pscore, trip
+        sc, ex = np.concatenate(scs), np.concatenate(exs)
+        starts = np.cumsum([0] + [len(g) for g in groups])
         # only the best of each entry minute can reach the checking step: the rest are not kept in memory
-        keep = [j for j in np.argsort(-sc)[:CHECKED * 3] if np.isfinite(sc[j])]
-        cands += [(float(sc[j]), e, tuple(rules[k] for k in combos[j]), exits[ex[j]]) for j in keep]
-        del combos, sc, ex, triples
+        keep = [int(j) for j in np.argsort(-sc)[:CHECKED * 3] if np.isfinite(sc[j])]
+        def combo_of(j):
+            g = int(np.searchsorted(starts, j, side="right")) - 1
+            return tuple(int(v) for v in groups[g][j - starts[g]])
+        pk = {}      # the masks of the rules that are kept are packed (8 bits to a byte): the candidates of all entry minutes stay in memory
+
+        def packed(k):
+            if k not in pk:
+                pk[k] = (rules[k][0], np.packbits(rules[k][1]))
+            return pk[k]
+        cands += [(float(sc[j]), e, tuple(packed(k) for k in combo_of(j)), exits[ex[j]]) for j in keep]
+        del groups, scs, exs, sc, ex
     cands.sort(key=lambda c: -c[0])
     print(f"rule sets tested on train: {tested}, entry rules kept: {len(cands)}", flush=True)
 
     def describe(combo):
         return [{"feature": c[0][0], "label": FEATURES[c[0][0]][0], "kind": FEATURES[c[0][0]][1],
-                 "op": c[0][1], "value": c[0][2]} for c in combo]
+                 "op": c[0][1], "value": c[0][2], **({"at": c[0][3]} if c[0][3] else {})} for c in combo]
 
     def mask_of(combo):
-        return np.logical_and.reduce([c[1] for c in combo])
+        return np.logical_and.reduce([np.unpackbits(c[1], count=n).astype(bool) for c in combo])
 
     def trim3(x):     # the mean without the 3 best trades: a rule carried by a lucky few does not count
         return float(np.sort(x)[:-3].mean()) if len(x) > 6 else float("nan")
@@ -1277,7 +1462,7 @@ def main():
                   "sl_slip": SL_SLIP, "stake": arr["stake"], "stake_sol": STAKE_SOL,
                   "sol_usd": sol_usd(arr["p_grad"]), "max_impact": MAX_IMPACT,
                   "min_trades": MIN_TRADES, "train_share": TRAIN_SHARE, "rank_share": RANK_SHARE, "quantiles": QUANTILES,
-                  "beam": BEAM, "checked": CHECKED, "min_check_trades": MIN_CHECK_TRADES, "min_day_share": MIN_DAY_SHARE}
+                  "beam": BEAM, "at_back": AT_BACK, "top_singles": TOP_SINGLES, "checked": CHECKED, "min_check_trades": MIN_CHECK_TRADES, "min_day_share": MIN_DAY_SHARE}
     def detail(e, m, conditions, tp, sl, hold, score, train, test):
         """Everything the report shows about one rule: (the strategy block, its saved round
         trips, the returns of its test round trips, the low end of their plausible range)."""

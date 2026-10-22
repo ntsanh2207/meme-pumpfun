@@ -52,6 +52,7 @@ PASSED_SHOWN = 100       # passed tokens listed on a strategy page (newest first
 ARCHIVE_AFTER = (A.T + 3) * MIN   # a graduate's whole window of bars (what the backtest reads) exists this long after it graduated
 ARCHIVE_EVERY = 3.0      # seconds between archive requests: the decisions keep their share of pump.fun's limits
 ARCHIVE_TRIES = 3        # answers without any bars before a graduate is left out (it has no history to keep)
+_range_eval = {}      # (mint, strategy id) -> the last minute a rule with a range of entry minutes (entry_to) was evaluated at
 CORE = ("entry", "conditions", "tp", "sl", "hold", "be", "be_stop")      # "be": breakeven trigger, 0 = none; "be_stop": where the stop moves to (rules.py)
 
 SCHEMA = """
@@ -109,6 +110,20 @@ def labelled(conditions):
             for c in conditions if c["feature"] in rulebook.FEATURES]
 
 
+def snapshot(s, e):
+    """The rule as stored with a decision made at entry minute e. A rule with a range of entry minutes keeps the minute it bought at as
+    "entry" (follow() and the rest read it there) and its own range as entry_from / entry_to."""
+    snap = {k: s[k] for k in CORE}
+    if s.get("entry_to"):
+        snap.update(entry=e, entry_from=s["entry"], entry_to=s["entry_to"])
+    return snap
+
+
+def entry_minutes(s):
+    """Every entry minute a strategy may decide at."""
+    return range(s["entry"], s.get("entry_to", s["entry"]) + 1)
+
+
 def load_strategies(data):
     """The automatic search's rule and every enabled saved rule, each with its backtest record."""
     out = []
@@ -134,7 +149,8 @@ def load_strategies(data):
                     hit = db.execute("SELECT MAX(run_id) FROM backtest_runs WHERE kind = 'rule' AND rule_id = ? "
                                      "AND picked_rule IS NOT NULL", (r["id"],)).fetchone()
                     out.append({"id": r["id"], "name": r["name"], "run_id": hit[0],
-                                "shown": r["live"] or not chosen, **{k: r.get(k, 0.0) for k in CORE}})
+                                "shown": r["live"] or not chosen, **{k: r.get(k, 0.0) for k in CORE},
+                                **({"entry_to": r["entry_to"]} if r.get("entry_to") else {})})
             for s in out:
                 s["conditions"] = labelled(s["conditions"])
                 n, mean, wins = db.execute("SELECT COUNT(*), AVG(net_return), SUM(net_return > 0) FROM backtest_trades "
@@ -458,15 +474,16 @@ def write_strategy_live(db, data, strategies, p_grad):
         if s["id"] == "auto":     # the automatic search's pick is not a rule of the Lab
             continue
         # only decisions made with the strategy as it is defined now: an edited strategy starts a new record
-        core = lambda r: (r["entry"], r["tp"], r["sl"], r["hold"], r.get("be", 0.0), r.get("be_stop", 0.0),   # noqa: E731
+        core = lambda r: (r.get("entry_from", r["entry"]), r.get("entry_to") or 0, r["tp"], r["sl"], r["hold"], r.get("be", 0.0), r.get("be_stop", 0.0),   # noqa: E731
                           [rulebook.cond_core(c) for c in r["conditions"]])
-        rows, earlier, first_seen, old = [], 0, None, {}
+        rows, earlier, first_seen, old, ent = [], 0, None, {}, {}      # ent: the entry minute each decision was made at (a rule with entry_to buys at a different one per token)
         for row in db.execute(
                 "SELECT d.mint, json_extract(t.info, '$.symbol'), t.graduated_ts, d.decided_ts, d.late, d.pick, d.checks, "
                 "d.status, d.exit_reason, d.minutes_held, d.net_return, m.tradable, m.entry_price, d.path, d.full_path, d.alts, "
-                "d.rule FROM decisions d "
+                "d.rule, d.entry FROM decisions d "
                 "JOIN tokens t USING (mint) LEFT JOIN measures m ON m.mint = d.mint AND m.entry = d.entry "
                 "WHERE d.strategy = ? ORDER BY d.decided_ts DESC", (s["id"],)):
+            ent[row[0]] = row[17]
             if core(json.loads(row[16])) == core(s):
                 rows.append(row[:16])
                 first_seen = row[3] if first_seen is None or (row[3] and row[3] < first_seen) else first_seen
@@ -479,7 +496,7 @@ def write_strategy_live(db, data, strategies, p_grad):
         # never live signals and are already in its backtest
         before = 0
         if first_seen:
-            kept_rows = [r for r in rows if r[2] is None or r[2] // MIN * MIN + s["entry"] * MIN >= first_seen - LATE * 1000]
+            kept_rows = [r for r in rows if r[2] is None or r[2] // MIN * MIN + ent.get(r[0], s["entry"]) * MIN >= first_seen - LATE * 1000]
             before, rows = len(rows) - len(kept_rows), kept_rows
         columns = rulebook.page_columns(s["conditions"])
         bought, fails, untradable, passed_rows = [], {}, 0, []
@@ -504,7 +521,7 @@ def write_strategy_live(db, data, strategies, p_grad):
                            [actual.get(k) for k in columns], max(nets) if nets else None,
                            kept[-1] if kept else None, max(kept) if kept else None,
                            {"net": alt.get("net"), "exit": alt.get("exit"), "held": alt.get("held"), "done": alt.get("done")}
-                           if alt and top > tp else None, x_now, x_peak]
+                           if alt and top > tp else None, x_now, x_peak, ent.get(mint, s["entry"])]
 
         for r in rows:
             mint, symbol, grad, dt, late, pick, checks, status, reason, held, net, tradable, px, path, full, alts = r
@@ -520,11 +537,11 @@ def write_strategy_live(db, data, strategies, p_grad):
                         f["failed" if c.get("actual") is not None else "no_reading"] += 1
                 if len(passed_rows) < PASSED_SHOWN:   # rows come newest first
                     passed_rows.append([mint, symbol, grad, dt, bool(late), status, net,
-                                        [[rulebook.cond_key(c), c.get("actual")] for c in checks if not c.get("ok")]])
+                                        [[rulebook.cond_key(c), c.get("actual")] for c in checks if not c.get("ok")], ent.get(mint, s["entry"])])
         passed = [r for r in rows if not r[5] and r[7] == "closed" and r[10] is not None]
         write_json(os.path.join(folder, s["id"] + ".live.json"), {
             "generated_at": int(time.time() * 1000), "id": s["id"], "name": s["name"],
-            "rule": {k: s[k] for k in ("entry", "tp", "sl", "hold", "be", "be_stop", "conditions")},
+            "rule": {**{k: s[k] for k in ("entry", "tp", "sl", "hold", "be", "be_stop", "conditions")}, **({"entry_to": s["entry_to"]} if s.get("entry_to") else {})},
             "stake_usd": A.stake_usd(p_grad), "stake_sol": A.STAKE_SOL, "sol_usd": A.sol_usd(p_grad),
             "since_ts": first_seen, "decided": len(rows),
             "earlier_rule": earlier,   # decisions made with an earlier definition of the strategy, left out
@@ -533,15 +550,15 @@ def write_strategy_live(db, data, strategies, p_grad):
             # what the passed tokens would have returned had they been bought all the same
             "passed_closed": len(passed), "passed_mean": sum(r[10] for r in passed) / len(passed) if passed else None,
             "bought_columns": ["mint", "symbol", "graduated_ts", "decided_ts", "late", "status", "exit", "minutes_held",
-                               "net_return", "entry_price", "measured", "best", "held_end", "held_best", "alt", "x", "peak"],
+                               "net_return", "entry_price", "measured", "best", "held_end", "held_best", "alt", "x", "peak", "entry"],
             "measured_columns": columns,   # the features in each bought row's "measured", in order
             "follow_minutes": FOLLOW, "alt_tp": top if top > s["tp"] else None,
             "bought": bought,
             # what earlier versions of the strategy bought (newest version first, at most 5): their own rule, and rows like "bought"
-            "earlier_versions": [{"rule": {k: v.get(k, [] if k == "conditions" else 0.0) for k in CORE}, "bought": [bought_row(r, v["tp"]) for r in rs]}
+            "earlier_versions": [{"rule": {**{k: v.get("entry_from", v.get("entry", 0.0)) if k == "entry" else v.get(k, [] if k == "conditions" else 0.0) for k in CORE}, "entry_to": v.get("entry_to") or 0}, "bought": [bought_row(r, v["tp"]) for r in rs]}
                                  for v, rs in sorted(old.values(), key=lambda t: -max(r[3] or 0 for r in t[1]))[:5]],
             # the newest passed tokens that could be bought: which conditions failed (with the reading), and their result
-            "passed_columns": ["mint", "symbol", "graduated_ts", "decided_ts", "late", "status", "net_return", "failed"],
+            "passed_columns": ["mint", "symbol", "graduated_ts", "decided_ts", "late", "status", "net_return", "failed", "entry"],
             "passed": passed_rows})
 
 
@@ -586,7 +603,7 @@ def publish(db, data, strategies, clusters, p_grad):
     global _was_live
     hidden = sum(not s["shown"] for s in strategies)
     # every recorded strategy, shown or not, for the Trading tab's choice of what to trade
-    tradable = [{"id": s["id"], "name": s["name"], "shown": s["shown"], "entry": s["entry"], "tp": s["tp"], "sl": s["sl"],
+    tradable = [{"id": s["id"], "name": s["name"], "shown": s["shown"], "entry": s["entry"], **({"entry_to": s["entry_to"]} if s.get("entry_to") else {}), "tp": s["tp"], "sl": s["sl"],
                  "be": s.get("be", 0.0), "be_stop": s.get("be_stop", 0.0), "hold": s["hold"], "backtest": s.get("backtest")} for s in strategies]
     write_strategy_live(db, data, strategies, p_grad)
     strategies = [s for s in strategies if s["shown"]]
@@ -743,7 +760,7 @@ def newly_listed(data, since_ms):
 def due(db, strategies, now_ms):
     """([(mint, info, graduated_ts)] with a decision due now, unix ms the next one falls due).
     A decision is due SETTLE seconds after its entry minute ends, for DUE_FOR seconds."""
-    entries, out, nxt = sorted({s["entry"] for s in strategies}), [], now_ms + 10_000
+    entries, out, nxt = sorted({e for s in strategies for e in entry_minutes(s)}), [], now_ms + 10_000
     for mint, info, grad in db.execute("SELECT mint, info, graduated_ts FROM tokens WHERE status = 'active' "
                                        "AND graduated_ts > ?", (now_ms - (max(entries) + 5) * MIN,)).fetchall():
         grad_min = grad // MIN * MIN
@@ -751,7 +768,7 @@ def due(db, strategies, now_ms):
         nxt = min([nxt] + [t for t in (grad_min + e * MIN + SETTLE * 1000 for e in entries) if t > now_ms])
         if ready:
             decided = {sid for sid, in db.execute("SELECT strategy FROM decisions WHERE mint = ?", (mint,))}
-            if any(s["entry"] in ready and s["id"] not in decided for s in strategies):
+            if any(any(e in ready for e in entry_minutes(s)) and s["id"] not in decided for s in strategies):
                 out.append((mint, info, grad))
     return out, nxt
 
@@ -769,13 +786,15 @@ def work_token(db, data, mint, info, grad, strategies, p_grad, last_fetch, fast=
     following = [(s, json.loads(rule)) for s, rule, n in db.execute(
         "SELECT strategy, rule, CASE WHEN alts IS NULL THEN 0 ELSE COALESCE(json_array_length(full_path), 0) END "
         "FROM decisions WHERE mint = ? AND pick = 1", (mint,)) if n < min(FOLLOW, A.T - json.loads(rule)["entry"])]
-    todo = [s for s in strategies if s["id"] not in decided and s["entry"] <= done_minutes]
+    # a rule with a range of entry minutes is looked at again each time a new minute has closed inside its range, until it buys or the range is over
+    todo = [s for s in strategies if s["id"] not in decided and s["entry"] <= done_minutes
+            and (not s.get("entry_to") or _range_eval.get((mint, s["id"]), -1) < min(done_minutes, s["entry_to"]))]
     # a bought token is looked at every minute; one that was passed only when its time stop is over
     wake = bool(todo) or any(
         (pick and now_ms - last_fetch.get(mint, 0) >= 60000) or done_minutes >= r["entry"] + r["hold"]
         for _, r, pick in opened) or (bool(following) and now_ms - last_fetch.get(mint, 0) >= 60000)
     if not wake:
-        horizon = max([s["entry"] + s["hold"] for s in strategies] + [r["entry"] + r["hold"] for r in decided.values()])
+        horizon = max([s.get("entry_to", s["entry"]) + s["hold"] for s in strategies] + [r.get("entry_to", r["entry"]) + r["hold"] for r in decided.values()])
         if not opened and not following and done_minutes > horizon:
             db.execute("UPDATE tokens SET status = 'done' WHERE mint = ?", (mint,))
             db.commit()
@@ -787,7 +806,7 @@ def work_token(db, data, mint, info, grad, strategies, p_grad, last_fetch, fast=
     if fast and todo:
         # the bar of the minute before the entry should be there; if the token traded the minute
         # before that but this bar is missing, the source may lag: read again before deciding
-        need = grad_min + (min(s["entry"] for s in todo) - 1) * MIN
+        need = grad_min + (min(max(s["entry"], _range_eval.get((mint, s["id"]), s["entry"] - 1) + 1) for s in todo) - 1) * MIN
         for _ in range(2):
             have = {int(b["openTimeMs"]) for b in bars}
             if need in have or need - MIN not in have:
@@ -807,22 +826,36 @@ def work_token(db, data, mint, info, grad, strategies, p_grad, last_fetch, fast=
             at_minute[e2] = A.features(token_frame(data, mint, info, grad_min), *frame, e2)
         return at_minute[e2]
     for s in todo:
-        e = s["entry"]
-        if e not in measured:
-            m = measure(data, mint, info, grad_min, e, frame)
-            measured[e] = m
-            db.execute("INSERT OR IGNORE INTO measures VALUES (?,?,?,?,?,?,?,?,?)",
-                       (mint, e, t, int(m["tradable"]), int(m["traded"]), m["impact"], m["entry_price"], m["cluster"],
-                        json.dumps({k: num(v[0]) for k, v in m["f"].items()})))
-        m = measured[e]
-        checks = check(s, m["f"], earlier)
-        pick = m["tradable"] and all(c["ok"] for c in checks)
+        last_e = s.get("entry_to", s["entry"])
+        # the minutes not looked at yet (a rule without a range has one), up to the last closed one: the first at which the token passes is the buy
+        start = max(s["entry"], _range_eval.get((mint, s["id"]), s["entry"] - 1) + 1) if s.get("entry_to") else s["entry"]
+        upto = min(done_minutes, last_e)
+        chosen = None
+        for e in range(start, upto + 1):
+            if e not in measured:
+                m = measure(data, mint, info, grad_min, e, frame)
+                measured[e] = m
+                db.execute("INSERT OR IGNORE INTO measures VALUES (?,?,?,?,?,?,?,?,?)",
+                           (mint, e, t, int(m["tradable"]), int(m["traded"]), m["impact"], m["entry_price"], m["cluster"],
+                            json.dumps({k: num(v[0]) for k, v in m["f"].items()})))
+            m = measured[e]
+            checks = check(s, m["f"], earlier)
+            pick = m["tradable"] and all(c["ok"] for c in checks)
+            chosen = (e, m, checks, pick)
+            if pick:
+                break
+        if s.get("entry_to"):
+            _range_eval[(mint, s["id"])] = upto
+        if chosen is None or not (chosen[3] or chosen[0] >= last_e):
+            continue            # nothing bought yet and the range is not over: decide again when the next minute has closed
+        e, m, checks, pick = chosen
         late = int(t - (grad_min + e * MIN) > LATE * 1000)
         # a token that cannot be bought has no result to wait for
         db.execute("INSERT OR IGNORE INTO decisions (mint, strategy, rule, entry, decided_ts, late, pick, checks, status) "
                    "VALUES (?,?,?,?,?,?,?,?,?)",
-                   (mint, s["id"], json.dumps({k: s[k] for k in CORE}), e, t, late, int(pick), json.dumps(checks),
+                   (mint, s["id"], json.dumps(snapshot(s, e)), e, t, late, int(pick), json.dumps(checks),
                     "open" if m["tradable"] else "closed"))
+        _range_eval.pop((mint, s["id"]), None)
         if pick:
             print(f"BUY  {info.get('symbol')} {mint} by '{s['name']}' ({m['cluster']})", flush=True)
     if todo:

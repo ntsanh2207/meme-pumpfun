@@ -75,13 +75,13 @@ RESERVE_PER_POSITION = 0.01   # SOL kept back per live position for the fees and
 RETRY_ALERT_MS = 300000  # a sale still not out after this long is alerted
 STUCK_RETRY_MS = 300000  # a position that could not be sold is tried again this often
 DEFAULTS = {"mode": "off", "sol_per_trade": 0.1, "max_open": 2, "daily_loss_limit_sol": 1.0, "max_buy_impact_pct": round(MAX_BUY_IMPACT * 100, 4),
-            "take_profit_pct": 50.0, "stop_loss_pct": 50.0,      # the exit of a buy made by hand on the Crossing page, in % (checked every round, prices about once a second)
+            "take_profit_pct": 35.0, "stop_loss_pct": 50.0, "time_stop_min": 10,      # the exit of a buy made by hand on the Crossing page (%, %, minutes; checked every round, prices about once a second)
             "slippage_bps": 500, "sell_slippage_bps": 1000, "stop_slippage_bps": 2500,
             "priority_fee_lamports": 300000, "rpc_url": "https://api.mainnet-beta.solana.com", "sell_all": 0,
             "sell_ids": (),    # positions asked to be sold by hand: (id, unix ms of the request)
             "strategies": ()}  # ids of the strategies to trade (switched ON on the Trading tab); none: nothing is bought
 LIMITS = {"sol_per_trade": (0.01, HARD_MAX_SOL), "max_open": (1, 5), "daily_loss_limit_sol": (0.01, 10.0), "max_buy_impact_pct": (1.0, 20.0),
-          "take_profit_pct": (5.0, 1000.0), "stop_loss_pct": (5.0, 95.0),
+          "take_profit_pct": (5.0, 1000.0), "stop_loss_pct": (5.0, 95.0), "time_stop_min": (1, 240),
           "slippage_bps": (50, 3000), "sell_slippage_bps": (50, 5000), "stop_slippage_bps": (50, 5000),
           "priority_fee_lamports": (0, 5_000_000)}
 
@@ -548,7 +548,7 @@ def clean_cfg(raw):
                 cfg[k] = min(max(v, lo), hi)
         except (KeyError, TypeError, ValueError):
             pass
-    for k in ("max_open", "slippage_bps", "sell_slippage_bps", "stop_slippage_bps", "priority_fee_lamports"):
+    for k in ("max_open", "time_stop_min", "slippage_bps", "sell_slippage_bps", "stop_slippage_bps", "priority_fee_lamports"):
         cfg[k] = int(cfg[k])
     if isinstance(raw.get("rpc_url"), str) and raw["rpc_url"].startswith("https://"):
         cfg["rpc_url"] = raw["rpc_url"]
@@ -589,7 +589,7 @@ def trade_strategies(data, chosen=()):
     shown = [s for s in (shown if isinstance(shown, list) else []) if ok(s)]
     every = [s for s in (every if isinstance(every, list) else []) if ok(s)] or shown
     shown_ids = {s["id"] for s in shown}
-    available = [{"id": s["id"], "name": s["name"], "record_live": s["id"] in shown_ids, "entry": s.get("entry"), "tp": s["tp"],
+    available = [{"id": s["id"], "name": s["name"], "record_live": s["id"] in shown_ids, "entry": s.get("entry"), **({"entry_to": s["entry_to"]} if num(s.get("entry_to")) else {}), "tp": s["tp"],
                   "sl": s["sl"], "be": s.get("be") if num(s.get("be")) and s["be"] > 0 else 0.0,
                   "be_stop": s.get("be_stop") if num(s.get("be_stop")) and s["be_stop"] >= 0 else 0.0, "hold": s["hold"], "backtest": s.get("backtest") if isinstance(s.get("backtest"), dict) else None}
                  for s in every]

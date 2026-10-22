@@ -408,6 +408,19 @@ class Handler(BaseHTTPRequestHandler):
                                                 for k, v in rules.FEATURES.items()}})
         if path == "/api/backtest/schedule":
             return self.json(200, backtest_schedule(self.data_dir))
+        if path == "/api/patterns":     # the Pattern Discover page: the file the pattern pass wrote, without the patterns taken off the list since
+            try:
+                with open(os.path.join(self.data_dir, "patterns.json"), "rb") as f:
+                    doc = json.loads(f.read())
+            except (OSError, ValueError):
+                return self.json(404, {"error": "The pattern pass has not run yet."})
+            try:
+                with open(os.path.join(self.settings_dir(), "patterns_removed.json"), encoding="utf-8") as f:
+                    gone = set(json.load(f))
+            except (OSError, ValueError, TypeError):
+                gone = set()
+            doc["patterns"] = [p for p in doc.get("patterns", []) if p.get("id") not in gone]
+            return self.reply(200, json.dumps(doc).encode(), "application/json; charset=utf-8", {"Cache-Control": "no-store"})
         if path == "/api/lab/draft":    # the answer to the newest "Backtest without saving"
             try:
                 with open(os.path.join(self.data_dir, "draft-result.json"), "rb") as f:
@@ -579,7 +592,7 @@ class Handler(BaseHTTPRequestHandler):
             status, obj = radar.handle("POST", path[len("/api/radar/"):], "", body, self.data_dir, _save_lock, guest=self._role == "guest")
             return self.json(status, obj)
         if path not in ("/api/rules", "/api/rules/builtin", "/api/telegram", "/api/telegram/test", "/api/trading", "/api/trading/sell", "/api/trading/buy",
-                        "/api/password", "/api/sessions/others", "/api/rpc/test", "/api/lab/draft",
+                        "/api/password", "/api/sessions/others", "/api/rpc/test", "/api/lab/draft", "/api/patterns/run", "/api/patterns/remove",
                         "/api/wallets", "/api/wallets/active", "/api/wallets/remove"):
             return self.reply(404, b"not found\n", "text/plain")
         try:
@@ -657,6 +670,39 @@ class Handler(BaseHTTPRequestHandler):
             except (ValueError, OSError) as e:
                 return self.json(400, {"error": str(e) if isinstance(e, ValueError) else "The wallet could not be saved on the server."})
             return self.json(200, wallets.listing(settings))
+        if path == "/api/patterns/run":
+            # a Pattern Discover pass now, besides the one every 2 hours: a systemd path unit watches this file (data/jobs is the one folder the web service may write besides settings)
+            jobs = os.path.join(self.data_dir, "jobs")
+            os.makedirs(jobs, exist_ok=True)
+            with _save_lock:
+                tmp = os.path.join(jobs, "patterns_run.json.tmp")
+                with open(tmp, "w", encoding="utf-8") as f:
+                    json.dump({"asked": int(time.time() * 1000)}, f)
+                os.replace(tmp, os.path.join(jobs, "patterns_run.json"))
+            return self.json(200, {"asked": True})
+        if path == "/api/patterns/remove":
+            # takes a pattern off the watch list for good: its id goes into settings/patterns_removed.json, which the pattern pass reads
+            try:
+                pid = json.loads(raw)["id"]
+                if not isinstance(pid, str) or not re.fullmatch(r"[0-9a-f]{10}", pid):
+                    raise ValueError
+            except (ValueError, KeyError, TypeError, RecursionError):
+                return self.json(400, {"error": "Say which pattern."})
+            p_ = os.path.join(self.settings_dir(), "patterns_removed.json")
+            with _save_lock:
+                try:
+                    with open(p_, encoding="utf-8") as f:
+                        gone = json.load(f)
+                    gone = gone if isinstance(gone, list) else []
+                except (OSError, ValueError):
+                    gone = []
+                if pid not in gone:
+                    gone.append(pid)
+                tmp = p_ + ".tmp"
+                with open(tmp, "w", encoding="utf-8") as f:
+                    json.dump(gone[-500:], f)
+                os.replace(tmp, p_)
+            return self.json(200, {"removed": pid})
         if path == "/api/lab/draft":
             # "Backtest without saving": the rule is written for the backtest to pick up (a systemd path unit watches the file),
             # exactly like saved rules, and the answer is read back from /api/lab/draft
@@ -736,7 +782,7 @@ class Handler(BaseHTTPRequestHandler):
                         raise ValueError("Choose between 1 and 40 strategies from the list.")
                     new["strategies"] = list(dict.fromkeys(chosen))
                 for k, lo, hi in (("sol_per_trade", 0.01, 1.0), ("max_open", 1, 5), ("daily_loss_limit_sol", 0.01, 10.0), ("max_buy_impact_pct", 1.0, 20.0),
-                                  ("take_profit_pct", 5.0, 1000.0), ("stop_loss_pct", 5.0, 95.0),
+                                  ("take_profit_pct", 5.0, 1000.0), ("stop_loss_pct", 5.0, 95.0), ("time_stop_min", 1, 240),
                                   ("slippage_bps", 50, 3000), ("sell_slippage_bps", 50, 5000), ("stop_slippage_bps", 50, 5000),
                                   ("priority_fee_lamports", 0, 5_000_000)):
                     if body.get(k) is None:
@@ -770,7 +816,7 @@ class Handler(BaseHTTPRequestHandler):
                     except (OSError, ValueError):
                         main = {}
                     if isinstance(main, dict):
-                        old = {k: v for k, v in main.items() if k not in ("mode", "strategies", "sell_all", "sell_ids", "sol_per_trade", "max_open", "daily_loss_limit_sol", "max_buy_impact_pct", "take_profit_pct", "stop_loss_pct")}
+                        old = {k: v for k, v in main.items() if k not in ("mode", "strategies", "sell_all", "sell_ids", "sol_per_trade", "max_open", "daily_loss_limit_sol", "max_buy_impact_pct", "take_profit_pct", "stop_loss_pct", "time_stop_min")}
                 # switching to live needs LIVE typed; saving other settings while live does not
                 if new["mode"] == "live" and old.get("mode") != "live" and body.get("confirm") != "LIVE":
                     return self.json(400, {"error": "Type LIVE in the confirmation box to trade with real SOL."})
