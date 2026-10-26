@@ -120,7 +120,6 @@ td.pick { outline: 2px solid var(--accent); outline-offset: -2px; }
 .links a { margin-right: 8px; }
 .copy { border: 0 !important; background: none !important; padding: 0 2px !important; color: var(--faint) !important; }
 .pager { display: flex; gap: 10px; align-items: center; justify-content: flex-end; padding: 10px 18px; color: var(--muted); font-size: 13px; }
-#status { padding: 40px 16px; text-align: center; color: var(--muted); }
 
 /* controls: outlined accent buttons, as on Rug Radar */
 button, a.btn { font-family: var(--f-body); font-weight: 600; font-size: 13px; line-height: 1.3; border-radius: 4px; padding: 6px 12px; cursor: pointer; border: 1px solid var(--accent); background: transparent; color: var(--accent); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
@@ -183,36 +182,12 @@ a.btn.site { padding: 3px 7px; border-color: var(--line); color: var(--muted); }
 a.btn.site:hover { color: var(--ink); background: var(--row); }
 svg.ico { width: 18px; height: 18px; display: block; flex: none; }
 
-/* the live watch (Record live tab) */
-#watch { margin: 0 0 16px; }
-#watch .body { padding: 0 18px 14px; }
-#watch .body p { margin: 6px 0; max-width: 100ch; }
-#watch .tiles { margin: 10px 0 4px; }
-#watch tr.row { cursor: pointer; }
+/* chart link buttons (pump.fun, DexScreener) */
 /* the token name stays in view while a wide table is scrolled sideways */
-#watch > .scroll > table > thead > tr > th:first-child,
-#watch > .scroll > table > tbody > tr:not(.detail) > td:first-child,
 #history .scroll > table > thead > tr > th:first-child,
 #history .scroll > table > tbody > tr > td:first-child {
   position: sticky; left: 0; z-index: 2; background: var(--surface); box-shadow: 1px 0 0 var(--line); }
-#watch > .scroll > table > tbody > tr.row:hover > td:first-child,
 #history .scroll > table > tbody > tr:hover > td:first-child { background: var(--row); }
-#watch td.why { white-space: normal; min-width: 280px; max-width: 480px; }
-#watch tr.detail td { white-space: normal; background: var(--bg); padding: 14px 18px 18px; }
-#watch tr.detail table { min-width: 0; width: auto; margin: 6px 0 10px; }
-#watch tr.detail th { position: static; }
-#watch .kv { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 2px 24px; margin: 6px 0 10px; }
-#watch .kv div { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); padding: 3px 0; }
-#watch .kv span { color: var(--muted); }
-#watch h3 { font-size: 13.5px; margin: 12px 0 4px; }
-#watch .body h3 { margin-top: 16px; }
-#watch .body .scroll { border: 1px solid var(--line); border-radius: 6px; }
-#watch .body table { min-width: 0; }
-#watch .body th { position: static; }
-#watch td.wrap { white-space: normal; min-width: 180px; max-width: 300px; }
-#watch .pnl { max-width: 900px; }
-#watch .pnl svg { height: auto; }
-#watch .pnl svg.ico, #watch tr.detail svg.ico { height: 18px; }
 
 /* the Settings page (laid out like Rug Radar's Settings page) */
 .field { display: flex; flex-direction: column; gap: 4px; }
@@ -303,6 +278,9 @@ tr.live.sel td { background: var(--accent-soft); }
 .notice { padding: 12px 16px; border-radius: 4px; border-left: 4px solid var(--sev); background: var(--sev-soft); font-size: 13.5px; margin: 0 0 12px; }
 .pill { display: inline-block; font-size: 10.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; padding: 2px 9px; border-radius: 999px; background: var(--sev-soft, var(--info-soft)); color: var(--sev, var(--info)); white-space: nowrap; }
 .chip { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: color-mix(in srgb, var(--hue, var(--h-slate)) 80%, var(--ink)); white-space: nowrap; }
+.hourgrid { display: grid; grid-template-columns: repeat(12, minmax(34px, 1fr)); gap: 4px; max-width: 520px; }
+.hourgrid button { padding: 4px 0; text-align: center; }
+@media (max-width: 520px) { .hourgrid { grid-template-columns: repeat(6, minmax(34px, 1fr)); } }
 .chip.wrap { white-space: normal; }   /* a long rule name */
 h2.chip { font-size: inherit; font-weight: 700; }   /* a panel title in its rule's colour keeps the title size */
 .chip::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--hue, var(--h-slate)); flex: none; }
@@ -387,7 +365,6 @@ td .subl { display: block; font-size: 11.5px; color: var(--faint); font-weight: 
   linear-gradient(to left, var(--surface) 30%, transparent) right / 28px 100% no-repeat local,
   linear-gradient(to right, var(--shade), transparent) left / 12px 100% no-repeat scroll,
   linear-gradient(to left, var(--shade), transparent) right / 12px 100% no-repeat scroll; }
-#watch tr.detail .scroll { background: none; }   /* (sits on the page colour, not a card) */
 .sum .v { overflow-wrap: anywhere; }
 /* nothing typed into is wider than the screen */
 input, select, textarea { max-width: 100%; }
@@ -463,7 +440,7 @@ h3.label, .label { font-size: 11px; letter-spacing: .1em; text-transform: upperc
 /* modular cards: one radius, one shadow, generous padding, even spacing between them */
 .card { border-radius: var(--radius); border-color: var(--line); box-shadow: var(--shadow); }
 .rep .card, .card.lab { padding: 22px 24px; }
-.rep > .card, .rep > section, .rep > details, #lab > *, #trading > *, #settingspage > *, #crossing > * { margin-top: 0; margin-bottom: 18px; }
+.rep > .card, .rep > section, .rep > details, #lab > *, #trading > *, #settingspage > * { margin-top: 0; margin-bottom: 18px; }
 .table-card { margin-top: 0; margin-bottom: 18px; overflow: hidden; }
 .table-head { padding: 18px 22px; }
 .chart { padding: 20px 22px 14px; margin-top: 0; margin-bottom: 18px; }
@@ -540,7 +517,6 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); box-sha
 nav.tabs a.on, button.primary, a.btn.primary { color: var(--on-accent); }
 button.sw.on, button.sw.on:hover:not(:disabled) { background: var(--sw-on); color: var(--on-sw); }
 button.sw.off, button.sw.off:hover:not(:disabled) { background: var(--sw-off); color: var(--on-sw); }
-#watch > .scroll > table > thead > tr > th:first-child, #history .scroll > table > thead > tr > th:first-child { background: var(--surface-2); }
 html { scroll-padding-top: 24px; }   /* a section scrolled to keeps a little room above it */
 @media print { header.top { position: static; backdrop-filter: none; -webkit-backdrop-filter: none; } body { background-image: none; } .card, .summary .sum { box-shadow: none; } }
 @media (min-width: 1800px) { body { font-size: 14.5px; } }
@@ -595,6 +571,34 @@ main { margin-left: var(--side); padding-top: 26px; transition: margin-left .18s
   body.side-collapsed header.top:is(:hover, :focus-within, .peek) .collapse-btn { align-self: flex-end; }
 }
 @media print { header.top, .menu-btn, .scrim { display: none; } main { margin-left: 0; padding-top: 0; } }
+/* Recorder tab */
+.rec-head { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; margin-bottom: 4px; }
+.rec-head h2 { margin: 0; }
+.rec-status { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.rec-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ok); display: inline-block; }
+.rec-dot.off { background: var(--warn); }
+.rec-panel-head { display: flex; align-items: center; gap: 12px 16px; flex-wrap: wrap; justify-content: space-between; margin-bottom: 8px; }
+.rec-panel-head h3 { margin: 0; }
+.rec-tools { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.rec-row { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) 96px minmax(120px, 1.5fr); gap: 14px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
+.rec-row:first-child { border-top: 0; }
+.rec-row .sub { display: block; font-size: 12px; color: var(--muted); }
+.rec-bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin-top: 5px; }
+.rec-bar i { display: block; height: 100%; background: var(--accent); }
+.rec-spark { width: 100%; height: 40px; display: block; }
+.rec-spark path { fill: none; stroke: var(--accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.rec-empty { padding: 14px; border: 1px dashed var(--line); border-radius: 6px; color: var(--muted); font-size: 13.5px; }
+tr.rec-click { cursor: pointer; } tr.rec-click:hover td { background: var(--row); } tr.rec-sel td { background: var(--accent-soft); }
+.rec-detail { border: 1px solid var(--line); border-radius: 6px; padding: 14px; margin-bottom: 14px; background: var(--bg); display: flex; flex-direction: column; gap: 10px; }
+.rec-facts { display: flex; gap: 18px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.rec-facts b { color: var(--ink); font-weight: 600; }
+.rec-chart { width: 100%; height: 250px; display: block; }
+.rec-chart .grid { stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.rec-chart .band { fill: var(--accent-soft); }
+.rec-chart .close { fill: none; stroke: var(--ink); stroke-width: 1.6; vector-effect: non-scaling-stroke; }
+.rec-chart .buy { stroke: var(--accent); stroke-dasharray: 4 4; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.rec-chart text { fill: var(--muted); font-size: 10px; }
+@media (max-width: 900px) { .rec-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .rec-row .rec-spark-cell { grid-column: 1 / -1; } }
 </style>
 </head>
 <body>
@@ -602,70 +606,32 @@ main { margin-left: var(--side); padding-top: 26px; transition: margin-left .18s
 <div class="scrim" id="scrim"></div>
 <header class="top" id="side">
   <div class="brand"><b>PUMPFUN</b><span class="brandtag">Graduates</span></div>
-  <nav class="tabs" aria-label="Pages"><span class="navgroup">Overview</span><a href="#tokens" data-tab="tokens" title="Record live"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg><span class="lbl">Record live</span></a><a href="#history" data-tab="history" title="Strategy history"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7v5l3 2M3 12a9 9 0 1 0 3-6.7M3 4v5h5"/></svg><span class="lbl">Strategy history</span></a><span class="navgroup">Strategies</span><a href="#lab" data-tab="lab" title="Lab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6M10 3v6L4.5 19a1.5 1.5 0 0 0 1.3 2h12.4a1.5 1.5 0 0 0 1.3-2L14 9V3"/></svg><span class="lbl">Lab</span></a><a href="#trading" data-tab="trading" title="Trading"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l6-6 4 4 7-8M15 7h5v5"/></svg><span class="lbl">Trading</span></a><a href="#crossing" data-tab="crossing" title="Crossing"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 16c3 0 3-9 6-9s3 9 6 9 3-9 6-9"/></svg><span class="lbl">Crossing</span></a><a href="#patterns" data-tab="patterns" title="Pattern Discover"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM21 21l-4.3-4.3M8.5 11h5M11 8.5v5"/></svg><span class="lbl">Pattern Discover</span></a><span class="navgroup">Research</span><a href="#coins" data-tab="coins" title="Coins Review"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v10M9.5 9.5c0-1 1-1.5 2.5-1.5s2.5.6 2.5 1.7-1 1.5-2.5 1.8-2.5.7-2.5 1.8 1 1.7 2.5 1.7 2.5-.6 2.5-1.5"/></svg><span class="lbl">Coins Review</span></a><a href="#wallets" data-tab="wallets" title="Wallets Review"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h13v4M3 7v11a2 2 0 0 0 2 2h15v-4M17 13h4v4h-4a2 2 0 0 1 0-4z"/></svg><span class="lbl">Wallets Review</span></a><a href="#monitor" data-tab="monitor" title="Monitor"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/></svg><span class="lbl">Monitor</span></a><span class="navgroup">Account</span><a href="#settings" data-tab="settings" title="Settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16M9 4v4M15 10v4M8 16v4"/></svg><span class="lbl">Settings</span></a></nav>
+  <nav class="tabs" aria-label="Pages"><span class="navgroup">Overview</span><a href="#recorder" data-tab="recorder" title="Recorder"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg><span class="lbl">Recorder</span></a><a href="#history" data-tab="history" title="Strategy history"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7v5l3 2M3 12a9 9 0 1 0 3-6.7M3 4v5h5"/></svg><span class="lbl">Strategy history</span></a><span class="navgroup">Strategies</span><a href="#lab" data-tab="lab" title="Lab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6M10 3v6L4.5 19a1.5 1.5 0 0 0 1.3 2h12.4a1.5 1.5 0 0 0 1.3-2L14 9V3"/></svg><span class="lbl">Lab</span></a><a href="#trading" data-tab="trading" title="Trading"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l6-6 4 4 7-8M15 7h5v5"/></svg><span class="lbl">Trading</span></a><a href="#dipwatch" data-tab="dipwatch" title="Dip watch"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6l6 8 4-4 8 9M21 13v6h-6"/></svg><span class="lbl">Dip watch</span></a><a href="#patterns" data-tab="patterns" title="Pattern Discover"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM21 21l-4.3-4.3M8.5 11h5M11 8.5v5"/></svg><span class="lbl">Pattern Discover</span></a><span class="navgroup">Research</span><a href="#coins" data-tab="coins" title="Coins Review"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v10M9.5 9.5c0-1 1-1.5 2.5-1.5s2.5.6 2.5 1.7-1 1.5-2.5 1.8-2.5.7-2.5 1.8 1 1.7 2.5 1.7 2.5-.6 2.5-1.5"/></svg><span class="lbl">Coins Review</span></a><a href="#wallets" data-tab="wallets" title="Wallets Review"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h13v4M3 7v11a2 2 0 0 0 2 2h15v-4M17 13h4v4h-4a2 2 0 0 1 0-4z"/></svg><span class="lbl">Wallets Review</span></a><a href="#monitor" data-tab="monitor" title="Monitor"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/></svg><span class="lbl">Monitor</span></a><span class="navgroup">Account</span><a href="#settings" data-tab="settings" title="Settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16M9 4v4M15 10v4M8 16v4"/></svg><span class="lbl">Settings</span></a></nav>
   <div class="account"><a href="/logout" title="Sign out"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H3"/></svg><span class="lbl">Sign out</span></a>
     <button type="button" class="collapse-btn" id="collapseBtn" title="Collapse the menu to icons (it opens again while the mouse is over it)" aria-label="Collapse the menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button></div>
 </header>
 <main>
-  <section id="tab-tokens">
-  <p class="sub" id="sub" hidden>Tokens that completed the bonding curve and migrated to PumpSwap in the last 7 days.</p>
-
-  <details class="card table-card" id="storage" hidden></details>
-
-  <div class="card table-card" id="watch" hidden></div>
-
-  <div class="tiles" id="tiles" hidden></div>
-
-  <div class="card chart" hidden>
-    <h2>Graduations per day</h2>
-    <div class="cap" id="chartcap">By UTC day. The first and last bars are partial days.</div>
-    <svg id="chart" role="img" aria-label="Bar chart of graduations per UTC day"></svg>
-    <div id="tip"></div>
-  </div>
-
-  <div class="card table-card" hidden>
-    <div class="table-head">
-      <h2 id="count">Tokens</h2>
-      <input type="search" id="q" placeholder="Search name, symbol, mint, creator" aria-label="Search">
-      <select id="mcap" aria-label="Minimum market cap">
-        <option value="0">Any market cap</option>
-        <option value="10000">≥ $10K</option>
-        <option value="50000">≥ $50K</option>
-        <option value="100000">≥ $100K</option>
-        <option value="1000000">≥ $1M</option>
-      </select>
-      <label class="chk"><input type="checkbox" id="soc"> Has socials</label>
-      <a class="btn" href="/api/tokens.csv">Download CSV</a>
+  <section id="tab-recorder" class="rep" hidden>
+    <div id="recorder">
+      <div class="rec-head"><h2>Recorder</h2><div class="rec-status"><span class="rec-dot off" id="recDot"></span><span id="recStatus">Loading…</span></div></div>
+      <p class="small">What the watch records for every coin that graduates: it follows the coin for its first two hours, measures it at each entry minute, lets every strategy decide, and saves the coin's 1-minute bars once it is two hours old.</p>
+      <div class="tiles" id="recTiles"></div>
+      <div class="card"><div class="rec-panel-head"><h3>Recording now</h3><span class="small">Market cap at the entry minutes measured so far.</span></div><div id="recLive"></div></div>
+      <details class="card table-card" id="storage" hidden></details>
+      <div class="card">
+        <div class="rec-panel-head"><h3>Recorded coins</h3>
+          <div class="rec-tools"><label class="small" for="recDay">Day (UTC)</label><select id="recDay"></select><input type="search" id="recFind" placeholder="Search symbol or mint" aria-label="Search the day's coins"><button type="button" class="btn" id="recCsv">Download CSV</button></div></div>
+        <div id="recDetail" hidden></div>
+        <div class="scroll"><table><thead><tr><th>Graduated (UTC)</th><th>Coin</th><th>Launch</th><th class="num">Detected</th><th>Bars</th><th class="num">First market cap</th><th class="num">Decisions</th><th class="num">Bought</th><th class="num">Result (SOL)</th></tr></thead>
+        <tbody id="recCoins"><tr><td colspan="9" class="small">Loading…</td></tr></tbody></table></div>
+      </div>
     </div>
-    <div class="scroll">
-      <table>
-        <thead><tr>
-          <th data-k="name">Token</th>
-          <th data-k="graduated_timestamp">Graduated</th>
-          <th data-k="ttg" class="num">Time to graduate</th>
-          <th data-k="usd_market_cap" class="num">Market cap</th>
-          <th data-k="ath_market_cap" class="num">ATH market cap</th>
-          <th data-k="last_trade_timestamp">Last trade</th>
-          <th data-k="reply_count" class="num">Replies</th>
-          <th>Mint</th>
-          <th>Links</th>
-        </tr></thead>
-        <tbody id="rows"></tbody>
-      </table>
-    </div>
-    <div id="status">Loading…</div>
-    <div class="pager">
-      <span id="pageinfo"></span>
-      <button id="prev">Previous</button>
-      <button id="next">Next</button>
-    </div>
-  </div>
   </section>
   <section id="tab-history" class="rep" hidden><div id="history">Loading history…</div></section>
   <section id="tab-lab" class="rep" hidden><div id="lab">Loading…</div></section>
   <section id="tab-settings" class="rep" hidden><div id="settingspage">Loading…</div></section>
   <section id="tab-trading" class="rep" hidden><div id="trading">Loading…</div></section>
-  <section id="tab-crossing" class="rep" hidden><div id="crossing">Loading…</div></section>
+  <section id="tab-dipwatch" class="rep" hidden><div id="dipwatch">Loading…</div></section>
   <section id="tab-patterns" class="rep" hidden><div id="patterns">Loading…</div></section>
   <section id="tab-coins" class="rep" hidden><div id="coins">Loading…</div></section>
   <section id="tab-wallets" class="rep" hidden><div id="walletsPage">Loading…</div></section>
@@ -676,9 +642,7 @@ main { margin-left: var(--side); padding-top: 26px; transition: margin-left .18s
 <script>
 // a guest (signed in with the guest password; the server says so) only views the Lab and Trading pages
 const GUEST = !!window.GUEST;
-const PAGE = 50;
 const $ = id => document.getElementById(id);
-let all = [], view = [], page = 0, sortKey = 'graduated_timestamp', sortDir = -1;
 
 const el = (tag, props, ...kids) => {
   const n = document.createElement(tag);
@@ -699,158 +663,6 @@ const dur = ms => {
   return m < 1 ? '<1m' : m < 60 ? Math.round(m) + 'm' : m < 1440 ? (m / 60).toFixed(1) + 'h' : (m / 1440).toFixed(1) + 'd';
 };
 const when = ms => ms ? new Date(ms).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '–';
-// token metadata is user-supplied: only ever link to plain http(s) URLs
-const safeUrl = u => { try { const p = new URL(u); return /^https?:$/.test(p.protocol) ? p.href : null; } catch { return null; } };
-
-function tiles(meta) {
-  const now = meta.generated_at;
-  const last24 = all.filter(t => (t.graduated_timestamp || t.created_timestamp) >= now - 864e5).length;
-  const ttg = all.map(t => t.ttg).filter(v => v != null).sort((a, b) => a - b);
-  const median = ttg.length ? ttg[Math.floor(ttg.length / 2)] : null;
-  const alive = all.filter(t => (t.usd_market_cap || 0) >= 50000).length;
-  const data = [
-    ['Graduated, last 7 days', all.length.toLocaleString(), Math.round(all.length / meta.days) + ' per day on average' + (meta.without_graduation_time ? `; ${meta.without_graduation_time.toLocaleString()} with no known graduation time` : '')],
-    ['Graduated, last 24 hours', last24.toLocaleString(), ''],
-    ['Median time to graduate', dur(median), 'from creation to migration'],
-    ['Market cap ≥ $50K now', alive.toLocaleString(), (all.length ? (alive / all.length * 100).toFixed(1) : 0) + '% of graduates'],
-  ];
-  $('tiles').replaceChildren(...data.map(([k, v, n]) =>
-    el('div', { className: 'card tile' }, el('div', { className: 'k', textContent: k }),
-      el('div', { className: 'v', textContent: v }), el('div', { className: 'n', textContent: n }))));
-}
-
-function chart() {
-  const days = new Map();
-  for (const t of all) {
-    const d = new Date(t.graduated_timestamp || t.created_timestamp).toISOString().slice(0, 10);
-    days.set(d, (days.get(d) || 0) + 1);
-  }
-  const pts = [...days].sort();
-  const svg = $('chart'), W = svg.clientWidth || 800, H = 190, L = 40, B = 24, T = 8;
-  const max = Math.max(1, ...pts.map(p => p[1]));
-  const step = Math.pow(10, Math.floor(Math.log10(max))), top = Math.ceil(max / step) * step;
-  const y = v => T + (H - T - B) * (1 - v / top), slot = (W - L) / pts.length, bw = Math.min(56, slot - 2);
-  const ns = 'http://www.w3.org/2000/svg';
-  const s = (tag, attrs, text) => { const n = document.createElementNS(ns, tag);
-    for (const k in attrs) n.setAttribute(k, attrs[k]); if (text != null) n.textContent = text; return n; };
-  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-  svg.replaceChildren();
-  for (const f of [0, .5, 1]) {
-    svg.append(s('line', { class: 'grid', x1: L, x2: W, y1: y(top * f), y2: y(top * f) }),
-      s('text', { x: L - 6, y: y(top * f) + 4, 'text-anchor': 'end' }, (top * f).toLocaleString()));
-  }
-  pts.forEach(([d, n], i) => {
-    const x = L + slot * i + (slot - bw) / 2, h = Math.max(1, y(0) - y(n)), r = Math.min(4, h);
-    const bar = s('path', { class: 'bar', d: `M${x},${y(0)}v${-(h - r)}q0,${-r} ${r},${-r}h${bw - 2 * r}q${r},0 ${r},${r}v${h - r}z` });
-    const hit = s('rect', { class: 'hit', x: L + slot * i, y: T, width: slot, height: H - T - B });
-    const label = new Date(d + 'T00:00:00Z').toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' });
-    hit.addEventListener('mousemove', () => {
-      const tip = $('tip'), box = svg.getBoundingClientRect(), host = svg.parentElement.getBoundingClientRect();
-      tip.textContent = `${label}: ${n.toLocaleString()} graduated`;
-      tip.style.display = 'block';
-      tip.style.left = (box.left - host.left + (x + bw / 2) * box.width / W) + 'px';
-      tip.style.top = (box.top - host.top + y(n) * box.height / H - 6) + 'px';
-      bar.classList.add('on');
-    });
-    hit.addEventListener('mouseleave', () => { $('tip').style.display = 'none'; bar.classList.remove('on'); });
-    svg.append(hit, bar, s('text', { x: x + bw / 2, y: H - 7, 'text-anchor': 'middle' }, label));
-  });
-}
-
-function apply() {
-  const q = $('q').value.trim().toLowerCase(), min = +$('mcap').value, soc = $('soc').checked;
-  view = all.filter(t =>
-    (!q || t.search.includes(q)) && (!min || (t.usd_market_cap || 0) >= min) &&
-    (!soc || t.twitter || t.telegram || t.website));
-  view.sort((a, b) => {
-    const x = a[sortKey], y = b[sortKey];
-    if (x == null || y == null) return (x == null) - (y == null);  // blanks always last
-    return (typeof x === 'string' ? x.localeCompare(y) : x - y) * sortDir;
-  });
-  page = 0;
-  render();
-}
-
-function row(t) {
-  const img = safeUrl(t.image_uri);
-  const pic = img ? el('img', { src: img, alt: '', loading: 'lazy', referrerPolicy: 'no-referrer' }) : el('div', { className: 'ph' });
-  if (img) pic.onerror = () => pic.replaceWith(el('div', { className: 'ph' }));
-  const href = 'https://pump.fun/coin/' + encodeURIComponent(t.mint);
-  const tok = el('div', { className: 'tok' }, pic, el('div', {},
-    el('div', { className: 'nm' }, el('a', { href, target: '_blank', rel: 'noopener noreferrer', textContent: t.name || '(no name)' })),
-    el('div', { className: 'sy', textContent: t.symbol || '' })));
-  const copy = el('button', { className: 'copy', title: 'Copy mint address', textContent: '⧉' });
-  copy.onclick = () => navigator.clipboard && navigator.clipboard.writeText(t.mint).then(() => { copy.textContent = '✓'; setTimeout(() => copy.textContent = '⧉', 1000); });
-  const links = el('td', { className: 'links' });
-  for (const [k, label] of [['twitter', 'X'], ['telegram', 'TG'], ['website', 'Web']]) {
-    const u = safeUrl(t[k]);
-    if (u) links.append(el('a', { href: u, target: '_blank', rel: 'noopener noreferrer nofollow', textContent: label }));
-  }
-  links.append(el('a', { href: 'https://solscan.io/token/' + encodeURIComponent(t.mint), target: '_blank', rel: 'noopener noreferrer', textContent: 'Solscan' }));
-  return el('tr', {},
-    el('td', {}, tok),
-    el('td', { title: t.graduated_timestamp ? new Date(t.graduated_timestamp).toISOString() : 'pump.fun lists this token as graduated, but the moment could not be determined' },
-      t.graduated_timestamp ? when(t.graduated_timestamp) : 'time unknown', el('span', { className: 'muted', textContent: t.graduated_timestamp ? '  ' + ago(t.graduated_timestamp) : '' })),
-    el('td', { className: 'num', textContent: dur(t.ttg) }),
-    el('td', { className: 'num', textContent: usd(t.usd_market_cap) }),
-    el('td', { className: 'num', textContent: usd(t.ath_market_cap) }),
-    el('td', { textContent: ago(t.last_trade_timestamp) }),
-    el('td', { className: 'num', textContent: (t.reply_count || 0).toLocaleString() }),
-    el('td', { className: 'mono', title: t.mint }, t.mint.slice(0, 4) + '…' + t.mint.slice(-4) + ' ', copy),
-    links);
-}
-
-function render() {
-  const pages = Math.max(1, Math.ceil(view.length / PAGE));
-  page = Math.min(page, pages - 1);
-  $('rows').replaceChildren(...view.slice(page * PAGE, (page + 1) * PAGE).map(row));
-  $('count').textContent = view.length === all.length ? `${all.length.toLocaleString()} tokens`
-    : `${view.length.toLocaleString()} of ${all.length.toLocaleString()} tokens`;
-  $('status').style.display = view.length ? 'none' : 'block';
-  $('status').textContent = all.length ? 'No tokens match these filters.' : 'No data yet.';
-  $('pageinfo').textContent = `Page ${page + 1} of ${pages}`;
-  $('prev').disabled = page === 0;
-  $('next').disabled = page >= pages - 1;
-  document.querySelectorAll('th[data-k]').forEach(th => {
-    th.textContent = th.textContent.replace(/ [▲▼]$/, '') + (th.dataset.k === sortKey ? (sortDir > 0 ? ' ▲' : ' ▼') : '');
-  });
-}
-
-async function load() {
-  try {
-    const res = await fetch('/api/tokens');
-    if (!res.ok) throw new Error(res.status === 503 ? 'The first data collection is still running. Check back in a few minutes.' : 'HTTP ' + res.status);
-    const { meta, columns, rows } = await res.json();
-    all = rows.map(r => {
-      const t = {};
-      columns.forEach((c, i) => t[c] = r[i]);
-      t.ttg = t.graduated_timestamp ? Math.max(0, t.graduated_timestamp - t.created_timestamp) : null;
-      t.search = [t.name, t.symbol, t.mint, t.creator].join(' ').toLowerCase();
-      return t;
-    });
-    $('sub').textContent = `Tokens that completed the bonding curve and migrated to PumpSwap between ${when(meta.window_start)} and ${when(meta.window_end)}. Updated ${ago(meta.generated_at)}.` + (meta.partial ? ' Graduation times are still being filled in; reload in a few minutes.' : '');
-    tiles(meta); chart(); apply();
-  } catch (e) {
-    $('status').style.display = 'block';
-    $('status').textContent = 'Could not load data: ' + e.message;
-  }
-}
-
-let timer;
-$('q').addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(apply, 150); });
-$('mcap').addEventListener('change', apply);
-$('soc').addEventListener('change', apply);
-$('prev').onclick = () => { page--; render(); };
-$('next').onclick = () => { page++; render(); };
-document.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => {
-  const k = th.dataset.k;
-  sortDir = k === sortKey ? -sortDir : (k === 'name' ? 1 : -1);
-  sortKey = k;
-  apply();
-});
-window.addEventListener('resize', () => all.length && chart());
-if (!GUEST) load();
-
 // ---------- Shared formatting and charts ----------
 // USD per SOL, sent with every data file: trades are sized in SOL and results are shown in SOL
 let SOL_USD = 0;
@@ -935,37 +747,6 @@ function dayChart(st) {
   return [box, draw];
 }
 
-// ---------- Live watch on the Record live tab ----------
-// Every strategy checked against every new graduate at its entry minute; nothing is bought.
-let watchReports = {};   // date -> what the day's report file holds
-let watch = null, watchOpen = new Set(), watchFilter = 'all', watchTab = 'all', watchPage = 0;
-// the list carries one short row per token; a token's full record is fetched when it is opened
-const watchFull = {}, WATCH_PAGE = 100;
-async function loadToken(mint) {
-  try { const res = await fetch('/api/watch/token/' + encodeURIComponent(mint));
-    if (res.ok) { const t = await res.json(), ids = new Set((watch.strategies || []).map(x => x.id));
-      t.decisions = t.decisions.filter(d => ids.has(d.s)); watchFull[mint] = t; }
-    else watchFull[mint] = { error: true };
-  } catch (e) { watchFull[mint] = { error: true }; }
-  renderWatch();
-}
-// which of the tabs above the token table a token belongs to
-const wGroup = r => wBought(r).length ? 'buy' : r.decisions.length ? 'nobuy' : r.status === 'unchecked' || r.status === 'done' ? 'unchecked' : 'wait';
-const wVal = (v, kind) => v == null ? 'no data' : kind === 'flag' ? (v ? 'yes' : 'no') : fmtVal(v, kind);
-// a measured value and its threshold that round to the same text get as many decimals as it takes to tell them apart
-const wExact = (v, kind, d) => kind === 'usd' ? (v < 0 ? '-$' : '$') + Math.abs(v).toFixed(d) : kind === 'pct' ? (v >= 0 ? '+' : '') + (v * 100).toFixed(d) + '%'
-  : v.toFixed(d) + (kind === 'sol' ? ' SOL' : kind === 'min' ? ' min' : '');
-const wPair = c => { const a = wVal(c.actual, c.kind), word = c.op === '>=' ? 'at least' : 'at most';
-  if (c.actual == null || c.actual === c.value || a !== fmtVal(c.value, c.kind)) return [a, wNeed(c)];
-  let d = 2; while (d < 12 && wExact(c.actual, c.kind, d) === wExact(c.value, c.kind, d)) d++;
-  return [wExact(c.actual, c.kind, d), `${word} ${wExact(c.value, c.kind, d)}`]; };
-const wNeed = c => c.kind === 'flag' ? 'yes' : `${c.op === '>=' ? 'at least' : 'at most'} ${fmtVal(c.value, c.kind)}`;
-const wChecks = d => d.checks.map(c => { const f = watch.features[c.feature] || { label: c.feature, kind: 'num' };
-  return { ...c, ...f, label: c.at ? `${f.label} (minute ${c.at})` : f.label }; });
-const wExit = { target: 'take profit', stop: 'stop loss', time: 'time stop' };
-const wBought = r => r.decisions.filter(d => d.pick);
-// opens the token's own page on pump.fun (its live chart and trades) in a new tab
-// small marks for the two chart sites: pump.fun's green-and-white pill, DexScreener's light mark on black
 const siteIcon = which => { const svg = svgEl('svg', { viewBox: '0 0 20 20', class: 'ico', 'aria-hidden': 'true' });
   if (which === 'pump') svg.append(svgEl('rect', { x: 6, y: 1.5, width: 8, height: 17, rx: 4, fill: '#fff', stroke: '#111', 'stroke-width': 1.4, transform: 'rotate(45 10 10)' }),
     svgEl('path', { d: 'M6 10V5.5a4 4 0 0 1 8 0V10Z', fill: '#53d08a', stroke: '#111', 'stroke-width': 1.4, transform: 'rotate(45 10 10)' }));
@@ -980,187 +761,6 @@ const chartLinks = (mint, withText) => { const m = encodeURIComponent(mint), box
     a.onclick = ev => ev.stopPropagation();   // in the table, the click must not also open the row
     box.append(a); }
   return box; };
-// one strategy's verdict on one token: [tag class, tag text, why]
-function wVerdict(r, d) {
-  const m = r.measures[d.entry] || {};
-  if (!m.tradable) return ['w', 'Not tradable', m.traded ? `A ${stakeText(watch.stake_usd)} buy would move the price ${pc(m.impact)}, more than 5%: the pool is too thin` : 'No trade in the last 5 minutes'];
-  const bad = wChecks(d).filter(c => !c.ok);
-  if (d.pick) return ['p', 'Bought', d.checks.length ? `All ${d.checks.length} conditions met` : 'No conditions: buys every tradable token'];
-  return ['n', 'Passed', bad.map(c => c.kind === 'flag' ? c.label + ': no' : `${c.label}: ${wPair(c)[0]}, needs ${wPair(c)[1]}`).join('; ')];
-}
-const wNet = (d, bought) => d.net == null ? { className: 'num muted', textContent: d.status === 'open' ? 'open' : '–' }
-  : { className: signed(d.net), textContent: `${pc(d.net)}${d.status === 'open' ? ' so far' : bought ? '' : ' if bought'}`, title: d.status === 'open' ? `${d.held} min held` : `${wExit[d.exit]} after ${d.held} min` };
-
-// what simply holding a bought token would have returned, from the price followed after the buy
-const wHeldAt = (d, m) => { const p = (d.full || []).find(p => p[0] === m); return p && p[1] != null ? p[1] : null; };
-function wHeld(d) {
-  const f = (d.full || []).filter(p => p[1] != null);
-  if (d.status !== 'closed' || f.length < 2 || f[f.length - 1][0] <= d.held) return '';
-  const best = f.reduce((a, b) => b[1] > a[1] ? b : a), end = f[f.length - 1], at = wHeldAt(d, d.hold);
-  return ` The lighter line is the same buy simply held instead of sold: its best point was ${pc(best[1])} at minute ${best[0]}` + (at != null && d.held < d.hold ? `, it stood at ${pc(at)} at the ${d.hold}-minute time stop` : '')
-    + (end[0] > d.hold ? `, and at ${pc(end[1])} after ${end[0]} minutes` : '') + '.' + (d.full[d.full.length - 1][1] != null && end[0] < 120 ? ' It is still being followed, up to 120 minutes after the buy.' : '');
-}
-
-// the same buy with a higher take profit, as recorded by the watch
-function wAlts(d) {
-  const a = (d.alts || []).filter(a => a.tp > d.tp && a.net != null);
-  if (!a.length) return '';
-  return ' Aiming higher with the same stop loss and up to 120 minutes: ' + a.map(x => `a ${pc(x.tp, 0)} target ` + (x.done ? `ended ${pc(x.net)} (${wExit[x.exit]} after ${x.held} min)` : `is still open at ${pc(x.net)} after ${x.held} min`)).join('; ') + '.';
-}
-
-// profit or loss of one buy, minute by minute while it was held
-function pnlChart(d) {
-  const W = 900, H = 190, L = 52, R = 70, T = 12, B = 26, pts = d.path || [], full = (d.full || []).filter(p => p[1] != null), alts = (d.alts || []).filter(a => a.tp > d.tp && a.path && a.path.length);
-  const svg = svgEl('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Profit or loss while the token was held, minute by minute' });
-  if (!pts.length) return svg;
-  const ys = [...pts, ...full, ...alts.flatMap(a => a.path)].map(p => p[1] ?? 0), showT = d.tp <= Math.max(0.6, Math.max(...ys) * 2);
-  const lo = Math.min(0, -d.sl, ...ys), hi = Math.max(0.05, showT ? d.tp : 0, ...ys), xmax = Math.max(d.hold, pts[pts.length - 1][0], full.length ? full[full.length - 1][0] : 0);
-  const x = m => L + (W - L - R) * m / xmax, y = v => T + (H - T - B) * (1 - (v - lo) / (hi - lo));
-  for (const v of niceTicks(lo, hi)) svg.append(svgEl('line', { class: 'grid', x1: L, x2: W - R, y1: y(v), y2: y(v) }), svgEl('text', { x: L - 6, y: y(v) + 4, 'text-anchor': 'end' }, pc(v, 0)));
-  svg.append(svgEl('line', { class: 'cross', x1: L, x2: W - R, y1: y(0), y2: y(0) }));
-  if (showT) svg.append(svgEl('line', { class: 'tgt', x1: L, x2: W - R, y1: y(d.tp), y2: y(d.tp) }), svgEl('text', { x: W - R + 4, y: y(d.tp) + 4 }, 'target ' + pc(d.tp, 0)));
-  svg.append(svgEl('line', { class: 'stp', x1: L, x2: W - R, y1: y(-d.sl), y2: y(-d.sl) }), svgEl('text', { x: W - R + 4, y: y(-d.sl) + 4 }, 'stop ' + pc(-d.sl, 0)));
-  const sold = d.status === 'closed' ? pts[pts.length - 1] : null;
-  // the same buy aiming for a higher take profit: it follows the solid line until that sells, then goes on alone
-  alts.forEach((a, k) => { const e = a.path[a.path.length - 1];
-    if (a.tp <= hi * 1.05) svg.append(svgEl('line', { class: 'alt' + (k + 1) + ' thin', x1: L, x2: W - R, y1: y(a.tp), y2: y(a.tp) }), svgEl('text', { x: W - R + 4, y: y(a.tp) + 4 }, 'target ' + pc(a.tp, 0)));
-    svg.append(svgEl('path', { class: 'alt' + (k + 1), d: a.path.map((p, i) => (i ? 'L' : 'M') + x(p[0]).toFixed(1) + ',' + y(p[1] ?? 0).toFixed(1)).join('') }),
-      svgEl('circle', { class: 'altdot' + (k + 1), cx: x(e[0]), cy: y(e[1] ?? 0), r: 4 })); });
-  // the lighter line is the price simply held, past the sale: what waiting longer would have returned
-  if (full.length > 1) svg.append(svgEl('path', { class: 'ghost', d: full.map((p, k) => (k ? 'L' : 'M') + x(p[0]).toFixed(1) + ',' + y(p[1]).toFixed(1)).join('') }));
-  if (d.hold < xmax) svg.append(svgEl('line', { class: 'grid', x1: x(d.hold), x2: x(d.hold), y1: T, y2: H - B }), svgEl('text', { x: x(d.hold), y: H - 6, 'text-anchor': 'middle' }, `${d.hold} min (time stop)`));
-  svg.append(svgEl('path', { class: 'line', d: pts.map((p, k) => (k ? 'L' : 'M') + x(p[0]).toFixed(1) + ',' + y(p[1] ?? 0).toFixed(1)).join('') }));
-  for (const p of pts) svg.append(svgEl('circle', { class: 'dot', cx: x(p[0]), cy: y(p[1] ?? 0), r: pts.length > 40 ? 1.5 : 2.5 }, null));
-  const last = pts[pts.length - 1];
-  svg.append(svgEl('circle', { class: last[1] >= 0 ? 'end' : 'end neg', cx: x(last[0]), cy: y(last[1] ?? 0), r: 5 }),
-    svgEl('text', { x: Math.min(x(last[0]) + 8, W - R - 40), y: y(last[1] ?? 0) - 8 }, `${sold ? 'sold ' : ''}${pc(last[1])} at ${last[0]} min`),
-    svgEl('text', { x: L, y: H - 6 }, 'bought'), svgEl('text', { x: W - R, y: H - 6, 'text-anchor': 'end' }, d.hold < xmax ? `${xmax} min` : `${xmax} min (time stop)`));
-  if (full.length && full[full.length - 1][0] > last[0]) { const e = full[full.length - 1];
-    svg.append(svgEl('circle', { class: 'dot', cx: x(e[0]), cy: y(e[1]), r: 4 }), svgEl('text', { x: Math.min(x(e[0]) + 6, W - R + 2), y: y(e[1]) - 6 }, `held ${pc(e[1])}`)); }
-  return svg;
-}
-
-function watchDetail(r) {
-  const W = watch, out = [], h3 = t => el('h3', { textContent: t }), p = t => el('p', { textContent: t });
-  const byId = Object.fromEntries(W.strategies.map(s => [s.id, s])), done = Object.fromEntries(r.decisions.map(d => [d.s, d]));
-  const name = id => byId[id] ? byId[id].name : id + ' (removed)';
-  if (!wBought(r).length) out.push(el('p', {}, chartLinks(r.mint, true)));
-  out.push(h3('Strategy by strategy'), table(['Strategy', '#Checked at', 'Decision', 'Why', '#Result'], [
-    ...r.decisions.map(d => { const [cls, tag, why] = wVerdict(r, d);
-      return [{ className: 'wrap', textContent: name(d.s) }, { className: 'num', textContent: d.entry + ' min' + (d.late ? ' (late)' : '') }, el('td', {}, el('span', { className: 'tag ' + cls, textContent: tag })), { className: 'why', textContent: why }, wNet(d, d.pick)]; }),
-    ...W.strategies.filter(s => !done[s.id]).map(s => [{ className: 'wrap', textContent: s.name }, { className: 'num', textContent: s.entry + ' min' }, el('td', {}, el('span', { className: 'tag w', textContent: 'Waiting' })), { className: 'why', textContent: r.status === 'done' ? 'Added after this token was finished' : `Decides ${s.entry} minutes after graduation` }, { className: 'num muted', textContent: '–' }])]));
-  if (r.decisions.some(d => d.late)) out.push(el('p', { className: 'small', textContent: '"Late" means the token was first seen after that entry minute, so the decision was worked out from its history, not live.' }));
-  for (const d of wBought(r)) {
-    const m = r.measures[d.entry] || {};
-    out.push(h3(`Bought by "${name(d.s)}": profit or loss while held`), el('p', {}, chartLinks(r.mint, true)), el('div', { className: 'pnl' }, pnlChart(d)),
-      el('div', { className: 'legend' }, el('span', {}, el('i', { style: 'background:var(--series)' }), `As traded: sell at ${pc(d.tp, 0)}`), ...(d.alts || []).filter(a => a.tp > d.tp && a.path && a.path.length).map((a, k) => el('span', {}, el('i', { style: 'background:' + ['#8a5cd6', '#2a9d6f'][k] }), `Same buy, sell at ${pc(a.tp, 0)}`)), (d.full || []).length ? el('span', {}, el('i', { style: 'background:var(--ink-3)' }), 'Simply held, never sold') : ''),
-      p(`Bought ${d.entry} minutes after graduation at ${price(m.price)} per token (${usd((m.price || 0) * 1e9)} market cap) with ${stakeText(W.stake_usd)}; take profit at ${price(m.price * (1 + d.tp))}, stop loss at ${price(m.price * (1 - d.sl))}. ` + (d.net == null ? 'No price yet.' : d.status === 'open'
-        ? `Still held after ${d.held} minutes: ${pc(d.net)} (${money(d.net * W.stake_usd)}) if sold now. Sells at ${pc(d.tp, 0)}, ${pc(-d.sl, 0)} or after ${d.hold} minutes.`
-        : `Sold by ${wExit[d.exit]} after ${d.held} minutes for ${pc(d.net)} (${money(d.net * W.stake_usd)}). Exit rule: ${pc(d.tp, 0)} / ${pc(-d.sl, 0)} / ${d.hold} min.`)
-        + ' Each point is what selling at the end of that minute would have returned, after fees and price impact.' + wHeld(d) + wAlts(d) + (d.exit === 'stop' && d.net < -d.sl - 0.15 ? ' The stop sold far below its level because the price fell through it inside one minute.' : '')));
-  }
-  const entries = Object.keys(r.measures).map(Number).sort((a, b) => a - b);
-  if (entries.length) {
-    out.push(h3('The token at each entry minute'), table(['Measured', ...entries.map(e => `#Minute ${e}`)], [
-      ['Could be bought', ...entries.map(e => ({ className: 'num', textContent: r.measures[e].tradable ? 'yes' : 'no' }))],
-      ['Kind of token', ...entries.map(e => ({ className: 'num', textContent: (W.clusters[r.measures[e].cluster] || {}).name || '' }))],
-      ...Object.entries(W.features).map(([k, f]) => [f.label, ...entries.map(e => ({ className: 'num', textContent: wVal((r.measures[e].f || {})[k], f.kind) }))])]));
-    const cl = W.clusters[r.measures[entries[0]].cluster];
-    if (cl) { const h = cl.history.slice().sort((a, b) => Math.abs(a.entry - entries[0]) - Math.abs(b.entry - entries[0]))[0];
-      out.push(p(`${cl.name}. ${cl.note}` + (h && h.trades ? ` In the backtest, ${h.trades.toLocaleString()} tokens of this kind bought at minute ${h.entry} averaged ${pc(h.mean)} per trade, and ${share(h.collapse_30)} collapsed within 30 minutes.` : ''))); }
-  }
-  const i = r.info || {}, links = [['pump.fun', 'https://pump.fun/coin/' + encodeURIComponent(r.mint)], ['X', safeUrl(i.twitter)], ['Website', safeUrl(i.website)], ['Telegram', safeUrl(i.telegram)]].filter(x => x[1]);
-  out.push(el('p', { className: 'small' }, ...links.flatMap(([t, u]) => [el('a', { href: u, target: '_blank', rel: 'noopener noreferrer', textContent: t }), '  ']), el('span', { className: 'mono', textContent: r.mint }),
-    r.graduated_ts ? `  Graduated ${when(r.graduated_ts)} (${r.graduated_src === 'slot' ? "pump.fun's marker" : 'first minute the completion price traded'}).` : ''));
-  return out;
-}
-
-function renderWatch() {
-  const root = $('watch'), W = watch;
-  if (!W || !W.strategies || !W.strategies.length) { root.hidden = true; return; }
-  root.hidden = false;
-  const opts = [['all', 'All tokens'], ['buy', 'Bought by any strategy'], ...W.strategies.map(s => ['s:' + s.id, 'Bought by: ' + s.name])];
-  if (!opts.some(o => o[0] === watchFilter)) watchFilter = 'all';
-  const sel = el('select', { 'aria-label': 'Which tokens' }, ...opts.map(([v, t]) => el('option', { value: v, textContent: t, selected: v === watchFilter })));
-  sel.onchange = () => { watchFilter = sel.value; watchPage = 0; renderWatch(); };
-  const byStrategy = W.rows.filter(r => watchFilter === 'all' || (watchFilter === 'buy' ? wBought(r).length : wBought(r).some(d => 's:' + d.s === watchFilter)));
-  const groups = [['all', 'All'], ['buy', 'Bought'], ['nobuy', 'No buy'], ['unchecked', 'Not checked'], ['wait', 'Waiting']];
-  const rows = byStrategy.filter(r => watchTab === 'all' || wGroup(r) === watchTab);
-  const tabs = el('nav', { className: 'tabs sub', 'aria-label': 'Tokens by status' }, ...groups.map(([k, label]) => {
-    const n = k === 'all' ? byStrategy.length : byStrategy.filter(r => wGroup(r) === k).length;
-    const a = el('a', { href: '#tokens', className: k === watchTab ? 'on' : '', textContent: `${label} (${n})` });
-    a.onclick = ev => { ev.preventDefault(); watchTab = k; watchPage = 0; renderWatch(); };
-    return a; }));
-  const ruleText = s => `${entryText(s)} min after graduation` + (s.conditions.length ? ', if ' + s.conditions.map(condText).join(' and ') : ', every tradable token') + `; sell at ${pc(s.tp, 0)}, ${pc(-s.sl, 0)} or after ${s.hold} min` + (s.be ? `; the stop moves to ${s.be_stop ? pc(s.be_stop, 0) + ' above' : ''} the buy price once the price is ${pc(s.be, 0)} up` : '');
-  const strat = table(['Strategy', 'What it does', '#Backtest: average (trades)', '#Tokens checked', '#Bought', '#Finished', '#Total', '#Average', '#With a profit', '#Same buys, held to the time stop', '#Tokens it passed, if bought'], W.strategies.map(s => { const v = s.live, b = s.backtest;
-    const hm = v.held_n ? v.held_mean : null, hh = { length: v.held_n || 0 };
-    return [{ className: 'wrap', textContent: s.name }, { className: 'why', textContent: ruleText(s) },
-      b.trades ? { className: signed(b.mean), textContent: `${pc(b.mean)} (${b.trades.toLocaleString()})`, title: b.recent_trades ? `most recent 30% of tokens: ${pc(b.recent_mean)} over ${b.recent_trades}` : '' } : { className: 'num muted', textContent: 'none' },
-      { className: 'num', textContent: v.checked.toLocaleString() }, { className: 'num', textContent: v.picks.toLocaleString() }, { className: 'num', textContent: v.finished.toLocaleString() },
-      v.finished ? { className: signed(v.total), textContent: money(v.total * W.stake_usd) } : { className: 'num muted', textContent: '–' },
-      v.finished ? { className: signed(v.total), textContent: pc(v.total / v.finished) } : { className: 'num muted', textContent: '–' },
-      { className: 'num', textContent: v.finished ? `${v.wins} of ${v.finished}` : '–' },
-      hm == null ? { className: 'num muted', textContent: '–' } : { className: signed(hm), textContent: `${pc(hm)} (${hh.length})`, title: 'average result of the same buys if each had been held to its time stop, ignoring the take profit and the stop loss' },
-      v.skipped ? { className: signed(v.skip_mean), textContent: `${pc(v.skip_mean)} (${v.skipped.toLocaleString()})` } : { className: 'num muted', textContent: '–' }]; }));
-  const body = el('tbody', {});
-  const pages = Math.max(1, Math.ceil(rows.length / WATCH_PAGE)); watchPage = Math.min(watchPage, pages - 1);
-  const prev = el('button', { textContent: 'Previous', disabled: watchPage === 0 }), next = el('button', { textContent: 'Next', disabled: watchPage >= pages - 1 });
-  prev.onclick = () => { watchPage--; renderWatch(); }; next.onclick = () => { watchPage++; renderWatch(); };
-  for (const r of rows.slice(watchPage * WATCH_PAGE, (watchPage + 1) * WATCH_PAGE)) {
-    const i = r.info || {}, bought = wBought(r), e0 = Object.keys(r.measures).map(Number).sort((a, b) => a - b)[0], m = r.measures[e0] || {}, f = m.f || {}, cl = W.clusters[m.cluster];
-    const got = bought.filter(d => d.net != null), sum = got.reduce((a, d) => a + d.net, 0), open = bought.filter(d => d.status === 'open').length;
-    const state = r.status === 'unchecked' ? 'Not checked: not a standard bonding-curve launch' : r.status === 'new' ? 'Finding graduation time'
-      : !r.decisions.length ? (r.status === 'done' ? 'Finished before the shown strategy was added' : 'Waiting for the first entry minute') : `${r.decisions.length} of ${Math.max(W.strategies.length, r.decisions.length)} strategies decided`;
-    const tr = el('tr', { className: 'row' },
-      el('td', {}, el('div', { className: 'tok' }, el('div', {}, el('div', { className: 'nm', textContent: i.name || r.mint.slice(0, 8) }), el('div', { className: 'sy', textContent: i.symbol || '' })))),
-      el('td', { textContent: r.graduated_ts ? ago(r.graduated_ts) : 'seen ' + ago(r.first_seen_ts), title: r.graduated_ts ? when(r.graduated_ts) : '' }),
-      el('td', {}, bought.length ? el('span', { className: 'tag p', textContent: `Bought by ${bought.length}`, title: bought.map(d => (W.strategies.find(s => s.id === d.s) || { name: d.s }).name).join('; ') })
-        : el('span', { className: 'tag ' + (r.decisions.length ? 'n' : 'w'), textContent: r.decisions.length ? 'No buy' : r.status === 'unchecked' || r.status === 'done' ? 'Not checked' : 'Waiting' })),
-      got.length ? el('td', { className: signed(sum), textContent: money(sum * W.stake_usd) + (open ? ` (${open} open)` : ''), title: got.map(d => pc(d.net)).join(', ') }) : el('td', { className: 'num muted', textContent: bought.length ? 'open' : '–' }),
-      el('td', { textContent: cl ? cl.name : '', title: cl ? cl.note : '' }),
-      el('td', { className: 'num', textContent: f.mcap_usd == null ? '–' : usd(f.mcap_usd) }),
-      el('td', { className: 'num', textContent: f.vol_usd_last_5m == null ? '–' : usd(f.vol_usd_last_5m) }),
-      el('td', { className: 'num', textContent: f.holders == null ? '–' : Math.round(f.holders).toLocaleString() }),
-      el('td', { className: 'why', textContent: state }),
-      el('td', {}, chartLinks(r.mint, false)));
-    tr.onclick = () => { if (watchOpen.has(r.mint)) { watchOpen.delete(r.mint); renderWatch(); } else { watchOpen.add(r.mint); renderWatch(); loadToken(r.mint); } };
-    body.append(tr);
-    if (watchOpen.has(r.mint) && r.status !== 'unchecked' && r.status !== 'new') { const full = watchFull[r.mint];
-      body.append(el('tr', { className: 'detail' }, el('td', { colSpan: 10 }, ...(!full ? [el('p', { className: 'muted', textContent: 'Loading this token…' })] : full.error ? [el('p', { className: 'muted', textContent: 'This token\'s record could not be loaded. Click the row twice to try again.' })] : watchDetail(full))))); }
-  }
-  root.replaceChildren(
-    el('div', { className: 'table-head' }, el('h2', { textContent: 'Live: strategies on tokens graduating now' }), W.strategies.length > 1 ? sel : ''),
-    el('div', { className: 'body' },
-      el('p', { className: 'small', textContent: `Nothing is bought. Every strategy checks each new graduate at its own entry minute and either buys or passes, with the reason; a buy is followed minute by minute to its take profit, stop loss or time stop on a ${stakeText(W.stake_usd)} stake, after fees and price impact. The strategies shown are the rules ticked "Record live" on the Lab page (all of them when none is ticked).${W.background ? ` ${W.background} other strategies are recorded in the background and kept in the database.` : ''} Click a token for every strategy's decision and the profit-or-loss chart of each buy; the chart keeps following the price for 120 minutes after the buy, so you can see what holding longer would have returned. Updated ${ago(W.generated_at)}.` }),
-      el('h3', { textContent: 'Strategies, live record' }), strat,
-      ...(W.days && W.days.some(d => d.checked) ? [el('h3', { textContent: 'Day by day (UTC)' }), table(['Day', 'Strategy', '#Checked', '#Bought', '#Of which live', '#Finished', '#Won', '#Result', '#Best', '#Worst'],
-        W.days.filter(d => d.checked).map(d => [d.day, (W.strategies.find(s => s.id === d.strategy) || { name: d.strategy }).name, { className: 'num', textContent: d.checked.toLocaleString() }, { className: 'num', textContent: d.buys },
-          { className: 'num', textContent: d.live_buys }, { className: 'num', textContent: d.finished }, { className: 'num', textContent: d.finished ? `${d.wins} of ${d.finished}` : '–' },
-          d.finished ? { className: signed(d.total), textContent: money(d.total * W.stake_usd) } : { className: 'num muted', textContent: '–' },
-          { className: signed(d.best), textContent: d.best == null ? '–' : pc(d.best) }, { className: signed(d.worst), textContent: d.worst == null ? '–' : pc(d.worst) }]))] : []),
-      Object.keys(watchReports).length ? el('p', { className: 'small' }, el('b', { textContent: 'Daily report files: ' }), ...Object.keys(watchReports).sort().reverse().flatMap(d => [el('a', { href: '/api/reports/' + d + '.csv', textContent: d + '.csv', title: `${watchReports[d].rows.toLocaleString()} decisions, ${watchReports[d].buys} buys` }), '  ']), 'One file per UTC day of graduation: every strategy\'s decision on every token of that day, with the buy, the sale and everything measured.') : '',
-      el('p', { className: 'small', textContent: 'Live figures cover every token recorded since the watch began; nothing is deleted. "Tokens it passed, if bought" is the average result of tradable tokens the strategy did not buy: a strategy is only useful if its buys do better than what it passes. Hover a backtest figure for its most recent tokens.' }),
-      el('h3', { textContent: `Tokens: all ${W.rows.length.toLocaleString()} recorded in the last 7 days` }), tabs),
-    el('div', { className: 'scroll' }, el('table', {},
-      el('thead', {}, el('tr', {}, ...['Token', 'Graduated', 'Buys', '#Result of buys', 'Kind of token', '#Market cap', '#5-min volume', '#Holders', 'Progress', 'Live chart'].map(h => el('th', { textContent: h.replace(/^#/, ''), className: h[0] === '#' ? 'num' : '' })))), body)),
-    rows.length ? el('div', { className: 'pager', style: 'justify-content:flex-start' }, el('span', { textContent: `${rows.length.toLocaleString()} tokens. Page ${watchPage + 1} of ${pages}` }), prev, next)
-      : el('div', { style: 'padding:16px', className: 'muted', textContent: 'No tokens in this view yet.' }));
-}
-
-async function loadWatch() {
-  try {
-    const res = await fetch('/api/watch');
-    if (res.ok) { watch = await res.json(); SOL_USD = watch.sol_usd || SOL_USD;
-      // decisions of strategies no longer followed stay in the record, but are not shown
-      for (const r of watch.rows || []) { r.info = { name: r.name, symbol: r.symbol }; r.decisions = r.d || [];
-        r.measures = r.cluster == null && r.mcap == null ? {} : { 0: { cluster: r.cluster, f: { mcap_usd: r.mcap, vol_usd_last_5m: r.vol5, holders: r.holders } } }; }
-      for (const m of watchOpen) loadToken(m);   // opened tokens are brought up to date too
-      fetch('/api/reports').then(r => r.json()).then(x => { watchReports = x || {}; renderWatch(); }).catch(() => {});
-      renderWatch(); }
-  } catch (e) { /* the page works without the live table */ }
-}
-if (!GUEST) loadWatch();
-setInterval(() => { if (!$('tab-tokens').hidden) loadWatch(); }, 30000);
 
 // ---------- stored data: how big the databases are and what is in them ----------
 const bytesText = n => n >= 1e9 ? (n / 1e9).toFixed(1) + ' GB' : n >= 1e8 ? Math.round(n / 1e6) + ' MB' : n >= 1e7 ? (n / 1e6).toFixed(1) + ' MB' : n >= 1e5 ? (n / 1e6).toFixed(2) + ' MB' : n >= 1e3 ? Math.round(n / 1e3) + ' KB' : n + ' B';
@@ -1172,7 +772,7 @@ async function loadStorage() {
     const rows = s.databases.map(d => el('tr', {}, el('td', {}, el('b', { textContent: d.name })), el('td', { className: 'wrap', textContent: d.what }),
       el('td', { className: 'num', textContent: bytesText(d.bytes) + (d.temp_bytes > 1e5 ? ` (+${bytesText(d.temp_bytes)} temporary)` : '') }),
       el('td', { className: 'wrap', textContent: Object.entries(d.rows).map(([k, v]) => `${v.toLocaleString()} ${k}`).join(' · ') })));
-    rows.push(el('tr', {}, el('td', {}, el('b', { textContent: 'Everything else' })), el('td', { className: 'wrap', textContent: 'Files for the web pages (watch_tokens, reports, latest.json, watch.json), settings and backups' }), el('td', { className: 'num', textContent: bytesText(other) }), el('td', {})));
+    rows.push(el('tr', {}, el('td', {}, el('b', { textContent: 'Everything else' })), el('td', { className: 'wrap', textContent: 'Files for the web pages (watch.json, the Lab records), settings and backups' }), el('td', { className: 'num', textContent: bytesText(other) }), el('td', {})));
     box.replaceChildren(el('summary', { style: 'padding:12px 18px;cursor:pointer;font-weight:600' }, 'Stored data', el('span', { className: 'small', style: 'font-weight:400;margin-left:10px', textContent:
       `${bytesText(dbBytes)} in ${s.databases.length} databases · ${bytesText(s.data_bytes)} in all · ${bytesText(s.disk.free)} free of ${bytesText(s.disk.total)}` })),
       el('div', { className: 'scroll' }, el('table', { style: 'min-width:0' }, el('thead', {}, el('tr', {}, ...['Database', 'What it holds', '#Size', 'Contents'].map(h => el('th', { textContent: h.replace(/^#/, ''), className: h[0] === '#' ? 'num' : '' })))), el('tbody', {}, ...rows))),
@@ -1181,7 +781,158 @@ async function loadStorage() {
   } catch (e) { /* the page works without it */ }
 }
 if (!GUEST) loadStorage();
-setInterval(() => { if (!$('tab-tokens').hidden) loadStorage(); }, 60000);
+setInterval(() => { if (!$('tab-recorder').hidden) loadStorage(); }, 60000);
+
+// ---------- Recorder tab (modelled on Rug Radar's Recorder page; the data is recorder.py's, read from the databases) ----------
+const rec = { st: null, day: null, mint: null, coins: [], coinsAt: 0, coinsReq: 0, detailReq: 0, detail: null };
+const recCall = async path => { const r = await fetch(path); const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'HTTP ' + r.status); return d; };
+const hms = ms => ms ? new Date(ms).toISOString().slice(11, 19) : '–';
+const recName = c => c.symbol ? '$' + c.symbol : (c.mint || '').slice(0, 6);
+const recSev = k => ({ style: `--sev:var(--${k});--sev-soft:var(--${k}-soft)` });
+function recSpark(points) {
+  const svg = svgEl('svg', { class: 'rec-spark', viewBox: '0 0 300 40', preserveAspectRatio: 'none', 'aria-hidden': 'true' });
+  if (points.length < 2) return svg;
+  const x0 = points[0][0], x1 = points[points.length - 1][0], ys = points.map(p => p[1]), lo = Math.min(...ys), hi = Math.max(...ys), span = hi - lo || 1;
+  svg.append(svgEl('path', { d: points.map((p, i) => `${i ? 'L' : 'M'}${((p[0] - x0) / (x1 - x0 || 1) * 300).toFixed(1)},${(36 - (p[1] - lo) / span * 32).toFixed(1)}`).join('') }));
+  return svg;
+}
+function parseRecHash() {
+  const m = /^#recorder(?:\/(\d{4}-\d{2}-\d{2}))?(?:\/([1-9A-HJ-NP-Za-km-z]{32,44}))?$/.exec(location.hash);
+  if (m) { if (m[1]) rec.day = m[1]; rec.mint = m[2] || null; }
+}
+async function loadRecorder() {
+  parseRecHash();
+  try { rec.st = await recCall('/api/recorder'); }
+  catch (e) { $('recStatus').textContent = "Couldn't read the recorder: " + e.message; $('recDot').className = 'rec-dot off'; return; }
+  renderRecStatus();
+  const days = rec.st.days;
+  if (!days.some(d => d.day === rec.day)) rec.day = days.length ? days[0].day : null;
+  const sel = $('recDay'), sig = days.map(d => `${d.day}:${d.coins}:${d.saved}`).join();
+  if (sel.dataset.sig !== sig) {
+    sel.dataset.sig = sig;
+    sel.replaceChildren(...(days.length ? days.map(d => el('option', { value: d.day, textContent: `${d.day} · ${d.coins} coins · ${d.saved} with bars` })) : [el('option', { value: '', textContent: 'No coins yet' })]));
+  }
+  if (rec.day) sel.value = rec.day;
+  if (rec.day && (Date.now() - rec.coinsAt > 30000 || rec.coinsDay !== rec.day)) loadRecCoins();
+  else if (rec.mint && (!rec.detail || rec.detail.mint !== rec.mint)) loadRecDetail(rec.mint);
+  else if (!rec.mint && !$('recDetail').hidden) { $('recDetail').hidden = true; rec.detail = null; renderRecCoins(); }
+}
+function renderRecStatus() {
+  const s = rec.st, age = s.published_at ? (Date.now() - s.published_at) / 1000 : null;
+  $('recDot').className = 'rec-dot' + (age != null && age < 600 ? '' : ' off');
+  $('recStatus').textContent = `${s.active.length} coin${s.active.length === 1 ? '' : 's'} being recorded` + (age != null ? ` · the watch published ${ago(s.published_at)}` : ' · the watch has not published yet');
+  const tile = (k, v, n) => el('div', { className: 'card tile' }, el('div', { className: 'k', textContent: k }), el('div', { className: 'v', textContent: v }), el('div', { className: 'n', textContent: n }));
+  const late = s.decisions_today.total ? Math.round(s.decisions_today.late / s.decisions_today.total * 100) : 0;
+  $('recTiles').replaceChildren(
+    tile('Recording now', s.active.length, s.waiting ? `${s.waiting} waiting to be classified` : 'coins in their first two hours'),
+    tile('Graduated today', s.today.coins, `${s.today.saved} with their bars saved`),
+    tile('Late decisions today', `${s.decisions_today.late} (${late}%)`, `of ${s.decisions_today.total} live decisions made over 3 minutes after their minute; ${s.decisions_today.catch_up} catch-up decisions on old coins not counted`),
+    tile('Not followed today', s.today.unchecked + s.today.failed, 'other kinds of launch, or never classified'),
+    tile('SOL price', s.sol_usd ? '$' + s.sol_usd.toFixed(2) : '–', (s.sol_usd ? 'live, from Binance' : 'no live price available') + (s.sol_usd_model ? ` · the backtest assumes $${s.sol_usd_model.toFixed(2)}` : '')));
+  $('recLive').replaceChildren(...(s.active.length ? s.active.map(a => {
+    const elapsed = a.graduated_at ? (Date.now() - a.graduated_at) / 60000 : 0, pct = Math.min(100, elapsed / s.horizon_min * 100);
+    const bar = el('div', { className: 'rec-bar', title: `${Math.round(pct)}% of ${s.horizon_min} minutes` }, el('i', { style: `width:${pct.toFixed(1)}%` }));
+    return el('div', { className: 'rec-row' },
+      el('div', {}, el('a', { href: `#recorder/${new Date(a.graduated_at || a.first_seen).toISOString().slice(0, 10)}/${a.mint}`, textContent: recName(a) }),
+        el('span', { className: 'sub', textContent: a.graduated_at ? `graduated ${ago(a.graduated_at)}` : `seen ${ago(a.first_seen)}, graduation time not known yet` })),
+      el('div', {}, el('span', { className: 'pill', ...recSev(a.status === 'new' ? 'warn' : 'ok'), textContent: a.status === 'new' ? 'classifying' : 'recording' }),
+        el('span', { className: 'sub', textContent: `${a.decisions} decisions · ${a.bought} bought${a.late ? ` · ${a.late} late` : ''}` }), bar),
+      el('div', { className: 'num' }, el('b', { textContent: usd(a.mcap) }), el('span', { className: 'sub', textContent: a.spark.length ? `at minute ${a.spark[a.spark.length - 1][0]}` : 'not measured yet' })),
+      el('div', { className: 'rec-spark-cell' }, recSpark(a.spark)));
+  }) : [el('div', { className: 'rec-empty', textContent: 'Nothing right now. New graduations appear here within seconds.' })]));
+}
+async function loadRecCoins() {
+  const req = ++rec.coinsReq, day = rec.day;
+  try {
+    const d = await recCall('/api/recorder/coins?day=' + encodeURIComponent(day));
+    if (req !== rec.coinsReq) return;
+    rec.coins = d.coins; rec.coinsAt = Date.now(); rec.coinsDay = day;
+    renderRecCoins();
+    if (rec.mint) loadRecDetail(rec.mint);
+  } catch (e) { if (req === rec.coinsReq) $('recCoins').replaceChildren(el('tr', {}, el('td', { colSpan: 9, className: 'small', textContent: e.message }))); }
+}
+function renderRecCoins() {
+  const q = $('recFind').value.trim().toLowerCase(), stake = rec.st && rec.st.stake_sol || 0.1;
+  const rows = rec.coins.filter(c => !q || (c.symbol || '').toLowerCase().includes(q) || (c.name || '').toLowerCase().includes(q) || c.mint.toLowerCase().includes(q));
+  $('recCoins').replaceChildren(...(rows.length ? rows.map(c => {
+    const tr = el('tr', { className: 'rec-click' + (c.mint === rec.mint ? ' rec-sel' : ''), tabIndex: 0 });
+    tr.dataset.mint = c.mint;
+    const launch = c.status === 'unchecked' ? ['info', 'other curve'] : c.status === 'failed' ? ['crit', 'not classified'] : c.classic ? ['ok', 'standard'] : ['info', '–'];
+    const bars = c.saved === 1 ? ['ok', 'saved'] : c.saved === -1 ? ['crit', 'none'] : ['warn', 'waiting'];
+    const sol = c.net != null ? c.net * stake : null;
+    tr.append(el('td', { textContent: hms(c.graduated_at) }), el('td', {}, el('b', { textContent: recName(c) })),
+      el('td', {}, el('span', { className: 'pill', ...recSev(launch[0]), textContent: launch[1] })),
+      el('td', { className: 'num', textContent: c.detected_sec != null ? '+' + Math.max(0, c.detected_sec).toFixed(0) + 's' : '–' }),
+      el('td', {}, el('span', { className: 'pill', ...recSev(bars[0]), textContent: bars[1] })),
+      el('td', { className: 'num', textContent: usd(c.first_mcap) }),
+      el('td', { className: 'num', textContent: c.decisions ? c.decisions + (c.late ? ` (${c.late} late)` : '') : '–' }),
+      el('td', { className: 'num', textContent: c.bought || '–' }),
+      el('td', { className: signed(sol), textContent: sol == null ? '–' : (sol >= 0 ? '+' : '−') + Math.abs(sol).toFixed(4) }));
+    return tr;
+  }) : [el('tr', {}, el('td', { colSpan: 9, className: 'small', textContent: rec.coins.length ? 'No coin matches the search.' : 'No coins on this day.' }))]));
+}
+function recChart(c) {
+  const W = 700, H = 250, L = 8, R = 52, T = 10, B = 22, bars = c.bars;
+  const svg = svgEl('svg', { class: 'rec-chart', viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: 'none', role: 'img', 'aria-label': 'Market cap around graduation' });
+  const pts = bars.length >= 2 ? bars.map(b => ({ m: b[0], hi: b[2], lo: b[3], cl: b[4] })) : c.measured.map(p => ({ m: p[0], hi: p[1], lo: p[1], cl: p[1] }));
+  if (pts.length < 2) return null;
+  const buys = c.decisions.filter(d => d.pick && d.price);
+  const vals = pts.flatMap(p => [p.hi, p.lo]).concat(buys.map(d => d.price * 1e9)), lo0 = Math.min(...vals), hi0 = Math.max(...vals), pad = (hi0 - lo0) * 0.06 || 1;
+  const lo = Math.max(0, lo0 - pad), hi = hi0 + pad, m0 = Math.min(...pts.map(p => p.m)), m1 = Math.max(c.horizon_min, ...pts.map(p => p.m));
+  const x = m => L + (m - m0) / (m1 - m0 || 1) * (W - L - R), y = v => T + (hi - v) / (hi - lo || 1) * (H - T - B);
+  for (const v of niceTicks(lo, hi)) { svg.append(svgEl('line', { class: 'grid', x1: L, x2: W - R, y1: y(v), y2: y(v) }), svgEl('text', { x: W - R + 4, y: y(v) + 3 }, usd(v))); }
+  for (const m of [0, 15, 30, 60, 90, 120].filter(m => m >= m0 && m <= m1)) svg.append(svgEl('text', { x: x(m), y: H - 6, 'text-anchor': 'middle' }, m ? m + ' min' : 'graduation'));
+  if (bars.length >= 2) svg.append(svgEl('path', { class: 'band', d: pts.map((p, i) => `${i ? 'L' : 'M'}${x(p.m).toFixed(1)},${y(p.hi).toFixed(1)}`).join('') + pts.slice().reverse().map(p => `L${x(p.m).toFixed(1)},${y(p.lo).toFixed(1)}`).join('') + 'Z' }));
+  svg.append(svgEl('path', { class: 'close', d: pts.map((p, i) => `${i ? 'L' : 'M'}${x(p.m).toFixed(1)},${y(p.cl).toFixed(1)}`).join('') }));
+  for (const d of buys) {
+    const px = x(d.entry), py = y(d.price * 1e9);
+    svg.append(svgEl('line', { class: 'buy', x1: px, x2: px, y1: T, y2: H - B }), svgEl('circle', { cx: px, cy: py, r: 4, fill: 'var(--accent)', stroke: 'var(--surface)', 'stroke-width': 1.5 }));
+  }
+  return svg;
+}
+async function loadRecDetail(mint) {
+  const box = $('recDetail'), req = ++rec.detailReq;
+  box.hidden = false;
+  try {
+    const c = await recCall('/api/recorder/coin?mint=' + encodeURIComponent(mint));
+    if (req !== rec.detailReq) return;
+    rec.detail = c;
+    const stake = rec.st && rec.st.stake_sol || 0.1, ch = recChart(c);
+    const bought = c.decisions.filter(d => d.pick).length;
+    box.replaceChildren(el('div', { className: 'rec-panel-head' }, el('h3', { textContent: `${recName(c)}${c.name ? ' · ' + c.name : ''}` }),
+        el('div', { className: 'rec-tools' }, chartLinks(c.mint, true), el('button', { type: 'button', className: 'btn', textContent: 'Close', onclick: () => { rec.mint = null; rec.detail = null; box.hidden = true; history.replaceState(null, '', '#recorder/' + rec.day); renderRecCoins(); } }))),
+      el('div', { className: 'rec-facts' }, el('span', {}, 'Graduated ', el('b', { textContent: hms(c.graduated_at) + ' UTC' })),
+        el('span', {}, 'Seen ', el('b', { textContent: c.first_seen && c.graduated_at ? (c.first_seen >= c.graduated_at ? '+' : '−') + Math.abs((c.first_seen - c.graduated_at) / 1000).toFixed(0) + 's' : '–' })),
+        el('span', {}, 'Bars ', el('b', { textContent: c.bars.length ? `${c.bars.length} saved` : c.saved === -1 ? 'none could be saved' : 'not saved yet (two hours after graduation)' })),
+        el('span', {}, 'Decisions ', el('b', { textContent: c.decisions.length })), el('span', {}, 'Bought by ', el('b', { textContent: bought })),
+        el('span', {}, 'Mint ', el('b', { textContent: c.mint }))),
+      ch || el('p', { className: 'small', textContent: 'Not enough measurements to chart yet.' }),
+      el('p', { className: 'small', textContent: c.bars.length ? 'Market cap = price × 1 billion tokens. The line is each minute\'s close, the band its high and low; dashed lines are the minutes strategies bought at.' : 'No bars saved yet: the points are the market cap measured at each entry minute. Dashed lines are the minutes strategies bought at.' }),
+      el('div', { className: 'scroll' }, el('table', {}, el('thead', {}, el('tr', {}, ...['Strategy', 'Entry minute', 'Decision', 'Sold by', 'Held', 'Result', 'Result (SOL)'].map((h, i) => el('th', { className: i > 3 ? 'num' : '', textContent: h })))),
+        el('tbody', {}, ...c.decisions.map(d => {
+          const sol = d.net != null ? d.net * stake : null;
+          return el('tr', {}, el('td', { textContent: d.name }), el('td', { className: 'num', textContent: d.entry }),
+            el('td', {}, el('span', { className: 'pill', ...recSev(d.pick ? 'ok' : 'info'), textContent: d.pick ? 'bought' : 'passed' }), d.late ? el('span', { className: 'small', textContent: ' late' }) : ''),
+            el('td', { textContent: d.pick ? ({ target: 'take profit', stop: 'stop loss', time: 'time stop', breakeven: 'breakeven stop' }[d.exit] || d.exit || (d.status === 'open' ? 'open' : '–')) : '–' }),
+            el('td', { className: 'num', textContent: d.pick && d.held != null ? d.held + ' min' : '–' }),
+            el('td', { className: d.pick ? signed(d.net) : 'num muted', title: d.pick ? '' : 'What a buy would have returned (it was not bought)', textContent: d.net == null ? '–' : pc(d.net) }),
+            el('td', { className: signed(d.pick ? sol : null), textContent: !d.pick || sol == null ? '–' : (sol >= 0 ? '+' : '−') + Math.abs(sol).toFixed(4) }));
+        })))));
+  } catch (e) { if (req === rec.detailReq) box.replaceChildren(el('p', { className: 'small', textContent: e.message })); }
+}
+$('recDay').onchange = () => { rec.day = $('recDay').value; rec.mint = null; rec.detail = null; $('recDetail').hidden = true; history.replaceState(null, '', '#recorder/' + rec.day); loadRecCoins(); };
+$('recFind').oninput = () => renderRecCoins();
+$('recCoins').onclick = e => { const r = e.target.closest('tr[data-mint]'); if (!r) return; rec.mint = r.dataset.mint; history.replaceState(null, '', `#recorder/${rec.day}/${rec.mint}`); renderRecCoins(); loadRecDetail(rec.mint); $('recDetail').scrollIntoView({ block: 'nearest' }); };
+$('recCoins').onkeydown = e => { if (e.key === 'Enter') { const r = e.target.closest('tr[data-mint]'); if (r) r.click(); } };
+$('recCsv').onclick = () => {
+  const q = c => { let v = String(c ?? ''); if (/^[=+\-@\t\r]/.test(v)) v = "'" + v; return '"' + v.replace(/"/g, '""') + '"'; }, stake = rec.st && rec.st.stake_sol || 0.1;
+  const lines = [['graduated_utc', 'symbol', 'mint', 'launch', 'detected_s', 'bars', 'first_market_cap_usd', 'decisions', 'late', 'bought', 'result_sol'].join(',')].concat(rec.coins.map(c =>
+    [new Date(c.graduated_at).toISOString(), c.symbol, c.mint, c.status === 'unchecked' ? 'other curve' : c.status === 'failed' ? 'not classified' : 'standard', c.detected_sec, c.saved === 1 ? 'saved' : c.saved === -1 ? 'none' : 'waiting',
+      c.first_mcap, c.decisions, c.late, c.bought, c.net != null ? +(c.net * stake).toFixed(5) : ''].map(q).join(',')));
+  const a = el('a', { href: URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' })), download: `recorded-coins-${rec.day}.csv` });
+  document.body.append(a); a.click(); a.remove();
+};
+if (!GUEST) setInterval(() => { if (!$('tab-recorder').hidden && !document.hidden) loadRecorder(); }, 5000);
 
 // ---------- Strategy history tab ----------
 let historyLoaded = false;
@@ -1294,7 +1045,7 @@ async function loadHistory() {
     if (res.status === 503) {
       // not an error: the backtest has simply never run on this server yet
       $('history').replaceChildren(el('p', { textContent: 'No backtest has been run yet. This tab lists backtest results only, and the first backtest needs the 1-minute price history of at least 500 graduated tokens, which is still being collected.' }),
-        el('p', {}, 'What the strategies have done on new graduates so far is on the ', el('a', { href: '#tokens', textContent: 'Record live' }), ' tab and on the ',
+        el('p', {}, 'What the strategies have done on new graduates so far is on the ', el('a', { href: '#recorder', textContent: 'Recorder' }), ' tab and on the ',
           el('a', { href: '#lab', textContent: 'Lab' }), ' tab.'));
       historyLoaded = false;
       return;
@@ -1322,6 +1073,7 @@ const tokCell = (mint, symbol) => el('td', {}, el('b', {}, el('a', { href: 'http
   el('span', { className: 'subl' }, el('a', { href: 'https://dexscreener.com/solana/' + encodeURIComponent(mint), target: '_blank', rel: 'noopener noreferrer', textContent: mint.slice(0, 4) + '…' + mint.slice(-4) })));
 const hhmm = ms => new Date(ms).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 const sol = (v, d = 3) => v == null || !isFinite(v) ? '–' : (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(d) + ' SOL';
+const ellipsis = (t, n) => t.length > n ? t.slice(0, n - 1) + '…' : t;     // a long name cut with a dot-dot-dot (the full name stays in the tooltip)
 const short = n => String(n).split(':')[0];   // "Strategy A: creator out, …" → "Strategy A"
 const dayKey = ms => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const ICON = {
@@ -1487,7 +1239,7 @@ async function loadLab() {
   } catch (e) { $('lab').textContent = 'Could not load the Lab: ' + e.message; labLoaded = false; }
 }
 
-// ---- when the backtest runs: the full one every 6 hours, a changed rule's at once; the countdown ticks every second ----
+// ---- when the backtest runs: the full one once a day at 01:00 UTC, a changed rule's at once; the countdown ticks every second ----
 let labSched = null;
 const schedDur = ms => { const m = Math.max(0, Math.round(ms / 60000)); return m < 1 ? 'under a minute' : m < 60 ? m + ' min' : Math.floor(m / 60) + ' h ' + (m % 60 ? m % 60 + ' min' : ''); };
 function labSchedBar() {
@@ -1500,7 +1252,7 @@ function labSchedTick(t) {
   const run = d.running ? 'running now' + (d.running_since ? ` (started ${schedDur(Date.now() - d.running_since)} ago)` : '') : d.rules_running ? 'a changed rule is being backtested now' : '';
   const left = d.next ? d.next - Date.now() : null;
   t.textContent = [run || (left == null ? 'no run recorded yet' : left > 0 ? `the next full run starts in ${schedDur(left)}` : 'the next full run is due now'),
-    d.last ? `last full run finished ${schedDur(Date.now() - d.last)} ago` : '', `a full run happens every ${d.every / 3600} hours, and a rule you save is backtested at once`].filter(Boolean).join(' · ');
+    d.last ? `last full run finished ${schedDur(Date.now() - d.last)} ago` : '', 'a full run happens once a day at 01:00 UTC, and a rule you save is backtested at once'].filter(Boolean).join(' · ');
 }
 setInterval(() => labSchedTick(), 1000);
 // Puts `nodes` into `root`, keeping every section that is unchanged since the last time exactly as it is on the page
@@ -1569,7 +1321,7 @@ function labPnl(rules) {
 function labRules(rules, liveOpen) {
   const rows = rules.map(x => { const bt = x.bt && x.bt.stats.all, n = liveOpen[x.id] || 0, def = x.def;
     const tags = [n ? el('span', { className: 'livetag', title: 'Open live (real SOL) position' + (n > 1 ? 's' : '') + ' on the Trading tab', textContent: `LIVE · ${n} open` }) : '',
-      def.builtin ? el('span', { className: 'tag w', style: 'margin-left:8px', textContent: def.saved ? 'built-in, edited' : 'built-in' }) : '', !def.enabled ? el('span', { className: 'tag w', style: 'margin-left:8px', textContent: 'paused' }) : '',
+      def.builtin ? el('span', { className: 'tag w', style: 'margin-left:8px', textContent: def.id.startsWith('pattern-') ? 'from Pattern Discover' : def.saved ? 'built-in, edited' : 'built-in' }) : '', !def.enabled ? el('span', { className: 'tag w', style: 'margin-left:8px', textContent: 'paused' }) : '',
       x.updating && def.enabled ? el('span', { className: 'tag w', style: 'margin-left:8px', title: 'The rule was just changed: its record and backtest are being redone', textContent: 'updating…' }) : ''];
     const edit = iconBtn('edit', 'Edit', x), del = iconBtn('del', 'Delete', x);
     const now = () => (lab && lab.rules.find(r => r.id === x.id)) || x;   // the rule as it is when clicked, not when drawn
@@ -1580,10 +1332,9 @@ function labRules(rules, liveOpen) {
       subCell(String(x.live.bought.length), [x.open.length ? `${x.open.length} open` : '', x.late ? `${x.late} reconstructed` : ''].filter(Boolean).join(' · '), 'num'),
       { className: 'num', textContent: x.closed.length ? `${x.wins} (${Math.round(x.wins / x.closed.length * 100)}%)` : '–' },
       { className: x.closed.length ? signed(x.total) : 'num', textContent: x.closed.length ? sol(x.total * x.stakeSol) : '–' },
-      { className: x.closed.length > 3 ? signed(x.best3) : 'num', textContent: x.closed.length > 3 ? sol(x.best3 * x.stakeSol) : '–' },
-      bt && bt.trades ? subCell(sol(bt.mean * bt.trades * x.bt.stake_sol), `${bt.trades} trade${bt.trades > 1 ? 's' : ''}`, signed(bt.mean)) : { className: 'num muted', textContent: x.bt ? '0 trades' : def.enabled ? (x.updating ? 'running…' : 'not run') : '–' },
+      bt && bt.trades ? subCell(sol(bt.mean * bt.trades * x.bt.stake_sol), `${bt.trades} trade${bt.trades > 1 ? 's' : ''}${bt.win != null ? ` · Win ${Math.round(bt.win * 100)}%` : ''}`, signed(bt.mean)) : { className: 'num muted', textContent: x.bt ? '0 trades' : def.enabled ? (x.updating ? 'running…' : 'not run') : '–' },
       el('td', {}, el('div', { className: 'acts' }, ...(GUEST ? [detail, back] : [detail, edit, back, sw, del])))]; });
-  const t = table(['Rule', '#Bought', '#Won', '#P&L', '#Without best 3', '#Backtest', ''], rows);
+  const t = table(['Rule', '#Bought', '#Won', '#P&L', '#Backtest', ''], rows);
   t.querySelectorAll('tbody tr').forEach((tr, i) => { const x = rules[i]; tr.className = [x.id === labSel ? 'sel' : '', liveOpen[x.id] ? 'live' : '', x.def.enabled ? '' : 'off'].filter(Boolean).join(' '); });
   return labPanel('Lab', 'The built-in strategies, paper-traded on every new graduate. Each token is recorded as bought or passed, and passed tokens are followed too. Nothing is ever traded here.', [],
     ...(labMsg && Date.now() < labMsg.until ? [el('p', { className: 'small ' + (labMsg.bad ? 'n' : ''), style: 'margin:0 0 8px', role: 'status', textContent: labMsg.text })] : []), t, ...labRemoved());
@@ -1633,7 +1384,7 @@ function labHistory(rules) {
   const rows = [...all, ...old].sort((a, b) => b.x.soldAt(b.r) - a.x.soldAt(a.r)).slice(0, 200);
   const total = all.reduce((a, { x, r }) => a + r[x.C.net_return] * x.stakeSol, 0), alt = rules.map(x => x.live.alt_tp).find(Boolean);
   const note = all.length || old.length ? `${all.length} closed trade${all.length === 1 ? '' : 's'}: ${all.filter(({ x, r }) => r[x.C.net_return] > 0).length} won, ${sol(total)}.` + (old.length ? ` ${old.length} more from earlier versions of a rule are listed too, marked earlier version, and are not in these figures.` : '') + (all.length + old.length > rows.length ? ` Newest ${rows.length} shown.` : '') : '';
-  const t = rows.length ? table(['Rule', 'Token', 'Bought', 'Sold', '#Entry mcap', 'Exit', '#Now / exit', '#Net', '#P&L', '#If held', ...(alt ? ['#At ' + pc(alt, 0)] : [])], rows.map(({ x, r, vi, base }) => [el('td', { title: base ? `${x.name}\nEarlier version ${vi + 1}: buy at minute ${entryText(x.rule)}, sell at ${pc(x.rule.tp, 0)}, ${pc(-x.rule.sl, 0)} or after ${x.rule.hold} min` + (x.rule.be ? `; stop to ${x.rule.be_stop ? pc(x.rule.be_stop, 0) : 'the buy price'} at ${pc(x.rule.be, 0)}` : '') + '\nConditions:\n' + (x.rule.conditions.length ? x.rule.conditions.map(condText).join('\n') : 'every tradable token') : x.name }, chip(short(x.name), x.id)), ...labTradeCells(x, r, alt)]))
+  const t = rows.length ? table(['Rule', 'Token', 'Bought', 'Sold', '#Entry mcap', 'Exit', '#Now / exit', '#Net', '#P&L', '#If held', ...(alt ? ['#At ' + pc(alt, 0)] : [])], rows.map(({ x, r, vi, base }) => [el('td', { title: base ? `${x.name}\nEarlier version ${vi + 1}: buy at minute ${entryText(x.rule)}, sell at ${pc(x.rule.tp, 0)}, ${pc(-x.rule.sl, 0)} or after ${x.rule.hold} min` + (x.rule.be ? `; stop to ${x.rule.be_stop ? pc(x.rule.be_stop, 0) : 'the buy price'} at ${pc(x.rule.be, 0)}` : '') + '\nConditions:\n' + (x.rule.conditions.length ? x.rule.conditions.map(condText).join('\n') : 'every tradable token') : x.name }, chip(ellipsis(short(x.name), 20), x.id)), ...labTradeCells(x, r, alt)]))
     : el('p', { className: 'small', textContent: 'No closed trades yet.' });
   return labPanel('Trade history', note, [el('label', { className: 'chk' }, 'Rule ', sel)], t,
     ...(rows.length ? [el('p', { className: 'small', style: 'margin:8px 0 0', textContent: `"If held" is the same buy simply held for ${rules[0].live.follow_minutes} minutes and never sold (its best point below)${alt ? `; "At ${pc(alt, 0)}" aims for that target instead, with the same stop` : ''}.` })] : []));
@@ -1841,7 +1592,7 @@ function openRuleEditor(x) {
       field('Take profit (%)', tp, '40 = sell at +40%.'), field('Stop loss (%)', sl, '30 = sell at -30%.'),
       field('Move the stop after a gain of (%)', be, 'Optional. 50 = once the price has been 50% above the buy price. Empty = never.'), field('Move the stop to (% above the buy price)', beStop, 'Where the stop goes then: 0 = the buy price, 10 = +10%. Must be below the gain.')),
     el('div', { className: 'field' }, el('span', { className: 'label', textContent: 'Conditions (all must hold)' }), conds, el('div', {}, add)),
-    el('label', { className: 'chk' }, live, 'Record live: show it on the Record live tab'),
+    el('label', { className: 'chk' }, live, 'Record live: mark it as followed live (the trader can use any recorded rule)'),
     el('details', {}, el('summary', { textContent: 'What the conditions mean' }), el('dl', { className: 'gloss' }, ...Object.values(F).flatMap(f => [el('dt', { textContent: f.label }), el('dd', { textContent: RULE_HELP[f.label] || '' })])),
       el('p', { className: 'small', textContent: 'Holder conditions exist only for tokens that graduated after holder recording started (11 October 2026, 20:00 UTC), because pump.fun does not keep past holder numbers. A rule that uses one skips every older token. All conditions are measured at the moment of buying, using only what was known then.' })),
     err, el('div', { className: 'dlg-actions' }, cancel, test, save));
@@ -1872,7 +1623,7 @@ function openRuleDelete(x) {
   yes.onclick = async () => { yes.disabled = true; const msg = await (def.builtin ? removeBuiltin() : labSave(list => list.filter(r => r.id !== def.id), `Deleted ${def.name}.`));
     if (msg) { err.textContent = msg; yes.disabled = false; } else { if (labSel === def.id) labSel = null; if (labBt === def.id) labBt = null; dlg.close(); } };
   dlg.append(el('div', { className: 'dlg' }, el('h2', { id: 'delTitle', textContent: 'Delete this rule?' }),
-    el('p', { className: 'small', textContent: `"${def.name}" disappears from the Lab and stops being backtested and recorded${def.builtin ? '' : ', and its settings are removed'}. Its past decisions stay in the database.${def.builtin ? ' You can bring it back with Restore under the table.' : ''}` }), err, el('div', { className: 'dlg-actions' }, keep, yes)));
+    el('p', { className: 'small', textContent: `"${def.name}" disappears from the Lab and stops being backtested and recorded${def.builtin ? '' : ', and its settings are removed'}. Its past decisions stay in the database.${def.builtin && !def.id.startsWith('pattern-') ? ' You can bring it back with Restore under the table.' : def.builtin ? ' Add it again from the Pattern Discover page.' : ''}` }), err, el('div', { className: 'dlg-actions' }, keep, yes)));
   dlg.addEventListener('close', () => dlg.remove()); document.body.append(dlg); dlg.showModal();
 }
 
@@ -1966,7 +1717,7 @@ function rpcPanel() {
 }
 
 // the trading wallets: the one in use (address, balance), the others kept, and a form to add a wallet by its private key
-function walletPanel(base = '/api', own = false) {      // base: '/api' (the trader of the Trading tab) or '/api/ct' (the Crossing page's own trader, with wallets of its own)
+function walletPanel(base = '/api') {
   const box = el('div', {}, el('p', { className: 'small', textContent: 'Loading…' })), list = el('div', {}), msg = el('span', { className: 'small', role: 'status' });
   const short = a => a.slice(0, 4) + '…' + a.slice(-4);
   const say = (t, bad) => { msg.className = 'small' + (bad ? ' n' : ''); msg.textContent = t; };
@@ -1986,7 +1737,7 @@ function walletPanel(base = '/api', own = false) {      // base: '/api' (the tra
     box.replaceChildren(st.wallet ? el('div', { className: 'wcard' }, el('dl', { className: 'wfacts' },
       el('div', {}, el('dt', { textContent: 'In use' }), el('dd', {}, el('code', { className: 'mono', textContent: st.wallet }), ' ', el('a', { href: 'https://solscan.io/account/' + encodeURIComponent(st.wallet), target: '_blank', rel: 'noopener noreferrer', textContent: 'Solscan' }))),
       el('div', {}, el('dt', { textContent: 'Balance' }), el('dd', { className: 'wbal', textContent: st.balance_sol != null ? (+st.balance_sol.toFixed(4)) + ' SOL' : 'reading…' })),
-      el('div', {}, el('dt', { textContent: 'Trading' }), el('dd', {}, el('span', { className: 'pill ' + (live ? 'sev-crit' : 'sev-info'), textContent: live ? 'Live' : st.mode === 'dry' ? 'Dry run' : 'Off' }), ' ', el('a', { href: own ? '#crossing' : '#trading', textContent: own ? 'Crossing trading' : 'Open Trading' })))))
+      el('div', {}, el('dt', { textContent: 'Trading' }), el('dd', {}, el('span', { className: 'pill ' + (live ? 'sev-crit' : 'sev-info'), textContent: live ? 'Live' : st.mode === 'dry' ? 'Dry run' : 'Off' }), ' ', el('a', { href: '#trading', textContent: 'Open Trading' })))))
       : el('div', { className: 'notice sev-warn', textContent: 'No trading wallet is loaded, so live trading cannot start. Paper trading and dry runs work without one.' }),
       ...(st.error ? [el('p', { className: 'small n', textContent: st.error })] : []));
   }).catch(() => { box.replaceChildren(el('p', { className: 'small', textContent: 'The trader has not reported yet, so the wallet status is not known.' })); });
@@ -2004,7 +1755,7 @@ function walletPanel(base = '/api', own = false) {      // base: '/api' (the tra
     catch (e) { say('Not added: ' + e.message, true); }
     add.disabled = false;
   };
-  const p = labPanel('Trading wallets', 'The wallets live trading can sign with. ' + (own ? 'Used only by the Buy buttons of this page, never by the strategies of the Trading tab. The one marked "in use" trades; its limits (size, open positions, daily loss) are in Crossing trading below.' : 'The one marked "in use" trades; its limits (size, open positions, daily loss) are on the Trading tab.') + '', [], box,
+  const p = labPanel('Trading wallets', 'The wallets live trading can sign with. ' + 'The one marked "in use" trades; its limits (size, open positions, daily loss) are on the Trading tab.' + '', [], box,
     el('h3', { className: 'label', style: 'margin:14px 0 6px', textContent: 'Saved wallets' }), list,
     el('h3', { className: 'label', style: 'margin:14px 0 6px', textContent: 'Add a wallet' }),
     ...(secure ? [] : [el('div', { className: 'notice sev-warn', textContent: 'This page was opened over plain HTTP, so a wallet cannot be added here: the key would travel unencrypted. Open the site through its https:// address.' })]),
@@ -2020,17 +1771,14 @@ function loadSettingsPage() {
 }
 
 // The Telegram alerts panel of the Settings page. Saved on the server by a signed-in user; the bot token is never sent back to the page.
-function telegramPanel(base = '/api', isCross = false) {
+function telegramPanel(base = '/api') {
   const field = (label, ...k) => el('label', { className: 'chk', style: 'gap:8px' }, label, ...k);
   const tgToken = el('input', { type: 'password', placeholder: 'Bot token from @BotFather', autocomplete: 'off', style: 'width:340px;max-width:100%', 'aria-label': 'Telegram bot token' });
   const tgChat = el('input', { type: 'text', placeholder: 'Your Telegram user ID, e.g. 123456789', style: 'width:260px;max-width:100%', 'aria-label': 'Telegram user ID' });
   const tgOn = el('input', { type: 'checkbox', style: 'width:18px;height:18px' });
   const tgSave = el('button', { textContent: 'Save Telegram settings' }), tgTest = el('button', { textContent: 'Send a test message' });
-  const evWatch = el('select', { 'aria-label': 'Watching alerts' }, el('option', { value: 'off', textContent: 'Nothing' }), el('option', { value: 'armed', textContent: 'A coin is armed (rules 1 to 4 hold and its last close is below the level)' }), el('option', { value: 'all', textContent: 'Every coin that enters Watching, and when armed' }));
-  const evConf = el('input', { type: 'checkbox', checked: true, style: 'width:18px;height:18px' }), evTrades = el('input', { type: 'checkbox', checked: true, style: 'width:18px;height:18px' });
   const tgStatus = el('span', { className: 'small', role: 'status' }), tgState = el('p', { className: 'small', textContent: 'Loading…' });
   const tgShow = d => { tgChat.value = d.chat_id || ''; tgOn.checked = !!d.enabled; tgToken.value = '';
-    if (isCross) { const ev = d.events || { watching: 'armed', confirmed: true, trades: true }; evWatch.value = ev.watching; evConf.checked = ev.confirmed; evTrades.checked = ev.trades; if (p.onState) p.onState(d); }
     tgToken.placeholder = d.token_hint ? `Saved (ends ${d.token_hint}). Leave empty to keep it` : 'Bot token from @BotFather';
     tgState.textContent = !d.configured ? 'Not set up yet: no message is sent.' : d.enabled ? 'Alerts are on.' : 'Saved, but alerts are switched off.'; };
   fetch(base + '/telegram').then(r => r.json()).then(tgShow).catch(() => { tgState.textContent = 'Could not load the Telegram settings.'; });
@@ -2045,20 +1793,19 @@ function telegramPanel(base = '/api', isCross = false) {
     } catch (e) { tgStatus.textContent = 'Not done: ' + e.message; }
     tgSave.disabled = tgTest.disabled = false;
   };
-  tgSave.onclick = () => tgPost(base + '/telegram', { token: tgToken.value.trim(), chat_id: tgChat.value.trim(), enabled: tgOn.checked, ...(isCross ? { events: { watching: evWatch.value, confirmed: evConf.checked, trades: evTrades.checked } } : {}) }, 'Saved.');
+  tgSave.onclick = () => tgPost(base + '/telegram', { token: tgToken.value.trim(), chat_id: tgChat.value.trim(), enabled: tgOn.checked }, 'Saved.');
   tgTest.onclick = () => tgPost(base + '/telegram/test', {}, 'Test message sent: check Telegram.');
-  const p = labPanel('Telegram alerts', isCross ? 'Messages on Telegram about the Crossing page: its own bot and chat, separate from the Settings page.' : 'Messages on Telegram about real trades.', [],
-    el('p', { textContent: isCross ? 'Choose what to be told about below. Live trade messages come from the Crossing trader (a real buy or sale, with a link to its transaction, and anything that needs your attention). Dry runs send nothing.' : 'Get a Telegram message when the trader buys or sells with real SOL, and when something needs your attention (an order that could not be confirmed, a sale that keeps failing, a wallet that cannot be loaded). Paper trades and dry runs send nothing.' }),
+  const p = labPanel('Telegram alerts', 'Messages on Telegram about real trades.', [],
+    el('p', { textContent: 'Get a Telegram message when the trader buys or sells with real SOL, and when something needs your attention (an order that could not be confirmed, a sale that keeps failing, a wallet that cannot be loaded). Paper trades and dry runs send nothing.' }),
     el('ol', { className: 'steps' },
       el('li', { textContent: 'In Telegram, open @BotFather, send /newbot and follow the steps. It gives you a bot token.' }),
       el('li', { textContent: 'Open your new bot and press Start. A bot cannot write to you before you do.' }),
       el('li', { textContent: 'Open @userinfobot and press Start. It replies with your user ID (a number).' }),
       el('li', { textContent: 'Paste both below, tick the box, save, then send a test message.' })),
     el('div', { className: 'table-head', style: 'padding:8px 0' }, field('Bot token', tgToken), field('User ID', tgChat), field('', tgOn, 'Send alerts')),
-    ...(isCross ? [el('div', { className: 'table-head', style: 'padding:0 0 8px;flex-wrap:wrap' }, field('Watching coins', evWatch), field('', evConf, 'Confirmed crossings'), field('', evTrades, 'Live trades (buy and sell, with the transaction)'))] : []),
     el('div', { className: 'table-head', style: 'padding:0 0 4px' }, tgSave, tgTest, tgStatus), tgState,
     el('p', { className: 'small', textContent: 'The token is stored on the server and never shown again; anyone holding it can send messages as your bot, so do not share it. ' }));
-  p.id = isCross ? 'telegram-crossing' : 'telegram'; return p;
+  p.id = 'telegram'; return p;
 }
 
 // ---------- Trading tab ----------
@@ -2072,7 +1819,7 @@ let tradeDraws = [];
 const tradePrev = new Map();   // position id → its result at the last draw, for the flash when it moves
 const HUES = ['indigo', 'teal', 'sky', 'lime', 'orange', 'pink', 'violet', 'brown', 'blue', 'plum', 'rose', 'slate'];
 // each strategy keeps one colour on every page: the built-in ones fixed (so they never share one), others from their id
-const STRAT_HUE = { 'strategy-a': 'teal', 'strategy-b': 'indigo', 'strategy-c': 'orange', 'strategy-c-plus': 'pink', 'strategy-d': 'sky', 'strategy-b20': 'blue', 'strategy-b-plus': 'violet', 'strategy-b20-direct': 'rose', 'strategy-c-steady': 'lime', 'strategy-e': 'brown', 'strategy-f': 'plum', 'strategy-g': 'slate', auto: 'slate' };
+const STRAT_HUE = { 'strategy-b20-direct': 'rose', 'strategy-e': 'brown', auto: 'slate' };
 const hueOf = id => { if (STRAT_HUE[id]) return STRAT_HUE[id]; let h = 0; for (const c of String(id || '')) h = (h * 31 + c.charCodeAt(0)) >>> 0; return HUES[h % HUES.length]; };
 const hueVar = id => `var(--h-${hueOf(id)})`;
 // colours the header cells of per-strategy columns (ids in column order, starting at column `from`)
@@ -2132,16 +1879,36 @@ async function sellClick(key, body) {
 }
 
 // the limits form is built once and kept, so a refresh never wipes what is being typed
+// the time-of-day filter: which UTC hours may start a new automatic buy (none chosen = every hour)
+const hoursText = hrs => {
+  const a = [...hrs].sort((x, y) => x - y); if (!a.length) return 'every hour';
+  const out = []; let i = 0;
+  while (i < a.length) { let j = i; while (j + 1 < a.length && a[j + 1] === a[j] + 1) j++; out.push(i === j ? `${String(a[i]).padStart(2, '0')}h` : `${String(a[i]).padStart(2, '0')}-${String(a[j]).padStart(2, '0')}h`); i = j + 1; }
+  return out.join(', ') + ' UTC';
+};
+function hoursPaint(f) {
+  f.hourBtns.forEach((b, hr) => { const on = f.hours.has(hr); b.classList.toggle('primary', on); b.setAttribute('aria-pressed', String(on)); });
+  f.hoursNote.textContent = f.hours.size ? `Buys only in: ${hoursText(f.hours)}. Open positions are still watched and sold at any hour.` : 'No hours chosen: buys at any hour.';
+}
 function tradeForm() {
   const num = (step, min, max, w) => el('input', { type: 'number', step, min, max, style: `width:${w}px` });
   const f = { size: num('0.01', '0.01', '1', 90), open: num('1', '1', '5', 70), loss: num('0.1', '0.01', '10', 90), impact: num('any', '1', '20', 80), slip: num('50', '50', '3000', 90), sellSlip: num('50', '50', '5000', 90), stopSlip: num('50', '50', '5000', 90),
     fee: num('10000', '0', '5000000', 110), rpc: el('input', { type: 'password', placeholder: 'leave empty to keep the saved one', style: 'width:300px;max-width:100%', autocomplete: 'off', 'aria-label': 'RPC address' }),
+    hours: new Set(), hourBtns: [],
     save: el('button', { type: 'button', className: 'primary', textContent: 'Save limits' }), status: el('span', { className: 'small', role: 'status' }), seen: '',
     open_: (() => { try { return localStorage.getItem('tradingSettingsOpen') === '1'; } catch (e) { return false; } })() };
+  f.hourGrid = el('div', { className: 'hourgrid', role: 'group', 'aria-label': 'UTC hours in which new buys are allowed' });
+  for (let hr = 0; hr < 24; hr++) {
+    const b = el('button', { type: 'button', className: 'sm', textContent: String(hr).padStart(2, '0'), title: `${String(hr).padStart(2, '0')}:00-${String(hr).padStart(2, '0')}:59 UTC` });
+    b.onclick = () => { f.hours.has(hr) ? f.hours.delete(hr) : f.hours.add(hr); hoursPaint(f); };
+    f.hourBtns.push(b); f.hourGrid.append(b);
+  }
+  f.hoursAll = el('button', { type: 'button', className: 'sm', textContent: 'Every hour', onclick: () => { f.hours.clear(); hoursPaint(f); } });
+  f.hoursNote = el('span', { className: 'small' });
   f.save.onclick = async () => {
     f.save.disabled = true; f.status.textContent = 'Saving…';
     try { await tradePost({ sol_per_trade: +f.size.value, max_open: +f.open.value, daily_loss_limit_sol: +f.loss.value, max_buy_impact_pct: +f.impact.value, slippage_bps: +f.slip.value, sell_slippage_bps: +f.sellSlip.value, stop_slippage_bps: +f.stopSlip.value,
-      priority_fee_lamports: +f.fee.value, ...(f.rpc.value.trim() ? { rpc_url: f.rpc.value.trim() } : {}) }); f.status.textContent = 'Saved. The trader picks it up within a second or two.'; f.rpc.value = ''; f.seen = ''; }
+      priority_fee_lamports: +f.fee.value, trade_hours: [...f.hours].sort((a, b) => a - b), ...(f.rpc.value.trim() ? { rpc_url: f.rpc.value.trim() } : {}) }); f.status.textContent = 'Saved. The trader picks it up within a second or two.'; f.rpc.value = ''; f.seen = ''; }
     catch (e) { f.status.textContent = 'Not saved: ' + e.message; }
     f.save.disabled = false;
   };
@@ -2150,14 +1917,23 @@ function tradeForm() {
 
 // the Lab and the Trading tab show only the built-in strategies (rules.WATCH_EXTRA); the ids come from the server
 let builtinIds = null;
-fetch('/api/rules').then(r => r.ok ? r.json() : null).then(d => { if (d) { builtinIds = new Set(d.builtin.map(b => b.id)); if (typeof renderTrading === 'function' && !$('tab-trading').hidden) renderTrading(); } }).catch(() => {});
+// The Trading tab lists only the built-in rules that are in the Lab (and patterns added from Pattern Discover); read again every 20 s while it is open and
+// after a pattern is added, so a strategy added in this very session shows up
+let builtinAt = 0;
+function refreshBuiltin(force) {
+  if (!force && Date.now() - builtinAt < 20000) return;
+  builtinAt = Date.now();
+  fetch('/api/rules').then(r => r.ok ? r.json() : null).then(d => { if (d) { builtinIds = new Set(d.builtin.map(b => b.id)); if (typeof renderTrading === 'function' && !$('tab-trading').hidden) renderTrading(); } }).catch(() => {});
+}
+refreshBuiltin(true);
 function renderTrading() {
   const root = $('trading'), st = trade.st, out = [], h2 = t => el('h2', { textContent: t });
   tradeDraws = [];
   if (!trade.form) trade.form = tradeForm();
   const f = trade.form, cfg = (st && st.settings) || { mode: 'off', sol_per_trade: 0.1, max_open: 2, daily_loss_limit_sol: 1, max_buy_impact_pct: 7, slippage_bps: 500, sell_slippage_bps: 1000, stop_slippage_bps: 2500, priority_fee_lamports: 300000, strategies: [] };
   const cfg0 = cfg;   // (click handlers read trade.st.settings when clicked: a kept section may be older than the settings)
-  const trades = (st && st.trades) || [], avail = ((st && st.strategies_available) || []).filter(s => !builtinIds || builtinIds.has(s.id));
+  refreshBuiltin();
+  const trades = (st && st.trades) || [], avail = ((st && st.strategies_available) || []).filter(s => s.note || !builtinIds || builtinIds.has(s.id));   // (the Dip watch's strategies are not Lab rules: they carry a note)
   const open = trades.filter(t => HELD.includes(t.status)), closed = trades.filter(t => t.status === 'closed' && t.sol_in != null && t.sol_out != null);
   const isLive = !!st && st.mode === 'live', isDry = !!st && st.mode === 'dry';
 
@@ -2220,7 +1996,7 @@ function renderTrading() {
     return { n: ts.length, open: ts.filter(t => HELD.includes(t.status)).length, tot, done: done.length, wins: done.filter(t => tradeResult(t) > 0).length }; };
   const rows = [...avail].sort((a, b) => (enabled.has(b.id) - enabled.has(a.id)) || (b.record_live - a.record_live)).map(s => {
     const r = per(s.id), bt = s.backtest;
-    return [el('td', { className: 'rulecell' }, chip(s.name, s.id), el('span', { className: 'rulesum', textContent: `Buys at minute ${entryText(s)}, sells at +${Math.round(s.tp * 100)}% / −${Math.round(s.sl * 100)}% or after ${s.hold} min` })),
+    return [el('td', { className: 'rulecell' }, chip(s.name, s.id), el('span', { className: 'rulesum', textContent: `${s.note || 'Buys at minute ' + entryText(s)}, sells at +${Math.round(s.tp * 100)}% / −${Math.round(s.sl * 100)}% or after ${s.hold} min` })),
       el('td', {}, GUEST ? el('span', { className: 'tag ' + (enabled.has(s.id) ? 'p' : 'w'), textContent: enabled.has(s.id) ? 'ON' : 'OFF' })
         : sw(enabled.has(s.id), lock || (enabled.has(s.id) ? 'Enabled: click to disable' : 'Disabled: click to enable'), () => toggle(s, !enabled.has(s.id)), isDry)),
       bt && bt.trades ? subCell(sol(bt.mean * bt.trades * (bt.stake_sol || 0.1)), `${bt.trades} trades · average ${pc(bt.mean)}${bt.recent_trades ? ` · recent ${sol(bt.recent_mean * bt.recent_trades * (bt.stake_sol || 0.1))} over ${bt.recent_trades}` : ''}`, signed(bt.mean)) : { className: 'num muted', textContent: 'none' },
@@ -2328,7 +2104,7 @@ function renderTrading() {
 
   // limits and settings, folded away (open or closed as last left in this browser)
   const seen = JSON.stringify(cfg);
-  if (seen !== f.seen) { f.size.value = cfg.sol_per_trade; f.open.value = cfg.max_open; f.loss.value = cfg.daily_loss_limit_sol; f.impact.value = cfg.max_buy_impact_pct == null ? 7 : cfg.max_buy_impact_pct; f.slip.value = cfg.slippage_bps; f.sellSlip.value = cfg.sell_slippage_bps; f.stopSlip.value = cfg.stop_slippage_bps; f.fee.value = cfg.priority_fee_lamports; f.seen = seen; }
+  if (seen !== f.seen) { f.size.value = cfg.sol_per_trade; f.open.value = cfg.max_open; f.loss.value = cfg.daily_loss_limit_sol; f.impact.value = cfg.max_buy_impact_pct == null ? 7 : cfg.max_buy_impact_pct; f.slip.value = cfg.slippage_bps; f.sellSlip.value = cfg.sell_slippage_bps; f.stopSlip.value = cfg.stop_slippage_bps; f.fee.value = cfg.priority_fee_lamports; f.hours = new Set((Array.isArray(cfg.trade_hours) ? cfg.trade_hours : []).filter(x => Number.isInteger(x) && x >= 0 && x <= 23)); hoursPaint(f); f.seen = seen; }
   const field = (label, ...k) => el('label', { className: 'chk', style: 'gap:8px' }, label, ...k);
   // the settings box is built once and kept: its inputs keep what is being typed, only its summary line is updated
   if (!f.box) {
@@ -2338,10 +2114,11 @@ function renderTrading() {
       el('div', { className: 'auto-row' }, field('SOL per trade', f.size), field('Most open at once', f.open), field('Daily loss limit (SOL)', f.loss), field('Highest price impact of a buy (%)', f.impact)),
       el('p', { className: 'small', style: 'margin:0 0 6px', textContent: 'A live buy is skipped when Jupiter\'s quote says the order alone would move the price more than this. The backtests skip a coin above 5%, so a higher limit buys coins the backtest never counted and pays that impact as an extra cost.' }),
       el('div', { className: 'auto-row' }, field('Buy slippage (bps)', f.slip), field('Sell slippage (bps)', f.sellSlip), field('Stop-loss slippage (bps)', f.stopSlip), field('Priority fee (lamports, max)', f.fee)),
+      el('div', { className: 'auto-row', style: 'flex-direction:column;align-items:flex-start;gap:6px' }, el('b', { className: 'small', textContent: 'Buy only in these hours (UTC)' }), f.hourGrid, el('div', { className: 'auto-row', style: 'gap:10px' }, f.hoursAll, f.hoursNote)),
       el('div', { className: 'auto-row' }, field('RPC address', f.rpc)), el('div', { className: 'auto-row' }, f.save, f.status), f.dryNote);
     f.box.addEventListener('toggle', () => { f.open_ = f.box.open; try { localStorage.setItem('tradingSettingsOpen', f.box.open ? '1' : '0'); } catch (e) { /* not kept */ } });
   }
-  f.sum.textContent = `${cfg.sol_per_trade} SOL a buy · at most ${cfg.max_open} open · daily loss limit ${cfg.daily_loss_limit_sol} SOL · price impact up to ${cfg.max_buy_impact_pct == null ? 7 : cfg.max_buy_impact_pct}%`;
+  f.sum.textContent = `${cfg.sol_per_trade} SOL a buy · at most ${cfg.max_open} open · daily loss limit ${cfg.daily_loss_limit_sol} SOL · price impact up to ${cfg.max_buy_impact_pct == null ? 7 : cfg.max_buy_impact_pct}%` + ((Array.isArray(cfg.trade_hours) && cfg.trade_hours.length) ? ` · buys in ${hoursText(cfg.trade_hours.filter(x => Number.isInteger(x) && x >= 0 && x <= 23))}${st.hours_open === false && st.mode !== 'off' ? ' (paused now)' : ''}` : '');
   f.dryNote.hidden = !isDry;
   const box = f.box;
   if (!GUEST) out.splice(autoAt, 0, box);   // Limits and settings, above Auto trading
@@ -2349,17 +2126,6 @@ function renderTrading() {
   tradeDraws.forEach(fn => fn());
 }
 
-
-// ---------- Crossing: coins that fall below their graduation market cap and then climb back above it ----------
-// crossing.py (its own service) follows every new graduate and writes crossing.json; this page only shows it. Nothing is bought.
-const cross = { d: null, tr: null, tradeBox: null, sellBusy: false, sellMsg: '', busy: false, miss: false, sent: {}, err: {}, walletBox: null, tgBox: null };
-async function loadCrossing() {
-  if (cross.busy) return; cross.busy = true;
-  try { const res = await fetch('/api/crossing'); cross.miss = res.status === 404; cross.d = res.ok ? await res.json() : null; } catch (e) { cross.d = null; }
-  try { const res = await fetch('/api/ct/trading'); cross.tr = res.ok ? await res.json() : null; } catch (e) { cross.tr = null; }     // (the state of the Crossing page's own trader: mode, wallet, size, and the buys asked here)
-  cross.busy = false; renderCrossing();
-}
-setInterval(() => { if ($('tab-crossing').hidden || document.hidden) return; loadCrossing(); }, 3000);
 
 // ---------- Pattern Discover: patterns found by looking at the shapes of the first minutes, backtested, and watched on new data ----------
 // patterns.py (a pass every 2 hours, or when the Run now button asks) writes patterns.json; this page shows it. Nothing is bought.
@@ -2382,23 +2148,35 @@ function renderPatterns() {
   run.onclick = runPatterns;
   out.push(labPanel('Pattern Discover', 'Looks for price patterns every 2 hours, backtests them, and keeps the profitable ones on a list that is backtested again with every new pass and with the coins that graduated after each was found.', [run],
     el('div', { style: 'display:flex;flex-wrap:wrap;gap:8px;margin:0 0 8px' },
-      chip('Last pass', ago(lr.ts), '', `${lr.seconds || '?'} s`), chip('Next pass', left > 0 ? 'in ' + dur(left) : 'due now'), chip('Seeds', String(lr.seeds || 0), '', `coins that closed minute 0 between ${usd(c.m0 && c.m0[0])} and ${usd(c.m0 && c.m0[1])} and peaked above ${usd(c.seed_peak)} within ${c.seed_minutes} minutes (earlier 70% of the coins)`),
+      chip('Last pass', ago(lr.ts), '', `${lr.seconds || '?'} s`), chip('Next pass', left > 0 ? 'in ' + dur(left) : 'due now'), chip('Seeds', String(lr.seeds || 0), '', `coins that closed minute 0 between ${usd((c.seed_m0 || c.m0 || [])[0])} and ${usd((c.seed_m0 || c.m0 || [])[1])} and peaked above ${usd(c.seed_peak)} within ${c.seed_minutes} minutes (earlier 70% of the coins)`),
       chip('Candidates tried', String(lr.candidates || 0)), chip('Passed the backtest', String(lr.distinct || 0), lr.distinct ? 'p' : '', `${lr.passed || 0} candidates passed, ${lr.distinct || 0} trade different coins`), chip('Watched', String(P.length)),
       chip('Confirmed', String(count('confirmed')), count('confirmed') ? 'p' : ''), chip('Testing', String(count('testing'))), chip('Failing', String(count('failing')), count('failing') ? 'n' : '')),
     ...(pat.msg && Date.now() - pat.msgAt < 20000 ? [el('p', { className: 'small', role: 'status', textContent: pat.msg })] : []),
     el('b', { textContent: 'How a pass works' }),
     el('ol', { className: 'steps' },
-      el('li', { textContent: `Seeds: coins that closed their graduation minute between ${usd(c.m0 && c.m0[0])} and ${usd(c.m0 && c.m0[1])} and peaked above ${usd(c.seed_peak)} in the first ${c.seed_minutes} minutes, taken from the earlier 70% of the coins only, so a pattern can be tested on the newest 30%.` }),
+      el('li', { textContent: `Seeds: coins that closed their graduation minute between ${usd((c.seed_m0 || c.m0 || [])[0])} and ${usd((c.seed_m0 || c.m0 || [])[1])} and peaked above ${usd(c.seed_peak)} in the first ${c.seed_minutes} minutes, taken from the earlier 70% of the coins only, so a pattern can be tested on the newest 30%.` }),
       el('li', { textContent: 'Candidates: patterns whose numbers come from the seeds (how quiet their first minutes were, how big a jump or a crossing came), in two families, each with three exits, plus the patterns found by hand.' }),
-      el('li', { textContent: `Backtest: every candidate on every saved coin with the usual costs. A pattern is profitable when it has at least ${c.min_trades} trades and is positive overall, on the earlier 70%, on the newest 30% and without its 3 best trades. Candidates that trade nearly the same coins count once.` }),
+      el('li', { textContent: `Backtest: every candidate on every saved coin with the usual costs. A pattern is profitable when it has at least ${c.min_trades} trades, averages more than ${Math.round((c.min_mean || 0) * 100)}% a trade overall, and is positive on the earlier 70%, on the newest 30% and without its 3 best trades. Candidates that trade nearly the same coins count once.` }),
       el('li', { textContent: `Watch list: each profitable pattern is backtested again at every pass, and its record on the coins that graduated after it was found ("since found") decides its status: testing under ${c.forward_min} such trades, then confirmed or failing.` })),
     el('p', { className: 'small', style: 'margin:8px 0 0', textContent: `${lr.candidates || 0} candidates are tried at each pass, so some pass by luck, and the newest 30% takes part in choosing them (and in the patterns found by hand): treat "passed the backtest" as a lead and the "since found" record as the only real test. New coins reach the data about 5 hours after they graduate.` })));
   const stat = (v) => ({ className: signed(v), textContent: v == null ? '–' : pc(v) });
+  const dy = d.daily;
+  if (dy) {
+    const dn = (dy.ts || 0) + (d.daily_s || 28800) * 1000 - Date.now();
+    out.push(labPanel('Daily discovery', `Every 8 hours the method runs on all the coins of the last 24 hours: the day's seeds shape the candidates, and each candidate is tested only on the coins of the days before, so the day itself is never part of the test. Profitable ones join the watch list below (origin "daily").`, [],
+      el('div', { style: 'display:flex;flex-wrap:wrap;gap:8px;margin:0 0 8px' },
+        chip('Last run', ago(dy.ts), '', `${dy.seconds || '?'} s`), chip('Next run', dn > 0 ? 'in ' + dur(dn) : 'due now'), chip('Day', `${when(dy.from_ts)} to ${when(dy.to_ts)}`),
+        chip('Coins in the day', String(dy.coins || 0), '', `${dy.near_standard_price || 0} closed minute 0 near the standard price`), chip('Seeds', String(dy.seeds || 0)),
+        chip('Tested on', String(dy.tested_on || 0), '', 'coins of the earlier days'), chip('Candidates', String(dy.candidates || 0)), chip('Passed', String(dy.distinct || 0), dy.distinct ? 'p' : '', `${dy.passed || 0} passed, ${dy.distinct || 0} trade different coins`)),
+      ...(dy.note ? [el('p', { className: 'small', textContent: dy.note })] : []),
+      ...((dy.patterns || []).length ? [table(['Pattern', 'Trades (earlier days)', 'Average', 'Won', 'Without best 3', 'On the day (in sample)'],
+        dy.patterns.map(x => [x.name, String(x.tested.trades), stat(x.tested.mean), x.tested.won == null ? '–' : Math.round(x.tested.won * 100) + '%', stat(x.tested.wo3), `${x.day_trades} tr ${x.day_mean == null ? '' : pc(x.day_mean)}`]))] : [])));
+  }
   const rows = P.map(p => {
     const n = p.now || {}, f = p.forward || {};
     const det = el('button', { type: 'button', className: 'sm', textContent: pat.sel === p.id ? 'Hide' : 'Details' });
     det.onclick = () => { pat.sel = pat.sel === p.id ? null : p.id; renderPatterns(); };
-    return [el('td', { className: 'wrap', title: p.text, style: 'min-width:240px;max-width:360px;white-space:normal' }, el('b', { textContent: p.name }), p.origin === 'hand' ? el('span', { className: 'tag', style: 'margin-left:8px', textContent: 'found by hand' }) : ''),
+    return [el('td', { className: 'wrap', title: p.text, style: 'min-width:240px;max-width:360px;white-space:normal' }, el('b', { textContent: p.name }), p.origin === 'hand' || p.origin === 'daily' ? el('span', { className: 'tag', style: 'margin-left:8px', textContent: p.origin === 'daily' ? 'daily discovery' : 'found by hand' }) : ''),
       el('td', {}, tag(p.status, p.status === 'confirmed' ? 'p' : p.status === 'failing' ? 'n' : 'w', p.status === 'testing' ? `fewer than ${c.forward_min} trades since it was found` : '')),
       { textContent: when(p.found_ts), className: 'small' }, { className: 'num', textContent: n.trades }, stat(n.mean), { className: 'num', textContent: n.won == null ? '–' : Math.round(n.won * 100) + '%' },
       stat(n.earlier && n.earlier.mean), stat(n.newest && n.newest.mean),
@@ -2412,7 +2190,16 @@ function renderPatterns() {
     const rm = el('button', { type: 'button', className: 'sm danger', textContent: 'Remove from the list' });
     rm.onclick = async () => { if (!confirm('Remove this pattern from the watch list for good?')) return; try { await jsonCall('/api/patterns/remove', 'POST', { id: p.id }); pat.sel = null; pat.d.patterns = pat.d.patterns.filter(x => x.id !== p.id); } catch (e) { pat.msg = 'Not removed: ' + e.message; pat.msgAt = Date.now(); } renderPatterns(); };
     const line = (label, s) => [label, { className: 'num', textContent: s && s.trades != null ? s.trades : '–' }, stat(s && s.mean), { className: 'num', textContent: s && s.won != null ? Math.round(s.won * 100) + '%' : '–' }, stat(s && s.wo3), { className: 'num', textContent: s && s.boot_lo != null ? `${pc(s.boot_lo)} to ${pc(s.boot_hi)}` : '–' }];
-    out.push(labPanel(p.name, p.text, [rm],
+    const inLab = (d.lab || []).includes(p.id);
+    const toLab = el('button', { type: 'button', className: 'sm primary', textContent: inLab ? 'In the Lab: open' : 'Add to Lab', title: inLab ? 'Open the Lab' : `Adds a rule to the Lab that buys when this pattern fires (minute ${(p.spec || {}).Q + 2} to 13), with its exit. The Lab backtests it and the live watch records it on paper.` });
+    toLab.onclick = async () => {
+      if (inLab) { location.hash = '#lab'; return; }
+      toLab.disabled = true;
+      try { await jsonCall('/api/patterns/lab', 'POST', { id: p.id }); pat.d.lab = [...(pat.d.lab || []), p.id]; if (builtinIds) builtinIds.add('pattern-' + p.id); pat.msg = 'Added to the Lab. Its backtest and live record appear there within a few minutes.'; }
+      catch (e) { pat.msg = 'Not added: ' + e.message; }
+      pat.msgAt = Date.now(); renderPatterns();
+    };
+    out.push(labPanel(p.name, p.text, [toLab, rm],
       table(['', '#Trades', '#Average', '#Won', '#Without the best 3', '#Plausible range of the average'], [
         line('When it was found (' + when(p.found_ts) + ')', f0), line('Now (all the data)', n),
         ['Since it was found (coins that graduated after)', { className: 'num', textContent: fw.trades }, stat(fw.mean), { className: 'num', textContent: fw.trades ? Math.round(100 * fw.won / fw.trades) + '%' : '–' }, '–', '–']]),
@@ -2436,234 +2223,84 @@ async function runPatterns() {
   pat.msgAt = Date.now(); renderPatterns(); setTimeout(loadPatterns, 90000);
 }
 
-// A panel (labPanel) turned into a collapsible section: its title and note become the summary line, its body the folded part; open or closed
-// as last left in this browser. setSummary(text) puts a short live status after the title.
-function foldPanel(p, key) {
-  const head = p.querySelector('.lab-head'), title = head.querySelector('h2').textContent, note = (head.querySelector('.grow') || {}).textContent || '';
-  const state = el('span', { className: 'small', style: 'font-weight:400;margin-left:10px' });
-  let open = false; try { open = localStorage.getItem(key) === '1'; } catch (e) { /* not kept */ }
-  const d = el('details', { className: 'card lab', open }, el('summary', {}, el('b', { textContent: title }), state), el('p', { className: 'small', style: 'margin:8px 0 12px', textContent: note }));
-  [...p.children].filter(c => c !== head).forEach(c => d.append(c));
-  d.addEventListener('toggle', () => { try { localStorage.setItem(key, d.open ? '1' : '0'); } catch (e) { /* not kept */ } });
-  d.setSummary = t => { if (state.textContent !== t) state.textContent = t; };
-  d.id = p.id; d.refresh = p.refresh;
-  return d;
+// ---------- Dip watch: the recorder and forward test for Rug Radar's "Danger dip + whale buy (tight exit, big pool)" ----------
+// dipwatch.py writes dipwatch.json; this page shows it. Nothing is bought.
+const dpw = { d: null, busy: false, miss: false };
+async function loadDipwatch() {
+  if (dpw.busy) return; dpw.busy = true;
+  try { const res = await fetch('/api/dipwatch'); dpw.miss = res.status === 404; dpw.d = res.ok ? await res.json() : null; } catch (e) { dpw.d = null; }
+  dpw.busy = false; renderDipwatch();
 }
-// "Crossing trading": the mode and limits of the Crossing page's own trader (it has no automatic strategy: it buys only what a Buy button asks for)
-function crossTradingPanel() {
-  const num = (step, min, max, w) => el('input', { type: 'number', step, min, max, style: `width:${w}px` });
-  const f = { size: num('0.01', '0.01', '1', 90), open: num('1', '1', '5', 70), loss: num('0.1', '0.01', '10', 90), impact: num('any', '1', '20', 80), tp: num('any', '5', '1000', 80), sl: num('any', '5', '95', 80), ts: num('1', '1', '240', 70),
-    mode: el('select', { 'aria-label': 'Crossing trading mode' }, el('option', { value: 'off', textContent: 'Off: nothing is bought' }), el('option', { value: 'live', textContent: 'Live: real SOL' })),
-    confirm: el('input', { type: 'text', placeholder: 'type LIVE', autocomplete: 'off', style: 'width:90px', 'aria-label': 'Type LIVE to trade with real SOL' }),
-    save: el('button', { type: 'button', className: 'primary', textContent: 'Save' }), status: el('span', { className: 'small', role: 'status' }), seen: '', live: false };
-  const say = (t, bad) => { f.status.className = 'small' + (bad ? ' n' : ''); f.status.textContent = t; };
-  const field = (label, ...k) => el('label', { className: 'chk', style: 'gap:8px' }, label, ...k);
-  const sync = () => { f.confirmRow.hidden = !(f.mode.value === 'live' && !f.live); };
-  f.confirmRow = el('div', { className: 'auto-row' }, field('Real money: type LIVE to switch it on', f.confirm));
-  f.mode.onchange = sync;
-  f.save.onclick = async () => {
-    f.save.disabled = true; say('Saving…');
-    try { await jsonCall('/api/ct/trading', 'POST', { mode: f.mode.value, sol_per_trade: +f.size.value, max_open: +f.open.value, daily_loss_limit_sol: +f.loss.value, max_buy_impact_pct: +f.impact.value, take_profit_pct: +f.tp.value, stop_loss_pct: +f.sl.value, time_stop_min: +f.ts.value, ...(f.mode.value === 'live' && !f.live ? { confirm: f.confirm.value.trim() } : {}) });
-      f.confirm.value = ''; f.seen = ''; say('Saved. The Crossing trader picks it up within a second or two.'); loadCrossing(); }
-    catch (e) { say('Not saved: ' + e.message, true); }
-    f.save.disabled = false;
-  };
-  const p = labPanel('Crossing trading', 'The mode and limits of the trader behind the Buy buttons below. It is separate from the Trading tab: its own wallet, size, limits and trades.', [],
-    el('div', { className: 'auto-row' }, field('Mode', f.mode), field('SOL per buy', f.size), field('Most open at once', f.open), field('Daily loss limit (SOL)', f.loss), field('Highest price impact of a buy (%)', f.impact)),
-    el('div', { className: 'auto-row' }, field('Take profit (%)', f.tp), field('Stop loss (%)', f.sl), field('Time stop (minutes)', f.ts), el('span', { className: 'small', textContent: 'Checked for every open position about every second (the trader prices it from the pool): it sells as soon as the value is that far above or below the cost.' })),
-    f.confirmRow, el('div', { className: 'auto-row' }, f.save, f.status),
-    el('p', { className: 'small', style: 'margin:8px 0 0', textContent: 'A Buy button asks this trader for one buy: it applies these limits and the price impact limit at the quote, then sells at the exit rule of this page (take profit, stop loss, time stop). RPC address, slippage and priority fee start as on the Trading tab.' }));
-  p.refresh = st => {      // fill the form from the trader's state when it changes, without overwriting what is being typed
-    if (!st || !st.settings) return;
-    const sig = JSON.stringify([st.wanted_mode || st.mode, st.settings]);
-    if (sig === f.seen) return;
-    f.seen = sig; f.live = (st.wanted_mode || st.mode) === 'live';
-    f.mode.value = f.live ? 'live' : 'off'; f.size.value = st.settings.sol_per_trade; f.open.value = st.settings.max_open; f.loss.value = st.settings.daily_loss_limit_sol;
-    f.impact.value = st.settings.max_buy_impact_pct == null ? 7 : st.settings.max_buy_impact_pct;
-    f.tp.value = st.settings.take_profit_pct == null ? 35 : st.settings.take_profit_pct; f.sl.value = st.settings.stop_loss_pct == null ? 50 : st.settings.stop_loss_pct; f.ts.value = st.settings.time_stop_min == null ? 10 : st.settings.time_stop_min; sync();
-  };
-  sync(); p.id = 'crossing-trading'; return p;
+setInterval(() => { if ($('tab-dipwatch').hidden || document.hidden) return; loadDipwatch(); }, 5000);
+function renderDipwatch() {
+  try { renderDipwatchInner(); } catch (e) { $('dipwatch').replaceChildren(el('p', { className: 'small', textContent: 'The results could not be shown (an older format after an update?). They refresh in a few seconds.' })); }
 }
-const hms = ms => new Date(ms).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-function renderCrossing() {
-  const root = $('crossing'), d = cross.d, out = [];
-  if (!d) { root.replaceChildren(el('p', { className: 'small', textContent: cross.miss ? 'The crossing detector has not written anything yet. It starts with the server; give it a minute, or check that pump-graduated-crossing.service is running.' : 'Could not read the detector.' })); return; }
-  const age = Date.now() - d.updated, stale = age > 30000, r = d.rule, st = d.stats;
+function renderDipwatchInner() {
+  const root = $('dipwatch'), d = dpw.d;
+  if (!d) { root.replaceChildren(el('p', { className: 'small', textContent: dpw.miss ? 'The dip watch has not written its first update yet. It starts with the server and needs a minute.' : 'Could not read the dip watch.' })); return; }
   const tag = (txt, cls, title) => el('span', { className: 'tag ' + (cls || ''), textContent: txt, title: title || '' });
-  // buying by hand: a button per coin, one click. The request goes to the trader (/api/trading/buy), which applies the
-  // limits of the Trading tab (mode, wallet, size, most open, daily loss, price impact) and sells at the rule's take profit / stop loss / time stop.
-  const trd = cross.tr, tmode = trd && trd.mode, size = trd && trd.settings ? trd.settings.sol_per_trade : null, ex = [((trd && trd.settings && trd.settings.take_profit_pct) || 35) / 100, ((trd && trd.settings && trd.settings.stop_loss_pct) || 50) / 100, (trd && trd.settings && trd.settings.time_stop_min) || 10];      // take profit, stop loss and time stop come from the Crossing trading panel
-  const pct1 = x => String(+(x * 100).toFixed(1)), exText = `+${pct1(ex[0])}% / −${pct1(ex[1])}% / ${ex[2]} min`;
-  const manualOf = mint => ((trd && trd.trades) || []).find(t => t.strategy === 'crossing-manual' && t.mint === mint);
-  const sendBuy = async (mint, symbol) => {
-    cross.sent[mint] = Date.now(); delete cross.err[mint]; renderCrossing();
-    try {
-      const res = await fetch('/api/ct/trading/buy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mint, symbol: symbol || '', tp: ex[0], sl: ex[1], hold: ex[2], confirm: true }) });
-      const b = await res.json().catch(() => ({})); if (!res.ok) throw new Error(b.error || 'HTTP ' + res.status);
-    } catch (e) { delete cross.sent[mint]; cross.err[mint] = e.message; }
-    renderCrossing(); loadCrossing();
-  };
-  const buyBox = (mint, symbol) => {
-    const box = el('span', { className: 'buybox' }), m = manualOf(mint);
-    const sentNow = cross.sent[mint] && Date.now() - cross.sent[mint] < 25000 && !m;
-    if (m && m.status !== 'failed') {
-      const done = m.status === 'closed' && m.sol_in && m.sol_out != null;
-      box.append(tag((done ? 'bought · sold' : m.status === 'open' ? 'bought · open' : (STATUS_TEXT[m.status] || m.status)) + (m.mode === 'dry' ? ' (dry run)' : ''), done ? (m.sol_out >= m.sol_in ? 'p' : 'n') : 'w', m.mode === 'dry' ? 'a dry run: nothing real was bought' : ''),
-        ...(done ? [' ', el('span', { className: 'small ' + (m.sol_out >= m.sol_in ? 'p' : 'n'), textContent: pc(m.sol_out / m.sol_in - 1) })] : []), ' ', el('a', { className: 'small', href: '#trading', textContent: 'Trading' }));
-      return box;
-    }
-    if (m) box.append(tag('not bought', 'n', m.error || ''), el('span', { className: 'small n', textContent: ' ' + String(m.error || '').replace(/^not bought: /, '').slice(0, 110) + ' ' }));
-    if (cross.err[mint]) box.append(el('span', { className: 'small n', textContent: cross.err[mint] + ' ' }));
-    if (sentNow) { box.append(tag('sent…', 'w', 'The trader takes it within a second or two')); return box; }
-    const dry = tmode === 'dry', quiet = trd && trd.generated_at && Date.now() - trd.generated_at > 30000;
-    if (quiet) { box.append(el('button', { type: 'button', className: 'sm', disabled: true, textContent: 'Buy', title: `The trader has not reported for ${Math.round((Date.now() - trd.generated_at) / 1000)} s: it may be down` })); return box; }
-    if (!trd || size == null) { box.append(el('button', { type: 'button', className: 'sm', disabled: true, textContent: 'Buy', title: 'The trader has not reported yet' })); return box; }
-    if (tmode === 'off') { box.append(el('button', { type: 'button', className: 'sm', disabled: true, textContent: 'Buy', title: 'Trading is off: switch the Crossing trading mode to Live above' })); return box; }
-    if (tmode === 'live' && !trd.wallet) { box.append(el('button', { type: 'button', className: 'sm', disabled: true, textContent: 'Buy', title: 'No wallet is loaded for the Crossing trader: add one in Trading wallets above' })); return box; }
-    const b = el('button', { type: 'button', className: 'sm primary', textContent: `Buy ${size} SOL`, title: `${dry ? 'Dry run: nothing real is bought. ' : 'Buys with real SOL at once. '}Sells at ${exText}.` });
-    b.onclick = () => { if (cross.sent[mint] && Date.now() - cross.sent[mint] < 25000) return; sendBuy(mint, symbol); };      // (one click buys; a second click on the same coin is ignored while the request is out)
-    box.append(b); return box;
-  };
-  const sellTag = p => !p ? tag('reading…', 'w') : p.error ? tag('no data', 'w') : p.sellers_gone ? tag('sellers gone', 'p', 'Sellers were 15% or less of the dollars traded in the 60 s after the crossing, and 8 or more wallets bought') : tag('sellers present', 'w');
-  // 1. what this is: the purpose in a line, the live status, the pattern as steps, and how buying works
-  const nWatch = d.watching.length, chip = (label, val, cls) => el('span', { className: 'xc', style: 'flex:1 1 130px' }, el('span', { className: 'small', style: 'color:var(--muted)', textContent: label }), el('b', { className: cls || '', style: 'font-size:18px', textContent: val }));
-  const fell = st.failed || 0, hit = st.confirmed || 0;
-  out.push(labPanel('Crossing', 'A coin graduates, never trades above the highest price of its graduation minute, then closes back above it after a close below it. This page spots that moment live. Nothing is bought unless you press a Buy button.', [],
-    el('div', { style: 'display:flex;flex-wrap:wrap;gap:8px;margin:0 0 6px' },
-      chip('Detector', stale ? 'stopped?' : 'running', stale ? 'n' : 'p'), chip('Coins watched now', String(nWatch)),
-      chip('Crossings recorded', String(st.events)), chip('Confirmed', String(hit), 'p'), chip('Fell back', String(fell), fell ? 'n' : '')),
-    el('p', { className: 'small ' + (stale ? 'n' : ''), style: 'margin:0 0 10px', role: 'status', textContent: stale ? `The detector has not updated for ${Math.round(age / 1000)} s: it may have stopped.` : `Updated ${Math.round(age / 1000)} s ago${d.ignored ? ` · ${d.ignored} more graduate${d.ignored === 1 ? ' is' : 's are'} ignored (another graduation price, or out of the pattern)` : ''}. A crossing shows within seconds and is confirmed when its minute closes.` }),
-    el('b', { textContent: 'What counts as a crossing' }),
-    el('ol', { className: 'steps' },
-      el('li', {}, el('b', { textContent: 'Graduation minute (minute 0): ' }), `closes between ${usd(r.start_mcap)} and ${usd(r.pre_mcap)}. Its highest price is the coin's own level to cross.`),
-      el('li', {}, el('b', { textContent: 'Minutes 1 and 2: ' }), `their highest prices are not above the highest price of minute 0.`),
-      el('li', {}, el('b', { textContent: 'Floor: ' }), `no minute before the crossing has a low under ${usd(r.floor_mcap)}.`),
-      el('li', {}, el('b', { textContent: 'Ceiling: ' }), `no minute from 1 to the one before the crossing closes above the level. A wick above it is fine from minute 3 on, and the crossing minute closes above it.`),
-      el('li', {}, el('b', { textContent: 'The cross: ' }), `the previous minute closed below the level and the crossing minute closes at or above it, in minute ${r.first} to ${r.last} after graduation.`)),
-    el('p', { className: 'small', style: 'margin:8px 0 0', textContent: `Each candidate is read every 15 to 30 seconds during its first 14 minutes.` }),
-    el('b', { style: 'display:block;margin-top:12px', textContent: 'How buying works' }),
-    el('p', { className: 'small', style: 'margin:4px 0 0', textContent: 'A Buy button (in Watching now and on a crossing from the last 15 minutes) asks this page\'s own trader for one buy at once (no confirmation). It uses the wallet in Trading wallets and the size, limits, take profit and stop loss set in Crossing trading (both below). The trader then watches the position and sells it for you; you can also sell by hand in Live Trading.' })));
-  // the wallet the buy buttons trade with (the same panel as on Settings), built once so a key being typed is not lost on the 3 s refresh
-  if (!GUEST) out.push(cross.walletBox || (cross.walletBox = (() => { const p = walletPanel('/api/ct', true); p.id = 'wallet-crossing'; return foldPanel(p, 'crossingWalletsOpen'); })()));
-  if (!GUEST) out.push(cross.tradeBox || (cross.tradeBox = foldPanel(crossTradingPanel(), 'crossingTradingOpen')));
-  if (!GUEST) out.push(cross.tgBox || (cross.tgBox = (() => { const p = telegramPanel('/api/ct', true), box = foldPanel(p, 'crossingTelegramOpen');
-    p.onState = d => box.setSummary && box.setSummary(!d.configured ? '· not set up' : !d.enabled ? '· saved, switched off' : '· on: ' + [d.events && d.events.watching !== 'off' ? 'watching' : '', !d.events || d.events.confirmed ? 'confirmed' : '', !d.events || d.events.trades ? 'live trades' : ''].filter(Boolean).join(', '));
-    return box; })()));
-  if (cross.tradeBox && cross.tradeBox.refresh) cross.tradeBox.refresh(cross.tr);
-  {   // what the folded sections say about themselves
-    const t = cross.tr, wshort = a => a.slice(0, 4) + '…' + a.slice(-4);
-    if (cross.walletBox && cross.walletBox.setSummary) cross.walletBox.setSummary(!t ? '· the trader has not reported yet' : t.wallet ? `· in use ${wshort(t.wallet)}${t.balance_sol != null ? ' · ' + (+t.balance_sol.toFixed(4)) + ' SOL' : ''}` : '· no wallet yet: open to add one');
-    if (cross.tradeBox && cross.tradeBox.setSummary) cross.tradeBox.setSummary(!t || !t.settings ? '' : `· ${(t.wanted_mode || t.mode) === 'live' ? 'Live' : 'Off'} · ${t.settings.sol_per_trade} SOL a buy · at most ${t.settings.max_open} open · daily loss limit ${t.settings.daily_loss_limit_sol} SOL`);
-  }
-  // the buys made here: open ones (Live Trading, with a Sell button: one click) and the last 20 finished ones (Trade History); both are placed below Watching now
-  let liveP = null, histP = null;
-  {
-    const mine = ((cross.tr && cross.tr.trades) || []).filter(t => t.strategy === 'crossing-manual');      // (a buy that was refused is a failed row: it shows in Trade History with its reason as a tooltip)
-    {
-      const ts = t => t.opened_ts || t.entry_ts || 0;
-      const open = mine.filter(t => HELD.includes(t.status)).sort((x, y) => ts(y) - ts(x)), done = mine.filter(t => !HELD.includes(t.status)).sort((x, y) => ts(y) - ts(x)).slice(0, 20);
-      const postSell = async body => { try { const res = await fetch('/api/ct/trading/sell', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); const b = await res.json().catch(() => ({})); if (!res.ok) throw new Error(b.error || 'HTTP ' + res.status); cross.sellMsg = 'Sale asked. The Crossing trader sells within a few seconds.'; } catch (e) { cross.sellMsg = 'Not asked: ' + e.message; } cross.sellMsgAt = Date.now(); renderCrossing(); loadCrossing(); setTimeout(renderCrossing, 15500); };
-      const sellBtn = (label, body) => {
-        const b = el('button', { type: 'button', className: 'sm', textContent: label, disabled: !!cross.sellBusy });
-        b.onclick = () => { if (cross.sellBusy) return; cross.sellBusy = true; b.disabled = true; postSell(body).finally(() => { cross.sellBusy = false; renderCrossing(); }); };      // (one click sells; no second post while the request is out)
-        return b; };
-      const txLink2 = (sig, n) => sig ? el('a', { className: 'small', href: 'https://solscan.io/tx/' + encodeURIComponent(sig), target: '_blank', rel: 'noopener noreferrer', textContent: n }) : '';
-      const why = t => errText(t.error);      // the reason a buy was refused, for the tooltip
-      const mkRow = t => { const held = HELD.includes(t.status), r = t.sol_in && (held ? t.last_value : t.sol_out) != null ? (held ? t.last_value : t.sol_out) / t.sol_in - 1 : null;
-        return [el('td', t.status === 'failed' ? { title: why(t) } : {}, el('b', {}, el('a', { href: 'https://pump.fun/coin/' + encodeURIComponent(t.mint), target: '_blank', rel: 'noopener noreferrer', textContent: t.symbol || t.mint.slice(0, 6) })), t.mode === 'dry' ? el('span', { className: 'mode-tag', textContent: 'dry run' }) : ''),
-          t.status === 'failed' ? el('td', { title: why(t) }, when(t.opened_ts || t.entry_ts), el('span', { className: 'subl', style: 'cursor:help;color:var(--neg, #d4524a)', textContent: 'not bought' })) : subCell(when(t.opened_ts || t.entry_ts), held ? STATUS_TEXT[t.status] || t.status : t.reason || 'closed'),
-          { className: 'num', textContent: t.sol_in != null ? t.sol_in.toFixed(3) : '–' },
-          { className: 'num', textContent: (held ? t.last_value : t.sol_out) != null ? (held ? t.last_value : t.sol_out).toFixed(3) : '–' },
-          { className: signed(r), textContent: r == null ? '–' : pc(r) },
-          { className: 'small', textContent: t.tp != null ? `+${Math.round(t.tp * 100)}% / −${Math.round(t.sl * 100)}%${held && t.hold_until ? ' · until ' + hms(t.hold_until) : ''}` : '–' },
-          el('td', {}, held && ['open', 'stuck'].includes(t.status) ? sellBtn('Sell', { id: t.id }, t.id) : '', ' ', txLink2(t.buy_sig, 'buy'), ' ', txLink2(t.sell_sig, 'sell'))]; };
-      const msg = cross.sellMsg && Date.now() - (cross.sellMsgAt || 0) < 15000 ? [el('p', { className: 'small', style: 'margin:8px 0 0', textContent: cross.sellMsg })] : [];
-      const head = ['Coin', 'Bought', '#Cost (SOL)', '#Value (SOL)', '#Net', 'Exits', ''];
-      liveP = labPanel('Live Trading', `${open.length} open · bought here with the Buy buttons, sold at the exit rule or by hand`, open.length > 1 ? [sellBtn('Sell all', { all: true }, 'all')] : [],
-        open.length ? table(head, open.map(mkRow)) : el('p', { className: 'small', textContent: 'No open position.' }), ...msg);
-      histP = labPanel('Trade History', `the last ${done.length} trade${done.length === 1 ? '' : 's'} (finished, or refused: hover "not bought" for the reason), newest first`, [],
-        done.length ? table(head.map(h => h === '#Value (SOL)' ? '#Result (SOL)' : h), done.map(mkRow)) : el('p', { className: 'small', textContent: 'No finished trade yet.' }));
-    }
-  }
-
-  // 2. the coins being watched
-  // a live status per watched coin: what each minute did against the level to cross (rows come from the detector)
-  const statusBlock = w => {
-    const when2 = r => r.t1 ? hms(r.t0) + '–' + hms(r.t1) : hms(r.t0);
-    return el('div', { style: 'margin-top:14px' },
-      el('div', { className: 'xhead' }, el('span', { className: 'sym', textContent: w.symbol }), stateTag(w.state), el('span', { className: 'small', style: 'color:var(--muted)', textContent: w.ref_mcap ? `level to cross ${usd(w.ref_mcap)}` : '' })),
-      table(['Time', '#Minute', 'What happened'], w.rows.map(r => [{ className: 'small', textContent: when2(r) }, { className: 'num', textContent: r.minute == null ? '' : String(r.minute) }, { className: 'small ' + (r.cls || ''), textContent: r.text }])));
-  };
-  const stateTag = s => s === 'CROSSING NOW' ? tag(s, 'p') : s === 'crossed' ? tag('crossed', 'p') : s.startsWith('armed') ? tag('armed', 'w', 'Rules 1 to 4 hold and the last close is below the level: the next close at or above it is a crossing') : s === 'missed' ? tag('missed', '') : s === 'fell back' ? tag('fell back', 'n') : tag(s, '');
-  out.push(labPanel('Watching now', 'Graduates in their first 14 minutes. "Armed" means the rules hold so far, the last close is below the level (the high of minute 0) and a close at or above it would be a crossing.', [],
-    d.watching.length ? table(['Coin', '#Age', '#Market cap', '#vs grad. high', '#Closes below the level', 'State', '#To graduate', 'Links', 'Buy'], d.watching.map(w => [
-      tokCell(w.mint, w.symbol), { className: 'num', textContent: w.age.toFixed(1) + ' min' }, { className: 'num', textContent: usd(w.mcap) },
-      { className: signed(w.vs_grad - 1), textContent: pc(w.vs_grad - 1, 0) }, { className: 'num', textContent: w.below }, el('td', {}, stateTag(w.state)),
-      { className: 'num', textContent: w.mtg == null ? '–' : w.mtg + ' min' }, { className: 'small', textContent: [w.x ? 'X' : '', w.web ? 'web' : ''].filter(Boolean).join(' · ') || '–' }, el('td', {}, buyBox(w.mint, w.symbol))]))
-      : el('p', { className: 'small', textContent: 'No graduate in its first 14 minutes right now.' }),
-    ...d.watching.filter(w => w.rows && w.rows.length).map(statusBlock)));
-  if (liveP) out.push(liveP, histP);
-  // 3. the crossings
-  // only confirmed crossings (the minute closed above the graduation price); one still waiting for its minute to close, or that fell back, is not listed
-  const confirmed = d.events.filter(e => e.status === 'confirmed'), hidden = d.events.length - confirmed.length;
-  const mc = v => v == null ? '–' : usd(v);
-  const crossRow = e => {
-    const f = e.flags, o = e.outcome, pre = e.pre, post = e.post && !e.post.error ? e.post : null, ft = e.feat || {};
-    const lvl = e.ref || d.p0_mcap, vs = lvl && e.price != null ? e.price / lvl - 1 : null;
-    const card = (cls, k, v, ...lines) => el('div', { className: 'xc ' + (cls || '') }, el('span', { className: 'k', textContent: k }), el('span', { className: 'v ' + (cls === 'p' || cls === 'n' ? cls : '') }, ...(Array.isArray(v) ? v : [v])), ...lines.filter(Boolean).map(t => el('span', { className: 's', textContent: t })));
-    const n0 = v => v == null ? '–' : String(v);
-    const pair = (p, none) => !p ? [none] : [n0(p.buys), el('small', { textContent: ' buys · ' }), n0(p.sells), el('small', { textContent: ' sells' })];
-    const wallets = p => p ? `${n0(p.buyers)} buyers · ${n0(p.sellers)} sellers (wallets)` : null;
-    const dollars = p => p ? `${usd(p.buy_usd)} bought · ${usd(p.sell_usd)} sold` : null;
-    const result = o && o.net != null ? card(o.net > 0 ? 'p' : 'n', 'Result', pc(o.net), `${{ target: 'target hit', stop: 'stop hit', time: 'time exit' }[o.exit] || o.exit || 'exit'}${o.held != null ? ' · held ' + o.held + ' min' : ''}`, o.peak != null ? `best ${pc(o.peak)} on the way` : null)
-      : card('w', 'Result', e.now_mult ? `${e.now_mult.toFixed(2)}×` : 'following', e.now_mult ? (e.entry != null ? `now, against the entry at ${mc(e.entry)}` : 'now, against the entry') : 'the 15-minute paper trade is running', e.now_mcap ? `market cap now ${mc(e.now_mcap)}` : null);
-    return el('div', { className: 'xrow' },
-      el('div', { className: 'xhead' }, el('a', { className: 'sym', href: 'https://pump.fun/coin/' + encodeURIComponent(e.mint), target: '_blank', rel: 'noopener noreferrer', textContent: e.symbol || e.mint.slice(0, 6) }),
-        e.name ? el('span', { className: 'nm', title: e.name, textContent: e.name }) : '',
-        el('span', { className: 'small', textContent: `${when(e.detected)} · minute ${e.m}` }),
-        el('a', { className: 'small', href: 'https://dexscreener.com/solana/' + encodeURIComponent(e.pool || e.mint), target: '_blank', rel: 'noopener noreferrer', textContent: 'DexScreener' }),
-        el('span', { className: 'buyslot' }, (Date.now() - (e.t_cross || e.detected) <= 15 * 60000 || manualOf(e.mint)) ? buyBox(e.mint, e.symbol) : ''),
-        el('span', { className: 'tags' }, ...(f ? [f.group ? tag('group', 'p') : tag('not in group', ''), f.quiet ? tag('quiet', 'p') : tag('busy', '')] : []), ...(f && f.pattern ? [tag('pattern', 'p', 'Matches the pattern of the four charted coins: the pattern strategy (' + (r.pattern_exit ? `+${Math.round(r.pattern_exit[0] * 100)}% / −${Math.round(r.pattern_exit[1] * 100)}% / ${r.pattern_exit[2]} min` : '') + ')')] : []), ...(e.x ? [tag('X', '')] : []), ...(e.web ? [tag('web', '')] : []), sellTag(e.post))),
-      el('div', { className: 'xcards' },
-        card('', 'Crossing', [mc(e.price)], vs == null ? null : `${pc(vs, 1)} vs ${e.ref ? 'the graduation high' : 'the graduation price'}`, ft.mins_to_grad != null ? `graduated ${ft.mins_to_grad.toFixed(1)} min after creation` : null, ft.trades_last_5m != null ? `${Math.round(ft.trades_last_5m).toLocaleString()} trades in the last 5 min` : null),
-        card('', '60 s before', pair(pre, 'reading…'), wallets(pre), dollars(pre), pre && pre.partial ? 'a busy coin: some trades may be missing' : null),
-        card(post && post.sellers_gone ? 'p' : '', '60 s after', post ? (post.sell_share == null ? [el('small', { textContent: 'no trades in the window' })] : [Math.round(post.sell_share * 100) + '%', el('small', { textContent: ' of the dollars were sells' })]) : [e.post ? 'no data' : 'reading…'], post ? `${n0(post.buys)} buys · ${n0(post.sells)} sells` : null, wallets(post), dollars(post)),
-        result));
-  };
-  out.push(labPanel('Crossings', 'Confirmed crossings only, newest first' + (hidden ? ` (${hidden} waiting for the minute to close or fell back are not shown)` : '') + '. Group = graduated 0.1 to 10 minutes after creation; quiet = at most ' + r.quiet + ' trades in the 5 minutes before entry. The 60-second windows count only PumpSwap trades.', [],
-    confirmed.length ? el('div', { className: 'xrows' }, ...confirmed.map(crossRow)) : el('p', { className: 'small', textContent: 'No confirmed crossing yet.' })));
-  // 4. the forward test
-  const row = (label, p, back) => [label, { className: 'num', textContent: p.n }, { className: p.n ? signed(p.mean) : 'num', textContent: p.n ? pc(p.mean) : '–' }, { className: 'num', textContent: p.n ? `${p.won} of ${p.n}` : '–' }, { className: p.n ? signed(p.total) : 'num', textContent: p.n ? (p.total >= 0 ? '+' : '') + p.total.toFixed(2) + ' stakes' : '–' }, { className: 'small', textContent: back }];
-  out.push(labPanel('Forward test', `What a buy at the close of the crossing minute would have done since this page started recording (+${Math.round(r.exit[0] * 100)}% / −${Math.round(r.exit[1] * 100)}% / ${r.exit[2]} min, fees included, paper only). The last column is what the backtest on the earlier data said.`, [],
-    table(['Crossings', '#Finished', '#Average', '#Won', '#Total', 'Backtest (earlier data)'], [
-      row('All confirmed', st.all, '187 trades, −10.8%'), row('Group (0.1 to 10 min to graduate)', st.group, '75 trades, −3.4%'), row('Group and quiet', st.quiet, '31 trades, +11.3% (22 trades, +30.3% at ≤ 500)'),
-      row('Sellers gone in the 60 s after', st.sellers_gone, 'not tested yet: KEN and Mimi had it'), row('Sellers present', st.not_sellers_gone, 'not tested yet')]),
-    el('h3', { style: 'margin:16px 0 6px', textContent: 'Pattern strategy' }),
-    el('p', { className: 'small', style: 'margin:0 0 8px', textContent: `Crossings that match the pattern (minute 0 closes at 72% to 90% of the level; minutes 1 to 4 each close at most 93% of it, with a high not above it, a body of at most 25% of it and a low not under $25K; so a crossing from minute 5 on). Paper trade with its own exit: +${Math.round((r.pattern_exit || [0.35])[0] * 100)}% / −${Math.round((r.pattern_exit || [0, 0.5])[1] * 100)}% / ${(r.pattern_exit || [0, 0, 10])[2]} min. ${st.pattern_events || 0} crossing${st.pattern_events === 1 ? '' : 's'} flagged so far.` }),
-    table(['Strategy', '#Finished', '#Average', '#Won', '#Total', 'Backtest (earlier data)'], [
-      row('Pattern, its own exit', st.pattern || { n: 0 }, '36 trades, +9.1% at +35% / −50% / 10 min (+25% to +40% gave +9% to +12%); at +30% a 1-3 s delay gave +8% to +13%'), row('Pattern, the all-crossings exit (+100% / −40% / 15 min)', st.pattern_old_exit || { n: 0 }, '36 trades, +1.2%')]),
-    el('p', { className: 'small', style: 'margin:8px 0 0', textContent: 'Small numbers prove nothing: expect about 19 crossings a day, 3 of them group-and-quiet. Wait for 20 to 30 finished trades before reading the averages.' })));
+  const chip = (label, val, cls, title) => el('span', { className: 'xc', style: 'flex:1 1 130px', title: title || '' }, el('span', { className: 'small', style: 'color:var(--muted)', textContent: label }), el('b', { className: cls || '', style: 'font-size:18px', textContent: val }));
+  const st = v => ({ className: signed(v), textContent: v == null ? '–' : pc(v) });
+  const nc = v => ({ className: 'num', textContent: v == null ? '–' : String(v) });
+  const S = d.stats || {}, R = d.rule || {};
+  const links = (e) => el('td', {}, el('b', { textContent: e.symbol || e.mint.slice(0, 6) }), ' ', el('a', { className: 'small', href: 'https://pump.fun/coin/' + e.mint, target: '_blank', rel: 'noopener noreferrer', textContent: 'pump.fun' }), ' · ',
+    el('a', { className: 'small', href: 'https://dexscreener.com/solana/' + (e.pool || e.mint), target: '_blank', rel: 'noopener noreferrer', textContent: 'DexScreener' }));
+  const out = [];
+  out.push(labPanel('Dip watch', `A recorder and forward test for Rug Radar's "Danger dip + whale buy (tight exit, big pool)". It follows every classic graduate that has an X link and a website and graduated within ${(R.gap_ms || 3000) / 1000} s of its creation (one block), in minutes 1 to 5 after graduation. When the price falls sharply it reads the trades (the biggest buy of the last 30 s in SOL, the price 60 s ago), the pool's SOL and the holder snapshot, and stores a reading with every condition as its own flag. A "dip" entry is the first reading with market cap ≥ $${((R.mcap || 80000) / 1000).toFixed(0)}K and a fall of ${Math.round(Math.abs(R.drop || 0.3) * 100)}%+ over the last minute; a "full" entry also has a buy of ${R.whale_sol || 5}+ SOL in the last 30 s and a pool of ${R.pool_sol || 110}+ SOL. Each entry gets its result 31 minutes later: sold at ×${(1 + (R.tp || 0.5)).toFixed(1)}, ×${(1 - (R.sl || 0.5)).toFixed(1)} or after ${R.hold || 30} minutes, with fees, price impact and stop slippage as in the backtest. Nothing is bought.`, [],
+    el('div', { style: 'display:flex;flex-wrap:wrap;gap:8px;margin:0 0 8px' },
+      chip('Updated', ago(d.updated)), chip('Coins followed', String(S.followed || 0)), chip('Dip entries', String(S.dip || 0)), chip('Full signals', String(S.full || 0), S.full ? 'p' : ''), chip('Waiting for a result', String(S.pending || 0)))));
+  // paper trades: every entry is a paper trade of the stake, followed second by second until x1.5, x0.5 or 30 minutes
+  const E0 = d.entries || [], stake = S.stake_sol || 0.1;
+  const pl = e => { const o = e.outcome; return o && o.net != null ? (o.pnl_sol != null ? o.pnl_sol : o.net * stake) : null; };
+  const fullE = E0.filter(e => e.kind === 'full'), openE = E0.filter(e => !e.outcome), doneFull = fullE.filter(e => e.outcome && e.outcome.net != null);
+  out.push(labPanel('Paper trades', `Every entry is a paper trade of ${stake} SOL, bought one second after the signal and followed second by second on pump.fun's 1-second candles until it touches ×${(1 + (R.tp || 0.5)).toFixed(1)} or ×${(1 - (R.sl || 0.5)).toFixed(1)} (the stop first inside a second) or ${R.hold || 30} minutes pass. Fees, price impact and stop slippage as in the backtests. The strategy proper is the "full" kind; "dip" entries are the same trade without the 5 SOL buy and the pool tests.`, [],
+    el('div', { style: 'display:flex;flex-wrap:wrap;gap:8px;margin:0 0 8px' },
+      chip('Full signal P&L', S.pnl_full == null ? '–' : (S.pnl_full >= 0 ? '+' : '') + S.pnl_full.toFixed(3) + ' SOL', S.pnl_full > 0 ? 'p' : S.pnl_full < 0 ? 'n' : '', `${doneFull.length} finished full trades`),
+      chip('Dip entries P&L', S.pnl_dip == null ? '–' : (S.pnl_dip >= 0 ? '+' : '') + S.pnl_dip.toFixed(3) + ' SOL', S.pnl_dip > 0 ? 'p' : S.pnl_dip < 0 ? 'n' : ''), chip('Open now', String(openE.length)), chip('Stake', stake + ' SOL')),
+    openE.length ? table(['Coin', 'Kind', 'Bought', '#Entry cap', '#Now', '#Best', '#Worst', 'Time stop'], openE.map(e => { const p = e.paper || {}, m = p.p0 && p.last ? p.last / p.p0 - 1 : null;
+      return [links(e), el('td', {}, tag(e.kind, e.kind === 'full' ? 'p' : '')), { className: 'small', textContent: p.bought_ts ? when(p.bought_ts) : 'waiting for a trade' }, { className: 'num', textContent: p.p0 ? usd(p.p0 * 1e9) : usd(e.entry_mcap) }, st(m), st(p.p0 && p.peak ? p.peak / p.p0 - 1 : null), st(p.p0 && p.low ? p.low / p.p0 - 1 : null), { className: 'small', textContent: when(e.entry_ts + (R.hold || 30) * 60000) }]; }))
+      : el('p', { className: 'small', textContent: 'No open paper trade.' })));
+  const row = (label, x, note) => [el('td', { title: note || '' }, label), nc(x && x.n), st(x && x.mean), nc(x && x.n ? `${x.won} of ${x.n}` : '–'), st(x && x.total)];
+  out.push(labPanel('Results so far', 'Net result of each entry after its 31 minutes. The groups are the same dip entries split by the flags read at that moment, so you can see what each condition adds. It takes days to mean anything: about 4 dip entries a day were expected.', [],
+    table(['Group', '#Entries', '#Average', '#Won', '#Total'], [
+      row('Full signal (every condition)', S.full_all), row('Dip entry (any)', S.dip_all),
+      row('Dip + a buy of 5+ SOL in the last 30 s', S.dip_whale), row('Dip without that buy', S.dip_no_whale),
+      row('Dip + pool of 110+ SOL', S.dip_pool), row('Dip with a smaller pool (or unknown)', S.dip_no_pool),
+      row('Dip + holder proxy for Danger (bundlers or dev 50%+)', S.dip_danger), row('Dip, not Danger by that proxy', S.dip_not_danger)])));
+  const E = d.entries || [];
+  out.push(labPanel('Entries', `${E.length} shown, newest first.`, [], E.length ? table(['Time', 'Coin', 'Kind', '#Age (s)', '#Entry cap', '#Fall 60 s', '#Biggest buy 30 s (SOL)', '#Pool (SOL)', 'Danger proxy', 'Result', '#P&L (SOL)'], E.map(e => {
+    const r = e.reading || {}, o = e.outcome;
+    return [{ className: 'small', textContent: when(e.entry_ts) }, links(e), el('td', {}, tag(e.kind, e.kind === 'full' ? 'p' : '')), nc(e.age_s), { className: 'num', textContent: usd(e.entry_mcap) }, st(r.drop60), nc(r.max_buy30_sol == null ? null : Number(r.max_buy30_sol).toFixed(1)),
+      nc(r.pool_sol == null ? null : Math.round(r.pool_sol)), r.danger_proxy == null ? '–' : (r.danger_proxy ? 'yes' : 'no'),
+      o ? (o.net == null ? o.exit : el('td', { className: signed(o.net), title: `exit ${o.exit}, held ${o.held} min, best ${pc(o.peak)}, worst ${pc(o.trough)}${o.second_level ? ' (second by second)' : ' (1-minute candles)'}` }, `${pc(o.net)} · ${o.exit}`)) : { className: 'small muted', textContent: 'open' },
+      { className: 'num ' + signed(pl(e)), textContent: pl(e) == null ? '–' : (pl(e) >= 0 ? '+' : '') + pl(e).toFixed(4) }];
+  })) : el('p', { className: 'small', textContent: 'No entry yet. A coin has to dip 30%+ inside minutes 1 to 5 after a one-block graduation.' })));
+  const Wc = d.watching || [];
+  out.push(labPanel('Watching now', 'Coins in their first minutes that passed the static tests.', [], Wc.length ? table(['Coin', '#Age (s)', '#Market cap', '#Readings', 'State'], Wc.map(c => [links(c), nc(c.age_s), { className: 'num', textContent: usd(c.mcap) }, nc(c.readings), c.state])) : el('p', { className: 'small', textContent: 'No candidate right now.' })));
+  const Rd = d.readings || [];
+  out.push(labPanel('Latest readings', 'Every time the price had fallen sharply, with each condition as a flag (age, market cap, fall, buy, pool). Newest first.', [], Rd.length ? table(['Time', 'Coin', '#Age', '#Cap', '#Fall 60 s', '#Max buy 30 s', '#Pool', 'Flags'], Rd.map(r => [{ className: 'small', textContent: when(r.ts) }, r.symbol, nc(r.age_s), { className: 'num', textContent: usd(r.mcap) }, st(r.drop60), nc(r.max_buy30_sol == null ? null : Number(r.max_buy30_sol).toFixed(1)), nc(r.pool_sol == null ? null : Math.round(r.pool_sol)),
+    el('td', {}, ...['c_age', 'c_mcap', 'c_drop', 'c_whale', 'c_pool'].map(k => tag(k.slice(2), r[k] ? 'p' : '', k)), r.full ? tag('FULL', 'p') : '')])) : el('p', { className: 'small', textContent: 'No reading yet.' })));
   patchKids(root, out, false);
 }
 
 function showTab() {
   const lm = location.hash.match(/^#(?:lab|strategy)\/([^/]+)$/);
-  let tab = lm || location.hash === '#lab' ? 'lab' : { '#history': 'history', '#rules': 'lab', '#settings': 'settings', '#trading': 'trading', '#crossing': 'crossing', '#patterns': 'patterns', '#monitor': 'monitor' }[location.hash] || (/^#coins(\/|$)/.test(location.hash) ? 'coins' : /^#wallets(\/|$)/.test(location.hash) ? 'wallets' : 'tokens');
+  let tab = lm || location.hash === '#lab' ? 'lab' : { '#history': 'history', '#rules': 'lab', '#settings': 'settings', '#trading': 'trading', '#dipwatch': 'dipwatch', '#patterns': 'patterns', '#monitor': 'monitor' }[location.hash] || (/^#coins(\/|$)/.test(location.hash) ? 'coins' : /^#wallets(\/|$)/.test(location.hash) ? 'wallets' : 'recorder');
   if (GUEST && !['lab', 'trading', 'coins', 'wallets'].includes(tab)) tab = 'lab';
   if (lm) labSel = decodeURIComponent(lm[1]);
-  for (const t of ['tokens', 'history', 'lab', 'settings', 'trading', 'crossing', 'patterns', 'coins', 'wallets', 'monitor']) $('tab-' + t).hidden = tab !== t;
+  for (const t of ['recorder', 'history', 'lab', 'settings', 'trading', 'dipwatch', 'patterns', 'coins', 'wallets', 'monitor']) $('tab-' + t).hidden = tab !== t;
   document.querySelectorAll('nav.tabs:not(.sub) a').forEach(a => a.classList.toggle('on', a.dataset.tab === tab));
   const onTab = document.querySelector('nav.tabs:not(.sub) a.on'); if (onTab) onTab.scrollIntoView({ inline: 'nearest', block: 'nearest' });   // (phones: the tab row swipes)
   if (tab === 'history') { if (!historyLoaded) loadHistory(); }
   else if (tab === 'lab') { labLoaded ? (renderLab(), lm && $('lab-detail') && $('lab-detail').scrollIntoView()) : loadLab(); }
   else if (tab === 'settings') { if (!settingsPageLoaded) loadSettingsPage(); }
   else if (tab === 'trading') loadTrading();
-  else if (tab === 'crossing') { cross.walletBox = cross.tradeBox = cross.tgBox = null; loadCrossing(); }       // (the wallet panel is read again each time the tab is opened)
   else if (tab === 'patterns') loadPatterns();
+  else if (tab === 'dipwatch') loadDipwatch();
   else if (tab === 'coins') loadCoins();
   else if (tab === 'wallets') loadWallets();
   else if (tab === 'monitor') loadMonitor();
-  else if (all.length) chart();
+  else loadRecorder();
 }
 
 // the sidebar: a drawer on phones (menu button, scrim, Esc, a link closes it), collapsible to icons on larger screens (remembered), empty groups hidden (a guest has few pages)

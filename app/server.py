@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Tiny web server for the pump.fun graduated-tokens page.
 
-Serves index.html plus the files the collector writes into the data directory.
+Serves index.html plus the files the other processes write into the data directory.
 Usage: python3 server.py [--port 8090] [--data data]
 """
 import argparse
@@ -26,6 +26,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import notify
 import radar
+import recorder
 import rules
 import wallets
 
@@ -184,25 +185,21 @@ _save_lock = threading.Lock()
 # path -> (file, content type, download name)
 ROUTES = {
     "/": ("index.html", "text/html; charset=utf-8", None),
-    "/api/tokens": ("latest.json", "application/json; charset=utf-8", None),
     "/api/report": ("report.json", "application/json; charset=utf-8", None),
     "/api/history": ("history.json", "application/json; charset=utf-8", None),
-    "/api/watch": ("watch.json", "application/json; charset=utf-8", None),
     "/radar.js": ("radar.js", "application/javascript; charset=utf-8", None),
     "/radar2.js": ("radar2.js", "application/javascript; charset=utf-8", None),
     "/api/trading": ("trading_state.json", "application/json; charset=utf-8", None),
-    "/api/crossing": ("crossing.json", "application/json; charset=utf-8", None),   # the Crossing page (the account only: a guest may not read it)
+    "/api/dipwatch": ("dipwatch.json", "application/json; charset=utf-8", None),   # the Dip watch page (the account only)
     "/api/roundtrips.csv": ("roundtrips.csv", "text/csv; charset=utf-8", "pump_rule_round_trips.csv"),
     "/api/study.csv": ("study.csv", "text/csv; charset=utf-8", "pump_entry_study.csv"),
-    "/api/tokens.csv": ("latest.csv", "text/csv; charset=utf-8", "pump_graduated_7d.csv"),
 }
 _gz_cache = {}  # file path -> (mtime, gzipped bytes)
-DAY_FILE = re.compile(r"\d{4}-\d{2}-\d{2}\.csv")
 MINT = re.compile(r"[1-9A-HJ-NP-Za-km-z]{32,44}")   # a Solana address, and nothing else
 STRATEGY_ID = re.compile(r"[a-z0-9-]{1,40}")         # a rule id (rules.validate), and nothing else
 
 
-# The databases the Record live tab lists: file, what it holds, and the tables whose rows are counted.
+# The databases the Recorder tab lists: file, what it holds, and the tables whose rows are counted.
 STORAGE_DBS = [
     ("watch.db", "The live record: what was measured on every new graduate and every strategy's decision",
      [("tokens", "tokens recorded"), ("measures", "measurements"), ("decisions", "decisions")]),
@@ -268,7 +265,8 @@ def gzipped(path):
     return hit[1]
 
 
-BACKTEST_EVERY = 6 * 3600   # pump-graduated-analyze.timer: OnUnitInactiveSec=6h
+BACKTEST_EVERY = 24 * 3600  # pump-graduated-analyze.timer: OnCalendar=*-*-* 01:00:00 UTC (once a day)
+BACKTEST_AT_UTC_HOUR = 1
 
 
 def backtest_schedule(data_dir):
@@ -292,7 +290,11 @@ def backtest_schedule(data_dir):
         except OSError:
             pass
     running = full.get("ActiveState") in ("active", "activating")
-    return {"last": last, "next": last + BACKTEST_EVERY * 1000 if last else None, "every": BACKTEST_EVERY,
+    now = time.time()
+    nxt = (now - now % 86400) + BACKTEST_AT_UTC_HOUR * 3600     # today's 01:00 UTC, or tomorrow's once it has passed
+    if nxt <= now:
+        nxt += 86400
+    return {"last": last, "next": int(nxt * 1000), "every": BACKTEST_EVERY,
             "running": running, "running_since": ts(full.get("ExecMainStartTimestamp")) if running else None,
             "rules_running": saved.get("ActiveState") in ("active", "activating")}
 
@@ -353,20 +355,6 @@ class Handler(BaseHTTPRequestHandler):
         body = LOGIN_PAGE.replace("%ERROR%", f'<div class="err">{error}</div>' if error else "").encode()
         self.reply(200, body, "text/html; charset=utf-8", {"Cache-Control": "no-store"})
 
-    # The Crossing page has a trader of its own (service pump-graduated-crossing-trader, data folder data/crossing: its own wallets, limits,
-    # trades and state; no automatic strategy). /api/ct/<x> is the same handler as /api/<x> on that folder.
-    CT_ROUTES = ("/api/ct/trading", "/api/ct/trading/sell", "/api/ct/trading/buy", "/api/ct/wallets", "/api/ct/wallets/active", "/api/ct/wallets/remove",
-                 "/api/ct/telegram", "/api/ct/telegram/test")
-
-    def scoped(self, path):
-        """The handler's path, with self.data_dir set to the folder of the trader the request is for; None for an /api/ct route that does not exist."""
-        self.data_dir = Handler.data_dir
-        if not path.startswith("/api/ct/"):
-            return path
-        if path not in self.CT_ROUTES:
-            return None
-        self.data_dir = os.path.join(Handler.data_dir, "crossing")
-        return "/api/" + path[len("/api/ct/"):]
 
     def do_GET(self):
         path = self.path.split("?", 1)[0]
@@ -387,9 +375,6 @@ class Handler(BaseHTTPRequestHandler):
                                                         "Set-Cookie": f"{COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax"})
         if not self.require_login(path):
             return
-        path = self.scoped(path)
-        if path is None:
-            return self.reply(404, b"not found\n", "text/plain")
         if path.startswith("/api/radar/"):      # the Coins, Wallets and Monitor pages
             query = self.path.partition("?")[2]
             peek = urllib.parse.parse_qs(query).get("peek") == ["1"]
@@ -401,11 +386,12 @@ class Handler(BaseHTTPRequestHandler):
             saved = rules.load(self.settings_dir())
             gone = set(rules.removed(self.settings_dir()))
             built = rules.validate(rules.WATCH_EXTRA)
-            return self.json(200, {"rules": saved, "builtin": [b for b in built if b["id"] not in gone], "version": version(saved), "limits": rules.LIMITS,
+            added = [r for r in saved if r["id"].startswith("pattern-") and r["id"][8:] in rules.PATTERNS]      # patterns added from the Pattern Discover page are listed in the Lab like the built-in rules
+            return self.json(200, {"rules": saved, "builtin": [b for b in built if b["id"] not in gone] + added, "version": version(saved), "limits": rules.LIMITS,
                                    "removed": [{"id": b["id"], "name": b["name"]} for b in built if b["id"] in gone],
                                    "saved_file": os.path.exists(os.path.join(self.settings_dir(), "rules.json")),
                                    "features": {k: {"label": v[0], "kind": v[1]}
-                                                for k, v in rules.FEATURES.items()}})
+                                                for k, v in list(rules.FEATURES.items())}})
         if path == "/api/backtest/schedule":
             return self.json(200, backtest_schedule(self.data_dir))
         if path == "/api/patterns":     # the Pattern Discover page: the file the pattern pass wrote, without the patterns taken off the list since
@@ -420,6 +406,11 @@ class Handler(BaseHTTPRequestHandler):
             except (OSError, ValueError, TypeError):
                 gone = set()
             doc["patterns"] = [p for p in doc.get("patterns", []) if p.get("id") not in gone]
+            try:
+                with open(os.path.join(self.settings_dir(), "lab_patterns.json"), encoding="utf-8") as f:
+                    doc["lab"] = sorted(k for k in json.load(f) if isinstance(k, str))      # the patterns that are in the Lab
+            except (OSError, ValueError, TypeError):
+                doc["lab"] = []
             return self.reply(200, json.dumps(doc).encode(), "application/json; charset=utf-8", {"Cache-Control": "no-store"})
         if path == "/api/lab/draft":    # the answer to the newest "Backtest without saving"
             try:
@@ -444,38 +435,18 @@ class Handler(BaseHTTPRequestHandler):
             return self.json(200, storage_report(self.data_dir))
         if path == "/api/telegram":
             return self.json(200, notify.public(notify.load(self.settings_dir())))
-        if path == "/api/reports":
-            try:
-                with open(os.path.join(self.data_dir, "reports", "index.json"), "rb") as f:
-                    return self.reply(200, f.read(), "application/json; charset=utf-8", {"Cache-Control": "no-cache"})
-            except OSError:
-                return self.json(200, {})
-        if path.startswith("/api/reports/"):
-            name = path.rsplit("/", 1)[1]
-            if not DAY_FILE.fullmatch(name):    # the name goes into a file path
-                return self.reply(404, b"not found\n", "text/plain")
-            try:
-                with open(os.path.join(self.data_dir, "reports", name), "rb") as f:
-                    body = f.read()
-            except OSError:
-                return self.reply(404, b"no report for that day\n", "text/plain")
-            headers = {"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "no-cache"}
-            if "gzip" in self.headers.get("Accept-Encoding", ""):
-                body, headers["Content-Encoding"] = gzip.compress(body, 4), "gzip"
-            return self.reply(200, body, "text/csv; charset=utf-8", headers)
-        if path.startswith("/api/watch/token/"):
-            mint = path.rsplit("/", 1)[1]
-            if not MINT.fullmatch(mint):        # the name goes into a file path
-                return self.reply(404, b"not found\n", "text/plain")
-            try:    # thousands of small files: compressed on the way out, not kept in memory
-                with open(os.path.join(self.data_dir, "watch_tokens", mint + ".json"), "rb") as f:
-                    body = gzip.compress(f.read(), 4)
-            except OSError:
-                return self.reply(404, b'{"error":"no such token"}\n', "application/json")
-            if "gzip" not in self.headers.get("Accept-Encoding", ""):
-                return self.reply(200, gzip.decompress(body), "application/json; charset=utf-8", {"Cache-Control": "no-cache"})
-            return self.reply(200, body, "application/json; charset=utf-8",
-                              {"Content-Encoding": "gzip", "Cache-Control": "no-cache"})
+        if path == "/api/recorder":     # the Recorder page: coins being recorded now, the recorded days
+            return self.recorder_reply(lambda: recorder.status(self.data_dir))
+        if path == "/api/recorder/coins":
+            day = urllib.parse.parse_qs(self.path.partition("?")[2]).get("day", [""])[0]
+            if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", day):
+                return self.json(400, {"error": "day must look like 2026-10-25"})
+            return self.recorder_reply(lambda: {"day": day, "coins": recorder.coins(self.data_dir, day)})
+        if path == "/api/recorder/coin":
+            mint = urllib.parse.parse_qs(self.path.partition("?")[2]).get("mint", [""])[0]
+            if not MINT.fullmatch(mint):
+                return self.json(400, {"error": "not a Solana address"})
+            return self.recorder_reply(lambda: recorder.coin(self.data_dir, mint))
         if path.startswith("/api/strategy/"):
             # /api/strategy/<id>: its backtest (analyze.py); /api/strategy/<id>/live: its live record (watch.py)
             sid, _, part = path[len("/api/strategy/"):].partition("/")
@@ -494,6 +465,16 @@ class Handler(BaseHTTPRequestHandler):
         name, ctype, download = route
         self.send_file(os.path.join(HERE if name in ("index.html", "radar.js", "radar2.js") else self.data_dir, name), ctype, download,
                        b'{"error":"data not collected yet"}\n')
+
+    def recorder_reply(self, make):
+        """JSON for a Recorder page request; the databases are opened read-only, so the answer can only be a read error."""
+        try:
+            out = make()
+        except (sqlite3.Error, OSError) as e:
+            return self.json(503, {"error": f"The databases could not be read: {e}"})
+        if out is None:
+            return self.json(404, {"error": "no such coin"})
+        return self.json(200, out)
 
     def send_file(self, full, ctype, download, missing):
         """A file, gzipped when the browser takes it; a 503 with `missing` when it is not written yet. An unchanged
@@ -575,9 +556,6 @@ class Handler(BaseHTTPRequestHandler):
                               f"{COOKIE}={token}; Path=/; Max-Age={SESSION_DAYS * 86400}; HttpOnly; SameSite=Lax{'; Secure' if self.secure() else ''}"})
         if not self.require_login(path, write=True):
             return
-        path = self.scoped(path)
-        if path is None:
-            return self.reply(404, b"not found\n", "text/plain")
         if path.startswith("/api/radar/"):
             try:
                 length = int(self.headers.get("Content-Length", "0"))
@@ -591,8 +569,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.json(400, {"error": "Could not read the request."})
             status, obj = radar.handle("POST", path[len("/api/radar/"):], "", body, self.data_dir, _save_lock, guest=self._role == "guest")
             return self.json(status, obj)
-        if path not in ("/api/rules", "/api/rules/builtin", "/api/telegram", "/api/telegram/test", "/api/trading", "/api/trading/sell", "/api/trading/buy",
-                        "/api/password", "/api/sessions/others", "/api/rpc/test", "/api/lab/draft", "/api/patterns/run", "/api/patterns/remove",
+        if path not in ("/api/rules", "/api/rules/builtin", "/api/telegram", "/api/telegram/test", "/api/trading", "/api/trading/sell",
+                        "/api/password", "/api/sessions/others", "/api/rpc/test", "/api/lab/draft", "/api/patterns/run", "/api/patterns/remove", "/api/patterns/lab",
                         "/api/wallets", "/api/wallets/active", "/api/wallets/remove"):
             return self.reply(404, b"not found\n", "text/plain")
         try:
@@ -639,9 +617,6 @@ class Handler(BaseHTTPRequestHandler):
                         if activate and held:
                             raise ValueError("Real positions are open, so the wallet in use cannot change now. Add it without switching, and switch when they are closed.")
                         _, address = wallets.parse_key(body.get("key"))
-                        other = os.path.join(Handler.data_dir, "settings") if self.data_dir != Handler.data_dir else os.path.join(Handler.data_dir, "crossing", "settings")
-                        if any(w["address"] == address for w in wallets.listing(other)["wallets"]):
-                            raise ValueError("That wallet is already used by the " + ("Trading tab" if self.data_dir != Handler.data_dir else "Crossing page") + ". Use a different wallet for each, so the two traders' limits cannot add up on one wallet.")
                         wallets.add(settings, body.get("key"), body.get("label"), activate)
                     elif path == "/api/wallets/active":
                         if held:
@@ -680,6 +655,31 @@ class Handler(BaseHTTPRequestHandler):
                     json.dump({"asked": int(time.time() * 1000)}, f)
                 os.replace(tmp, os.path.join(jobs, "patterns_run.json"))
             return self.json(200, {"asked": True})
+        if path == "/api/patterns/lab":
+            # adds a watch-list pattern to the Lab as a rule: the pattern goes into settings/lab_patterns.json (a feature "pattern:<id>") and its rule into the saved rules
+            try:
+                pid = json.loads(raw)["id"]
+                if not isinstance(pid, str) or not re.fullmatch(r"[0-9a-f]{10}", pid):
+                    raise ValueError
+                with open(os.path.join(self.data_dir, "patterns.json"), encoding="utf-8") as f:
+                    p = next(x for x in json.load(f)["patterns"] if x.get("id") == pid)
+                rule = p["lab_rule"]
+            except (ValueError, KeyError, TypeError, RecursionError, StopIteration, OSError):
+                return self.json(400, {"error": "That pattern is not on the watch list (run the pattern pass again)."})
+            settings = self.settings_dir()
+            with _save_lock:
+                reg = dict(rules.load_patterns(settings))
+                reg[pid] = {"name": p["name"], "spec": p["spec"]}
+                rules.save_patterns(settings, reg)
+                try:
+                    saved = rules.load(settings)
+                    if len([r for r in saved if r["id"] != rule["id"]]) + 1 > rules.LIMITS["max_rules"]:
+                        raise ValueError("There are too many rules already: delete one in the Lab first.")
+                    cleaned = rules.validate([r for r in saved if r["id"] != rule["id"]] + [rule])
+                except ValueError as e:
+                    return self.json(400, {"error": str(e) or "The rule could not be added."})
+                rules.save(settings, cleaned)
+            return self.json(200, {"added": rule["id"]})
         if path == "/api/patterns/remove":
             # takes a pattern off the watch list for good: its id goes into settings/patterns_removed.json, which the pattern pass reads
             try:
@@ -708,6 +708,7 @@ class Handler(BaseHTTPRequestHandler):
             # exactly like saved rules, and the answer is read back from /api/lab/draft
             try:
                 body = json.loads(raw)
+                rules.load_patterns(self.settings_dir())
                 rule = rules.validate([{**body["rule"], "id": "draft", "enabled": True}])[0]
             except (ValueError, TypeError, KeyError, RecursionError) as e:
                 return self.json(400, {"error": str(e) or "Could not read the rule."})
@@ -782,7 +783,6 @@ class Handler(BaseHTTPRequestHandler):
                         raise ValueError("Choose between 1 and 40 strategies from the list.")
                     new["strategies"] = list(dict.fromkeys(chosen))
                 for k, lo, hi in (("sol_per_trade", 0.01, 1.0), ("max_open", 1, 5), ("daily_loss_limit_sol", 0.01, 10.0), ("max_buy_impact_pct", 1.0, 20.0),
-                                  ("take_profit_pct", 5.0, 1000.0), ("stop_loss_pct", 5.0, 95.0), ("time_stop_min", 1, 240),
                                   ("slippage_bps", 50, 3000), ("sell_slippage_bps", 50, 5000), ("stop_slippage_bps", 50, 5000),
                                   ("priority_fee_lamports", 0, 5_000_000)):
                     if body.get(k) is None:
@@ -792,7 +792,12 @@ class Handler(BaseHTTPRequestHandler):
                     v = float(body.get(k))
                     if not lo <= v <= hi:
                         raise ValueError(f"{k} must be between {lo:g} and {hi:g}")
-                    new[k] = v if k in ("sol_per_trade", "daily_loss_limit_sol", "max_buy_impact_pct", "take_profit_pct", "stop_loss_pct") else int(v)
+                    new[k] = v if k in ("sol_per_trade", "daily_loss_limit_sol", "max_buy_impact_pct") else int(v)
+                if "trade_hours" in body:     # the time-of-day filter: UTC hours in which new automatic buys are allowed (empty = every hour)
+                    th = body["trade_hours"]
+                    if not isinstance(th, list) or len(th) > 24 or not all(isinstance(h, int) and not isinstance(h, bool) and 0 <= h <= 23 for h in th):
+                        raise ValueError("Trading hours must be a list of UTC hours from 0 to 23.")
+                    new["trade_hours"] = sorted(set(th))
                 if body.get("rpc_url"):
                     if not str(body["rpc_url"]).startswith("https://") or len(body["rpc_url"]) > 300:
                         raise ValueError("The RPC address must start with https://")
@@ -808,21 +813,9 @@ class Handler(BaseHTTPRequestHandler):
                     old = {}
                 if not isinstance(old, dict):
                     old = {}
-                if not old and self.data_dir != Handler.data_dir:
-                    # the Crossing trader's first save: the RPC address, slippage and priority fee start as the Trading tab has them
-                    try:
-                        with open(os.path.join(Handler.data_dir, "settings", "trading.json"), encoding="utf-8") as f:
-                            main = json.load(f)
-                    except (OSError, ValueError):
-                        main = {}
-                    if isinstance(main, dict):
-                        old = {k: v for k, v in main.items() if k not in ("mode", "strategies", "sell_all", "sell_ids", "sol_per_trade", "max_open", "daily_loss_limit_sol", "max_buy_impact_pct", "take_profit_pct", "stop_loss_pct", "time_stop_min")}
                 # switching to live needs LIVE typed; saving other settings while live does not
                 if new["mode"] == "live" and old.get("mode") != "live" and body.get("confirm") != "LIVE":
                     return self.json(400, {"error": "Type LIVE in the confirmation box to trade with real SOL."})
-                if self.data_dir != Handler.data_dir:      # the Crossing trader never trades a strategy by itself
-                    new.pop("strategies", None)
-                    old.pop("strategies", None)
                 if "strategies" in new:     # a built-in rule deleted from the Lab cannot be switched ON
                     gone_ids = set(rules.removed(self.settings_dir()))
                     new["strategies"] = [x for x in new["strategies"] if x not in gone_ids]
@@ -831,35 +824,6 @@ class Handler(BaseHTTPRequestHandler):
                     json.dump({**old, **new}, f)
                 os.replace(tmp, path_)
             return self.json(200, {"saved": True, **{k: v for k, v in new.items() if k != "rpc_url"}})
-        if path == "/api/trading/buy" and self.data_dir == Handler.data_dir:
-            return self.reply(404, b"not found\n", "text/plain")      # (only the Crossing trader takes buys asked by hand: /api/ct/trading/buy)
-        if path == "/api/trading/buy":
-            # a buy asked by hand on the Crossing page: {"mint", "symbol", "tp", "sl", "hold", "confirm": true}. It only queues a request
-            # (settings/manual_buys/<mint>.json); the trader applies the same limits as for an automatic buy and records a refusal as a
-            # failed buy with the reason. The account only (a guest never reaches a POST).
-            try:
-                body = json.loads(raw)
-                if not isinstance(body, dict) or body.get("confirm") is not True:
-                    raise ValueError("Confirm the buy first.")
-                mint = body.get("mint")
-                if not isinstance(mint, str) or not MINT.fullmatch(mint):
-                    raise ValueError("That is not a token address.")
-                tp, sl, hold = body.get("tp"), body.get("sl"), body.get("hold")
-                if any(isinstance(x, bool) or not isinstance(x, (int, float)) for x in (tp, sl, hold)):
-                    raise ValueError("Give the take profit, stop loss and time stop as numbers.")
-                if not (0.05 <= tp <= 10 and 0.05 <= sl <= 0.95 and 1 <= hold <= 240):
-                    raise ValueError("The take profit, stop loss or time stop is outside its limits.")
-                symbol = re.sub(r"[\x00-\x1f\x7f]", "", str(body.get("symbol") or ""))[:40]
-            except (ValueError, TypeError, RecursionError) as e:
-                return self.json(400, {"error": str(e) or "Could not read the request."})
-            folder = os.path.join(self.settings_dir(), "manual_buys")
-            with _save_lock:
-                os.makedirs(folder, exist_ok=True)
-                tmp = os.path.join(folder, mint + ".tmp")
-                with open(tmp, "w", encoding="utf-8") as f:
-                    json.dump({"mint": mint, "symbol": symbol, "tp": float(tp), "sl": float(sl), "hold": int(hold), "asked": int(time.time() * 1000)}, f)
-                os.replace(tmp, os.path.join(folder, mint + ".json"))
-            return self.json(200, {"asked": True})
         if path == "/api/trading/sell":
             # sell one position ({"id": n}) or all of them ({"all": true}); the settings are not touched,
             # so this works in live mode without typing LIVE again
@@ -896,9 +860,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.json(200, {"asked": True})
         if path == "/api/telegram/test":
             sent, why = notify.send(notify.load(self.settings_dir()),
-                                    "✅ <b>Test message</b>\n" + ("The Crossing alerts can reach you here. You will get the messages you ticked on the Crossing page."
-                                    if self.data_dir != Handler.data_dir else "The pump.fun watch can reach you here. "
-                                    "You will get a message when a strategy shown on the Record live tab buys a token."))
+                                    "✅ <b>Test message</b>\nThe pump.fun watch can reach you here. "
+                                    "You will get a message when a real trade is bought or sold.")
             return self.json(200 if sent else 502, {"sent": sent, "error": why})
         if path == "/api/telegram":
             try:
@@ -913,8 +876,10 @@ class Handler(BaseHTTPRequestHandler):
                 body = json.loads(raw)
                 rid, gone = body["id"], body["removed"]
                 builtin = {b["id"]: b for b in rules.validate(rules.WATCH_EXTRA)}
-                if not isinstance(gone, bool) or rid not in builtin:
+                added = {r["id"]: r for r in rules.load(self.settings_dir()) if r["id"].startswith("pattern-") and r["id"][8:] in rules.PATTERNS}     # (also loads the patterns' features)
+                if not isinstance(gone, bool) or (rid not in builtin and not (rid in added and gone)):
                     raise ValueError
+                builtin.update(added)
             except (ValueError, KeyError, TypeError, RecursionError):
                 return self.json(400, {"error": "Say which built-in rule."})
             settings = self.settings_dir()
@@ -937,6 +902,15 @@ class Handler(BaseHTTPRequestHandler):
                     if any(t.get("strategy") == rid and t.get("status") in HELD_STATES for t in trades):
                         return self.json(409, {"error": f"{builtin[rid]['name']} still holds a position. Delete it after the position is sold."})
                 ids = set(rules.removed(settings))
+                if rid in added:        # a pattern added from Pattern Discover is deleted outright (add it again from that page)
+                    reg = dict(rules.load_patterns(settings))
+                    reg.pop(rid[len("pattern-"):], None)
+                    kept = [r for r in rules.load(settings) if r["id"] != rid]
+                    rules.save(settings, kept)
+                    rules.save_patterns(settings, reg)
+                    rules.load_patterns(settings)
+                    saved = rules.load(settings)
+                    return self.json(200, {"removed": sorted(ids), "rules": saved, "version": version(saved)})
                 ids = ids | {rid} if gone else ids - {rid}
                 rules.set_removed(settings, ids)
                 saved = rules.load(settings)
@@ -945,6 +919,7 @@ class Handler(BaseHTTPRequestHandler):
                 saved = rules.load(settings)
             return self.json(200, {"removed": sorted(ids), "rules": saved, "version": version(saved)})
         try:
+            rules.load_patterns(self.settings_dir())      # (a rule may use a pattern added from Pattern Discover)
             cleaned = rules.validate(json.loads(raw))
         except (ValueError, RecursionError) as e:   # includes malformed or absurdly nested JSON
             return self.json(400, {"error": str(e) or "Could not read the rules."})

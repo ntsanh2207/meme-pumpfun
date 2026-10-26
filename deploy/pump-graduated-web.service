@@ -14,7 +14,7 @@ NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
-ReadWritePaths=/opt/pump-graduated/data/settings
+ReadWritePaths=/opt/pump-graduated/data/settings /opt/pump-graduated/data/jobs
 
 [Install]
 WantedBy=multi-user.target

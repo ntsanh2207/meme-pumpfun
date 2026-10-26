@@ -9,7 +9,7 @@ that traded in the last 10 minutes is polled every 2 minutes for 32 minutes, the
 5 minutes up to 62 minutes. Snapshots carry their own time, so a coin found late still
 gets correct numbers for the minutes that follow.
 
-Snapshots go to their own database (holders.db), so the collector's long writes to pump.db
+Snapshots go to their own database (holders.db), so long writes to pump.db
 never delay them.
 
 Usage: python3 holders.py [--db data/holders.db]

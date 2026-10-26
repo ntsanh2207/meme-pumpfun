@@ -2,7 +2,7 @@
 """Turn the live watch's buy signals into swaps, in a dry run or for real.
 
 Runs forever, beside watch.py. A buy signal is a live decision (not reconstructed) by a strategy
-shown on the Record live tab, made within the last SIGNAL_FOR seconds. Each one is bought with
+shown in watch.json, made within the last SIGNAL_FOR seconds. Each one is bought with
 SOL through Jupiter (which routes graduated pump.fun tokens through their PumpSwap pool). Every
 open position is then priced every CHECK_EVERY seconds by asking Jupiter what selling all of it
 would return, and sold at the strategy's take profit, stop loss or time stop measured on that
@@ -47,11 +47,11 @@ import urllib.parse
 import urllib.request
 from contextlib import closing
 
+import diprule
 import notify
 
 SOL = "So11111111111111111111111111111111111111112"
 LAMPORTS = 1_000_000_000
-MANUAL, MANUAL_NAME = "crossing-manual", "Crossing (manual buy)"     # the strategy id and name of a buy asked by hand on the Crossing page
 MAX_BUY_IMPACT = 0.07      # the default of the "max_buy_impact_pct" setting: a live buy is skipped when Jupiter's quote says it moves the price more than this (the backtest assumes at most 5%)
 JUP = "https://lite-api.jup.ag/swap/v1"
 MIN = 60000
@@ -75,13 +75,12 @@ RESERVE_PER_POSITION = 0.01   # SOL kept back per live position for the fees and
 RETRY_ALERT_MS = 300000  # a sale still not out after this long is alerted
 STUCK_RETRY_MS = 300000  # a position that could not be sold is tried again this often
 DEFAULTS = {"mode": "off", "sol_per_trade": 0.1, "max_open": 2, "daily_loss_limit_sol": 1.0, "max_buy_impact_pct": round(MAX_BUY_IMPACT * 100, 4),
-            "take_profit_pct": 35.0, "stop_loss_pct": 50.0, "time_stop_min": 10,      # the exit of a buy made by hand on the Crossing page (%, %, minutes; checked every round, prices about once a second)
             "slippage_bps": 500, "sell_slippage_bps": 1000, "stop_slippage_bps": 2500,
             "priority_fee_lamports": 300000, "rpc_url": "https://api.mainnet-beta.solana.com", "sell_all": 0,
             "sell_ids": (),    # positions asked to be sold by hand: (id, unix ms of the request)
+            "trade_hours": (),  # UTC hours (0-23) in which new automatic buys are allowed; empty = every hour (open positions are managed at any hour)
             "strategies": ()}  # ids of the strategies to trade (switched ON on the Trading tab); none: nothing is bought
 LIMITS = {"sol_per_trade": (0.01, HARD_MAX_SOL), "max_open": (1, 5), "daily_loss_limit_sol": (0.01, 10.0), "max_buy_impact_pct": (1.0, 20.0),
-          "take_profit_pct": (5.0, 1000.0), "stop_loss_pct": (5.0, 95.0), "time_stop_min": (1, 240),
           "slippage_bps": (50, 3000), "sell_slippage_bps": (50, 5000), "stop_slippage_bps": (50, 5000),
           "priority_fee_lamports": (0, 5_000_000)}
 
@@ -548,7 +547,7 @@ def clean_cfg(raw):
                 cfg[k] = min(max(v, lo), hi)
         except (KeyError, TypeError, ValueError):
             pass
-    for k in ("max_open", "time_stop_min", "slippage_bps", "sell_slippage_bps", "stop_slippage_bps", "priority_fee_lamports"):
+    for k in ("max_open", "slippage_bps", "sell_slippage_bps", "stop_slippage_bps", "priority_fee_lamports"):
         cfg[k] = int(cfg[k])
     if isinstance(raw.get("rpc_url"), str) and raw["rpc_url"].startswith("https://"):
         cfg["rpc_url"] = raw["rpc_url"]
@@ -556,6 +555,8 @@ def clean_cfg(raw):
         cfg["sell_all"] = int(raw.get("sell_all") or 0)
     except (TypeError, ValueError):
         pass
+    hours = raw.get("trade_hours")
+    cfg["trade_hours"] = tuple(sorted({h for h in (hours if isinstance(hours, list) else []) if isinstance(h, int) and not isinstance(h, bool) and 0 <= h <= 23}))
     chosen = raw.get("strategies")
     cfg["strategies"] = tuple(dict.fromkeys(x for x in (chosen if isinstance(chosen, list) else [])
                                             if isinstance(x, str) and 0 < len(x) <= 100))[:40]
@@ -563,6 +564,12 @@ def clean_cfg(raw):
     cfg["sell_ids"] = tuple((a[0], a[1]) for a in (asks if isinstance(asks, list) else []) if isinstance(a, list) and len(a) == 2
                             and all(isinstance(x, int) and not isinstance(x, bool) and 0 < x < 2 ** 62 for x in a))
     return cfg
+
+
+def hours_open(cfg, now_ms):
+    """Whether new automatic buys are allowed at this moment: no hours chosen means every hour, else the current UTC hour must be one of them."""
+    hours = cfg.get("trade_hours") or ()
+    return not hours or int(now_ms // 3600000) % 24 in hours
 
 
 def load_cfg(data):
@@ -589,7 +596,10 @@ def trade_strategies(data, chosen=()):
     shown = [s for s in (shown if isinstance(shown, list) else []) if ok(s)]
     every = [s for s in (every if isinstance(every, list) else []) if ok(s)] or shown
     shown_ids = {s["id"] for s in shown}
-    available = [{"id": s["id"], "name": s["name"], "record_live": s["id"] in shown_ids, "entry": s.get("entry"), **({"entry_to": s["entry_to"]} if num(s.get("entry_to")) else {}), "tp": s["tp"],
+    # the Dip watch's two kinds of entry are strategies too (their signals come from dipwatch.db, not from the watch's decisions)
+    every = every + [{**d, "entry": None, "be": 0.0, "be_stop": 0.0, "backtest": None, "source": "dipwatch"} for d in diprule.STRATEGIES.values()
+                     if d["id"] not in {s["id"] for s in every}]
+    available = [{"id": s["id"], "name": s["name"], "record_live": s["id"] in shown_ids, **({"note": s["note"]} if s.get("source") == "dipwatch" else {}), "entry": s.get("entry"), **({"entry_to": s["entry_to"]} if num(s.get("entry_to")) else {}), "tp": s["tp"],
                   "sl": s["sl"], "be": s.get("be") if num(s.get("be")) and s["be"] > 0 else 0.0,
                   "be_stop": s.get("be_stop") if num(s.get("be_stop")) and s["be_stop"] >= 0 else 0.0, "hold": s["hold"], "backtest": s.get("backtest") if isinstance(s.get("backtest"), dict) else None}
                  for s in every]
@@ -633,6 +643,24 @@ def new_signals(data, since_ms):
         return []
 
 
+def dip_signals(data, since_ms):
+    """Same rows as new_signals, for the Dip watch's entries read since `since_ms`: its "full" and "dip" entries are the
+    strategies dip-watch-full and dip-watch-dip. The signal's time is the price reading (the entry is the reading + 1.5 s in
+    the paper trade, which is not waited for); a row is written when the reading is made and its later updates (the paper
+    trade's progress) do not change read_ts."""
+    try:
+        with closing(sqlite3.connect(f"file:{os.path.join(data, 'dipwatch.db')}?mode=ro", uri=True, timeout=5)) as d:
+            # entry_ts (the plain column) is read_ts + DELAY_MS: it cuts the rows down before any JSON is read. A coin's "full" entry is
+            # listed first, so when one reading makes both kinds, the position is booked under the full signal, not at the table's whim
+            rows = d.execute("SELECT mint, symbol, kind, json_extract(data, '$.read_ts'), json_extract(data, '$.pool') FROM entries "
+                             "WHERE entry_ts > ? AND json_extract(data, '$.read_ts') > ? ORDER BY kind = 'full' DESC",
+                             (since_ms + diprule.DELAY_MS, since_ms)).fetchall()
+    except sqlite3.Error:
+        return []
+    return [(mint, symbol, diprule.STRATEGIES[kind]["id"], read_ts, read_ts, pool) for mint, symbol, kind, read_ts, pool in rows
+            if kind in diprule.STRATEGIES and read_ts]
+
+
 # ---- Telegram messages, laid out like Rug Radar's automatic strategy's ----
 def k_usd(v):
     return "—" if not v else f"${v / 1e6:.2f}M" if v >= 1e6 else f"${v / 1e3:.1f}K"
@@ -653,7 +681,7 @@ def tell(settings, text):
     def go():
         try:
             cfg = notify.load(settings)
-            if notify.ready(cfg) and (not isinstance(cfg.get("events"), dict) or notify.events(cfg)["trades"]):      # (the Crossing page can switch trade alerts off)
+            if notify.ready(cfg):
                 notify.send(cfg, text)
         except Exception:
             pass
@@ -706,7 +734,7 @@ class Trader:
         return db
 
     def title(self):
-        return "🤖 Crossing trading" if getattr(self, "manual_only", False) else "🤖 Auto trading"
+        return "🤖 Auto trading"
 
     def say(self, mode, text):
         if mode == "live":      # Telegram is for real trades only: a dry run sends nothing
@@ -1085,66 +1113,6 @@ class Trader:
                           self.wallet.pubkey if mode == "live" and self.wallet else None, pool, s.get("be") or 0.0, s.get("be_stop") or 0.0))
         self.start(cur.lastrowid, self.buy, mode, cfg, mint, symbol, s["name"], entry_end)
 
-    # ---- buys asked by hand on the Crossing page ----
-    def manual_buys(self, db, cfg, mode, lost):
-        """Each file in settings/manual_buys/ (written by the web server, one per token) is one buy asked by hand: the token, its exit
-        levels (take profit, stop loss, time stop in minutes) and when it was asked. The same limits as an automatic buy apply
-        (mode, a loaded wallet, most open positions, the daily loss limit, the price impact limit at the quote); a request that
-        cannot be carried out is recorded as a failed buy with the reason, which the page shows. One manual buy per token."""
-        folder = os.path.join(self.settings, "manual_buys")
-        try:
-            names = [n for n in os.listdir(folder) if n.endswith(".json")][:5]
-        except OSError:
-            return
-        for n in names:
-            path = os.path.join(folder, n)
-            try:
-                with open(path, encoding="utf-8") as f:
-                    req = json.load(f)
-            except (OSError, ValueError):
-                req = None
-            try:
-                os.remove(path)
-            except OSError:
-                pass
-            try:
-                mint, symbol = req["mint"], str(req.get("symbol") or "")[:40]
-                tp, sl, hold, asked = float(req["tp"]), float(req["sl"]), int(req["hold"]), int(req["asked"])
-                if not (re.fullmatch(r"[1-9A-HJ-NP-Za-km-z]{32,44}", mint) and 0.05 <= tp <= 10 and 0.05 <= sl <= 0.95 and 1 <= hold <= 240):
-                    raise ValueError("bad request")
-            except (TypeError, KeyError, ValueError):
-                print(f"manual buy request {n} ignored: unreadable", flush=True)
-                continue
-            if ms() - asked > 120_000:
-                print(f"manual buy {mint} ignored: asked {(ms() - asked) // 1000} s ago", flush=True)
-                continue       # (the trader was down when it was asked: a buy must not happen long after the click)
-            held = f"({','.join('?' * len(HELD_STATES))})"
-            seen = db.execute("SELECT id, status FROM trades WHERE mint = ? AND strategy = ?", (mint, MANUAL)).fetchone()
-            if seen and seen[1] != "failed":
-                continue       # bought before (or on its way): one manual buy per token
-            why = None
-            if mode == "off":
-                why = "Trading is off: switch it on first (Crossing trading on the Crossing page, or the Trading tab)"
-            elif mode == "live" and not self.wallet:
-                why = "no trading wallet is loaded"
-            elif mode == "live" and db.execute(f"SELECT 1 FROM trades WHERE mint = ? AND mode = 'live' AND status IN {held}", (mint, *HELD_STATES)).fetchone():
-                why = "this token already has a live position"
-            elif db.execute(f"SELECT COUNT(*) FROM trades WHERE mode = ? AND status IN {held}", (mode, *HELD_STATES)).fetchone()[0] >= cfg["max_open"]:
-                why = f"the limit of {cfg['max_open']} open positions is reached"
-            elif lost <= -abs(cfg["daily_loss_limit_sol"]):
-                why = "the daily loss limit is reached"
-            if seen:
-                db.execute("DELETE FROM trades WHERE id = ?", (seen[0],))
-            now = ms()
-            if why:
-                db.execute("INSERT INTO trades (mint, symbol, strategy, mode, signal_ts, entry_ts, status, error, wallet) VALUES (?,?,?,?,?,?,?,?,?)",
-                           (mint, symbol, MANUAL, mode, now, now, "failed", "not bought: " + why, self.wallet.pubkey if mode == "live" and self.wallet else None))
-                print(f"manual buy {symbol or mint[:6]} refused: {why}", flush=True)
-                continue
-            s = {"name": MANUAL_NAME, "tp": tp, "sl": sl, "hold": hold}
-            print(f"manual buy {symbol or mint[:6]}: {cfg['sol_per_trade']} SOL, +{tp * 100:.0f}% / -{sl * 100:.0f}% / {hold} min", flush=True)
-            self.consider(db, cfg, mode, lost, s, mint, symbol, MANUAL, now, now, None)
-
     # ---- open positions priced from their pool, in their own thread ----
     def pricer(self):
         while True:
@@ -1423,8 +1391,6 @@ class Trader:
 
         # 3. then buy on fresh live signals
         strategies, available, note = trade_strategies(self.data, cfg["strategies"])
-        if getattr(self, "manual_only", False):
-            strategies = {}
         today = time.strftime("%Y-%m-%d", time.gmtime(now))
         closed = db.execute("SELECT COALESCE(SUM(sol_out - sol_in), 0) FROM trades WHERE status = 'closed' AND mode = ? "
                             "AND date(closed_ts / 1000, 'unixepoch') = ?", (mode, today)).fetchone()[0]
@@ -1448,18 +1414,14 @@ class Trader:
         signals = []
         if now - self.signals_at >= 0.3:   # (the round runs every ROUND_SLEEP s; the watch's database is read ~3 times a second)
             self.signals_at = now
-            signals = new_signals(self.data, int((now - SIGNAL_FOR) * 1000))
+            signals = new_signals(self.data, int((now - SIGNAL_FOR) * 1000)) + dip_signals(self.data, int((now - diprule.SIGNAL_FOR) * 1000))
         for mint, symbol, sid, decided, entry_end, pool in signals:
-            if mode == "off" or blocked or sid not in strategies:
+            if mode == "off" or blocked or sid not in strategies or not hours_open(cfg, ms()):      # (outside the chosen UTC hours: the signal is let go, nothing is recorded; a buy made by hand is never held back)
                 continue
             try:
                 self.consider(db, cfg, mode, lost, strategies[sid], mint, symbol, sid, decided, entry_end, pool)
             except Exception as e:
                 print(f"signal {mint} {sid} skipped: {e!r}", flush=True)
-        try:
-            self.manual_buys(db, cfg, mode, lost)
-        except Exception as e:
-            print(f"manual buys skipped: {e!r}", flush=True)
 
         # 4. what the Trading tab shows (at most every STATE_EVERY s: the round itself runs every ROUND_SLEEP s)
         if time.time() - self.state_at < STATE_EVERY:
@@ -1482,7 +1444,7 @@ class Trader:
         state = {"generated_at": ms(), "mode": mode, "wanted_mode": cfg["mode"], "sol_usd": watch_sol_usd(self.data),
                  "error": "; ".join(x for x in (self.wallet_error, blocked, note) if x),
                  "strategies_available": available, "strategies_traded": [{"id": k, "name": s["name"]} for k, s in strategies.items()],
-                 "wallet": self.wallet.pubkey if self.wallet else None, "live_ready": self.wallet is not None,
+                 "wallet": self.wallet.pubkey if self.wallet else None, "live_ready": self.wallet is not None, "hours_open": hours_open(cfg, ms()),
                  "settings": {k: cfg[k] for k in DEFAULTS if k not in ("rpc_url", "sell_all", "sell_ids")},
                  "rpc_is_public": public_rpc, "hard_max_sol": HARD_MAX_SOL, "today_result_sol": today_result, "today_limit_sol": lost, "trades": rows}
         if self.wallet and (now - getattr(self, "balance_at", 0) >= 10) and not getattr(self, "balance_reading", False):
@@ -1509,10 +1471,8 @@ class Trader:
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--data", default="data")
-    ap.add_argument("--manual-only", action="store_true", help="never buy on a strategy's signal: only what a Buy button asked for (the Crossing trader)")
     args = ap.parse_args()
     t = Trader(args.data)
-    t.manual_only = args.manual_only
     t.recover()
     threading.Thread(target=t.pricer, daemon=True).start()
     print("trader started", flush=True)

@@ -5,7 +5,7 @@ backtested again with every run (and with the coins that graduated after the pat
 It is the pattern-discovery skill (.claude/skills/pattern-discovery) as a program that runs by itself every 2 hours (pump-graduated-patterns.timer, or
 when the Pattern Discover page asks):
 
- 1. Seeds: coins that closed their graduation minute between $35.0K and $50.0K and peaked above $100K within 60 minutes of graduation, taken from the
+ 1. Seeds: coins that closed their graduation minute between $30.0K and $50.0K and peaked above $90K within 30 minutes of graduation, taken from the
     EARLIER 70% of the saved coins only (graduation order), so what is learned from them can be tested on the newest 30%.
  2. Candidates: patterns whose numbers come from the seeds (their quantiles), in two families, each tried with three exits:
       cross: the coin's first crossing (analyze.crossing_minute: its close goes back above the high of the graduation minute) after a quiet start
@@ -38,14 +38,19 @@ import numpy as np
 import analyze as A
 
 EXITS = {"A": (0.35, 0.50, 10), "B": (1.00, 0.40, 30), "C": (0.50, 0.50, 15)}      # take profit, stop loss, minutes held
-M0_LO, M0_HI = 35000.0, 50000.0         # the graduation minute must close between these (market cap, USD)
-SEED_PEAK, SEED_MINUTES = 100000.0, 60  # a seed peaked above this within this many minutes of graduation
+M0_LO, M0_HI = 35000.0, 50000.0         # the coins the patterns are tested on: the graduation minute closes between these (market cap, USD)
+SEED_M0_LO, SEED_M0_HI = 30000.0, 50000.0   # a seed closes its graduation minute between these (22 Oct 2026: it was $35K-$50K)
+SEED_PEAK, SEED_MINUTES = 90000.0, 30   # a seed peaked above this within this many minutes of graduation (it was $100K within 60)
 MIN_TRADES, MIN_EARLIER, MIN_NEWEST = 25, 10, 10
+MIN_MEAN = 0.07                          # a profitable pattern averages more than this per trade (7%, since 22 Oct 2026)
 MAX_WATCH = 60                           # patterns kept on the watch list
 FORWARD_MIN = 10                         # trades since found before a pattern is called confirmed or failing
 SAME_COINS = 0.8                         # two candidates that share this much of their coins count once
 HISTORY_KEEP = 60
 INTERVAL_S = 7200
+DAILY_S = 8 * 3600                       # the daily discovery runs this often
+DAILY_WINDOW_MS = 24 * 3600 * 1000       # ...on the coins of this many hours before the newest saved coin
+DAILY_MIN_SEEDS = 8
 
 
 def now_ms():
@@ -81,10 +86,10 @@ class Data:
         self.h0 = self.H[:, 0]
         c0 = self.C[:, 0] * 1e9
         self.uni = np.isfinite(self.h0) & (self.h0 > 0) & (c0 > M0_LO) & (c0 <= M0_HI)
-        self.m0r = np.where(self.uni, self.C[:, 0] / self.h0, np.nan)          # minute 0's close as a share of its high (the level)
+        self.m0r = np.where(np.isfinite(self.h0) & (self.h0 > 0), self.C[:, 0] / self.h0, np.nan)          # minute 0's close as a share of its high (the level)
         self.cm = A.first_crossings(arr)                                          # first crossing minute (-1: none)
         peak = np.nanmax(self.H[:, :SEED_MINUTES], axis=1) * 1e9
-        self.seeds = self.uni & (peak > SEED_PEAK) & self.train
+        self.seeds = np.isfinite(self.h0) & (self.h0 > 0) & (c0 > SEED_M0_LO) & (c0 <= SEED_M0_HI) & (peak > SEED_PEAK) & self.train
         with np.errstate(invalid="ignore", divide="ignore"):
             self.rng = (self.H - self.L) / np.where(self.C > 0, self.C, np.nan)  # each minute's high-low range as a share of its close
             self.jump = self.C[:, 1:] / self.C[:, :-1] - 1                        # jump[:, m-1]: minute m's close against the previous close
@@ -115,6 +120,56 @@ class Data:
         return self._ret[(ex, e)]
 
 
+class Lean(Data):
+    """A pattern's view of the first minutes of every coin of `arr` (the Lab, the backtest and the live watch evaluate a pattern added to the Lab with this):
+    only minutes 0 to 13 are kept, so it is small, and nothing is loaded from a database."""
+
+    def __init__(self, arr, vol=None, cols=14):
+        def cut(k):
+            x = np.asarray(arr[k][:, :cols], dtype=np.float64)
+            return x if x.shape[1] == cols else np.concatenate([x, np.full((x.shape[0], cols - x.shape[1]), np.nan)], axis=1)
+        self.C, self.L, self.H, self.O = cut("close"), cut("low"), cut("high"), cut("open")
+        self.V = np.full(self.C.shape, np.nan) if vol is None else cut_vol(vol, cols)
+        self.arr = {"close": self.C, "low": self.L, "high": self.H, "open": self.O}
+        self.n = self.C.shape[0]
+        self.h0 = self.H[:, 0]
+        c0 = self.C[:, 0] * 1e9
+        self.uni = np.isfinite(self.h0) & (self.h0 > 0) & (c0 > M0_LO) & (c0 <= M0_HI)
+        self.m0r = np.where(np.isfinite(self.h0) & (self.h0 > 0), self.C[:, 0] / self.h0, np.nan)
+        self.cm = A.first_crossings(self.arr)
+        with np.errstate(invalid="ignore", divide="ignore"):
+            self.rng = (self.H - self.L) / np.where(self.C > 0, self.C, np.nan)
+            self.jump = self.C[:, 1:] / self.C[:, :-1] - 1
+        self._quiet, self._range, self._ret, self._chosen = {}, {}, {}, {}
+
+    def chosen(self, spec):
+        key = spec_id(spec)
+        if key not in self._chosen:
+            self._chosen[key] = chosen_minutes(spec, self)
+        return self._chosen[key]
+
+
+def lab_name(name):
+    """The Lab's name (60 characters at most) keeps the end of the pattern's name, which is its exit."""
+    head, _, ex = name.rpartition(" · ")
+    full = "Pattern · " + name
+    return full if len(full) <= 60 else ("Pattern · " + head)[:60 - len(ex) - 3] + " · " + ex
+
+
+def lab_rule(p):
+    """A watch-list pattern as a Lab rule: it buys at the first minute from the earliest possible one to 13 at which the pattern fired in the minute
+    before (the feature `pattern:<id>`, see analyze.pattern_features), with the pattern's exit."""
+    spec = p["spec"]
+    tp, sl, hold = EXITS[spec["exit"]]
+    return {"id": "pattern-" + p["id"], "name": lab_name(p["name"]), "enabled": True, "entry": spec["Q"] + 2, "entry_to": A.CROSS_LAST + 1,
+            "conditions": [{"feature": "pattern:" + p["id"], "op": "=", "value": 1.0}], "tp": tp, "sl": sl, "hold": hold}
+
+
+def cut_vol(vol, cols):
+    x = np.asarray(vol[:, :cols], dtype=np.float64)
+    return x if x.shape[1] == cols else np.concatenate([x, np.full((x.shape[0], cols - x.shape[1]), np.nan)], axis=1)
+
+
 def chosen_minutes(spec, D):
     """The minute each coin is bought at (the close of that minute), or -1: the pattern's trigger."""
     n = D.n
@@ -123,6 +178,20 @@ def chosen_minutes(spec, D):
     if spec.get("m0"):
         with np.errstate(invalid="ignore"):
             m0 &= (D.m0r >= spec["m0"][0]) & (D.m0r <= spec["m0"][1])
+    if spec["family"] == "quiet":
+        # the Lab's Strategies H and H+: minute 0 closes in a market-cap range at a share of its high, minutes 1..Q stay quiet (closes, high, body, low,
+        # volume against minute 0, every bar's high-low distance in USD); the trigger is minute Q, so the entry is minute Q + 1
+        q = spec["Q"]
+        cmax, hmax, bmax, lmin, fin = D.quiet(q)
+        s = slice(1, q + 1)
+        c0 = D.C[:, 0] * 1e9
+        with np.errstate(invalid="ignore", divide="ignore"):
+            ok = (np.isfinite(D.h0) & (D.h0 > 0) & (c0 > spec["m0_close"][0]) & (c0 <= spec["m0_close"][1]) & (D.m0r >= spec["m0"][0]) & (D.m0r <= spec["m0"][1])
+                  & fin & (cmax <= spec["close_max"]) & (hmax <= spec["high_max"]) & (bmax <= spec["body_max"]) & (lmin >= spec["low_min"])
+                  & (D.V[:, s].mean(axis=1) <= spec["vol_ratio"] * D.V[:, 0]) & (np.nanmax(D.H[:, s] - D.L[:, s], axis=1) * 1e9 <= spec["range_max"])
+                  & (np.nanmin(D.C[:, s], axis=1) / D.h0 >= spec["close_min"]))
+        out[ok] = q
+        return out
     if spec["family"] == "cross":
         cmax, hmax, bmax, lmin, fin = D.quiet(spec["Q"])
         with np.errstate(invalid="ignore"):
@@ -166,7 +235,7 @@ def stats_of(r, mask, D):
 
 def passes(st):
     return (st.get("trades", 0) >= MIN_TRADES and st["earlier"]["trades"] >= MIN_EARLIER and st["newest"]["trades"] >= MIN_NEWEST
-            and st["mean"] > 0 and (st["earlier"]["mean"] or 0) > 0 and (st["newest"]["mean"] or 0) > 0 and (st["wo3"] or 0) > 0)
+            and st["mean"] > MIN_MEAN and (st["earlier"]["mean"] or 0) > 0 and (st["newest"]["mean"] or 0) > 0 and (st["wo3"] or 0) > 0)
 
 
 def spec_id(spec):
@@ -195,25 +264,24 @@ def short_name(spec):
 
 # found by hand with the pattern-discovery skill (22 Oct 2026): always tried, so the page tracks them with the others
 HAND = [
-    {"family": "cross", "m0": [0.72, 0.90], "Q": 4, "close_max": 0.93, "high_max": 1.0, "body_max": 0.25, "low_min": 25000.0, "exit": "A"},       # Strategy G (the Crossing pattern)
     {"family": "jump", "m0": None, "Q": 4, "range_max": 0.07, "jump_min": 0.15, "from_below": False, "exit": "A"},
     {"family": "jump", "m0": None, "Q": 4, "range_max": 0.07, "jump_min": 0.15, "from_below": False, "exit": "B"},
 ]
 
 
-def candidates(D):
+def candidates(D, seeds=None, min_seeds=20, hand=True):
     """Patterns whose numbers come from the seeds (the earlier 70% of the coins that peaked above $100K): the quantiles of what they looked like."""
-    s = D.seeds
+    s = D.seeds if seeds is None else seeds
     out = []
-    if s.sum() < 20:
-        return list(HAND)
+    if s.sum() < min_seeds:
+        return list(HAND) if hand else []
     r_ = lambda v, step=0.01: float(np.ceil(v / step) * step)       # noqa: E731  (round up: the seeds' own value must still pass)
     m0r = D.m0r[s]
     bands = {(round(float(np.quantile(m0r, a)), 2), round(float(np.quantile(m0r, b)), 2)) for a, b in ((0.10, 0.90), (0.05, 0.95), (0.20, 0.95))}
     for q in (3, 4, 5):
         cmax, hmax, bmax, lmin, fin = D.quiet(q)
         ok = s & fin
-        if ok.sum() < 20:
+        if ok.sum() < min_seeds:
             continue
         closes = sorted({round(min(1.0, r_(float(np.quantile(cmax[ok], p)))), 2) for p in (0.70, 0.85, 0.95)})
         bodies = sorted({round(r_(float(np.quantile(bmax[ok], p)), 0.05), 2) for p in (0.70, 0.90)})
@@ -230,7 +298,7 @@ def candidates(D):
         for m in range(max(4, q + 1), A.CROSS_LAST + 1):
             ranges.append(D.range_before(q, m)[s])
         rv = np.concatenate([x[np.isfinite(x)] for x in ranges]) if ranges else np.array([])
-        if len(rv) >= 20:
+        if len(rv) >= min_seeds:
             for p in (0.25, 0.50, 0.75):
                 rmax = round(float(np.quantile(rv, p)), 2)
                 for j in (0.15, 0.25, 0.35):
@@ -238,12 +306,60 @@ def candidates(D):
                         for ex in EXITS:
                             out.append({"family": "jump", "m0": None, "Q": q, "range_max": rmax, "jump_min": j, "from_below": fb, "exit": ex})
     seen, uniq = set(), []
-    for spec in HAND + out:
+    for spec in (HAND if hand else []) + out:
         key = spec_id(spec)
         if key not in seen:
             seen.add(key)
             uniq.append(spec)
     return uniq
+
+
+def search(D, cands, mask):
+    """Backtest every candidate on the coins in `mask`; the profitable ones, the best of each group of near-identical ones: [(spec, stats, selected, minute, r)]. Also the number that passed."""
+    found = []
+    for spec in cands:
+        minute, r = trades_of(spec, D)
+        st = stats_of(r, (minute >= 0) & mask, D)
+        if passes(st):
+            found.append((min(st["earlier"]["mean"], st["newest"]["mean"]), spec, st, minute, r))
+    found.sort(key=lambda t: -t[0])
+    kept = []
+    for score, spec, st, minute, r in found:
+        sel = (minute >= 0) & mask & np.isfinite(r)
+        if any((sel & k[2]).sum() / max((sel | k[2]).sum(), 1) >= SAME_COINS for k in kept):
+            continue
+        kept.append((spec, st, sel, minute, r))
+    return kept, len(found)
+
+
+def daily_discovery(D, data_to):
+    """The pattern-discovery skill on one day of coins: the seeds are the coins of the last 24 hours (before the newest saved coin) that closed minute 0 at
+    $30K-$50K and peaked above $90K within 30 minutes; the candidates' numbers come from them, and each candidate is tested on every OTHER saved coin (the days
+    before), so the day's coins are never part of the test. Returns (summary for the page, kept patterns)."""
+    t0 = time.time()
+    day = D.gts >= data_to - DAILY_WINDOW_MS
+    c0 = D.C[:, 0] * 1e9
+    with np.errstate(invalid="ignore"):
+        peak = np.nanmax(D.H[:, :SEED_MINUTES], axis=1) * 1e9
+    seeds = day & np.isfinite(D.h0) & (D.h0 > 0) & (c0 > SEED_M0_LO) & (c0 <= SEED_M0_HI) & (peak > SEED_PEAK)
+    info = {"ts": now_ms(), "from_ts": int(data_to - DAILY_WINDOW_MS), "to_ts": int(data_to), "coins": int(day.sum()), "near_standard_price": int((day & D.uni).sum()),
+            "seeds": int(seeds.sum()), "candidates": 0, "passed": 0, "distinct": 0, "tested_on": int((~day).sum())}
+    if seeds.sum() < DAILY_MIN_SEEDS:
+        info["note"] = f"only {int(seeds.sum())} seeds in the day (needs {DAILY_MIN_SEEDS})"
+        info["seconds"] = round(time.time() - t0, 1)
+        return info, []
+    cands = candidates(D, seeds=seeds, min_seeds=DAILY_MIN_SEEDS, hand=False)
+    kept, n_found = search(D, cands, ~day)
+    info.update(candidates=len(cands), passed=n_found, distinct=len(kept))
+    # what the day's own coins did under each kept pattern (in sample: the seeds shaped it)
+    best = []
+    for spec, st, sel, minute, r in kept:
+        sd = (minute >= 0) & day & np.isfinite(r)
+        best.append({"name": short_name(spec), "tested": {k: st[k] for k in ("trades", "mean", "won", "wo3")},
+                     "day_trades": int(sd.sum()), "day_mean": float(r[sd].mean()) if sd.any() else None})
+    info["patterns"] = best[:20]
+    info["seconds"] = round(time.time() - t0, 1)
+    return info, kept
 
 
 def coin_rows(minute, r, D, pool, limit=40):
@@ -263,14 +379,14 @@ def forward_of(r, minute, D, since):
 
 
 def status_of(entry, st, fwd):
-    if st.get("trades", 0) >= MIN_TRADES and st["mean"] <= 0:
+    if st.get("trades", 0) >= MIN_TRADES and st["mean"] <= MIN_MEAN:
         return "retired"
     if fwd["trades"] < FORWARD_MIN:
         return "testing"
     return "confirmed" if (fwd["mean"] or 0) > 0 else "failing"
 
 
-def run(data_dir, db_path):
+def run(data_dir, db_path, force=False):
     t0 = time.time()
     settings = os.path.join(data_dir, "settings")
     store_path = os.path.join(settings, "patterns.json")
@@ -283,24 +399,22 @@ def run(data_dir, db_path):
     data_to = int(D.gts.max()) if D.n else 0
     cands = candidates(D)
     print(f"{D.n} coins, {int(D.uni.sum())} near the standard price, {int(D.seeds.sum())} seeds; {len(cands)} candidates", flush=True)
-    found = []
-    for spec in cands:
-        minute, r = trades_of(spec, D)
-        st = stats_of(r, minute >= 0, D)
-        if passes(st):
-            found.append((min(st["earlier"]["mean"], st["newest"]["mean"]), spec, st, minute, r))
-    found.sort(key=lambda t: -t[0])
-    # candidates that trade nearly the same coins count once: the best of each group is kept
-    kept = []
-    for score, spec, st, minute, r in found:
-        sel = (minute >= 0) & np.isfinite(r)
-        if any((sel & k[2]).sum() / max((sel | k[2]).sum(), 1) >= SAME_COINS for k in kept):
-            continue
-        kept.append((spec, st, sel, minute, r))
+    kept, n_found = search(D, cands, np.ones(D.n, bool))
+    found = range(n_found)
     patterns = store.get("patterns", {})
     # known patterns that this run's search did not rediscover are still backtested again below: the watch list owns them
     new_ids = []
-    for spec, st, sel, minute, r in kept:
+    daily, n_main = None, None
+    daily_prev = store.get("daily") or {}
+    if force or now_ms() - (daily_prev.get("ts") or 0) >= DAILY_S * 1000 - 120000:
+        daily, dkept = daily_discovery(D, data_to)
+        n_main = len(kept)
+        kept = kept + [(spec, st, sel, minute, r, "daily") for spec, st, sel, minute, r in dkept]
+    else:
+        daily = daily_prev
+    for item in kept:
+        spec, st, sel, minute, r = item[:5]
+        origin = item[5] if len(item) > 5 else ("hand" if spec in HAND else "seeds")
         pid = spec_id(spec)
         if pid in removed or pid in patterns or pid in {x["id"] for x in store.get("retired", [])}:     # (a retired pattern is not found again as new)
             continue
@@ -314,7 +428,7 @@ def run(data_dir, db_path):
                 break
         if dup:
             continue
-        patterns[pid] = {"id": pid, "spec": spec, "name": short_name(spec), "text": describe(spec), "found_ts": now_ms(), "data_to_ts": data_to, "origin": "hand" if spec in HAND else "seeds",
+        patterns[pid] = {"id": pid, "spec": spec, "name": short_name(spec), "text": describe(spec), "found_ts": now_ms(), "data_to_ts": data_to, "origin": origin,
                          "found": {k: st[k] for k in ("trades", "mean", "won", "wo3", "boot_lo", "boot_hi", "earlier", "newest")}, "history": []}
         new_ids.append(pid)
     # every pattern on the watch list, backtested again on all the data
@@ -334,6 +448,7 @@ def run(data_dir, db_path):
         p["now"] = {k: st.get(k) for k in ("trades", "mean", "won", "wo3", "boot_lo", "boot_hi", "earlier", "newest")}
         p["forward"] = fwd
         p["coins"] = coin_rows(minute, r, D, pool)
+        p["lab_rule"] = lab_rule(p)
         if status == "retired":
             retired = [x for x in retired if x["id"] != pid] + [{k: p[k] for k in ("id", "name", "text", "found_ts", "found", "now", "history")}]
             patterns.pop(pid)
@@ -350,12 +465,12 @@ def run(data_dir, db_path):
     seed_idx = np.flatnonzero(D.seeds)
     sample = np.random.default_rng(int(time.time() // INTERVAL_S)).permutation(seed_idx)[:12]
     run_info = {"ts": now_ms(), "seconds": round(time.time() - t0, 1), "coins": D.n, "near_standard_price": int(D.uni.sum()), "seeds": int(D.seeds.sum()),
-                "candidates": len(cands), "passed": len(found), "distinct": len(kept), "new": len(new_ids), "data_to_ts": data_to}
-    store = {"patterns": patterns, "runs": (store.get("runs", []) + [run_info])[-30:], "retired": retired[-40:]}
+                "candidates": len(cands), "passed": len(found), "distinct": n_main if n_main is not None else len(kept), "new": len(new_ids), "data_to_ts": data_to}
+    store = {"patterns": patterns, "daily": daily, "runs": (store.get("runs", []) + [run_info])[-30:], "retired": retired[-40:]}
     write_json(store_path, store)
     write_json(os.path.join(data_dir, "patterns.json"), {
-        "updated": now_ms(), "interval_s": INTERVAL_S, "last_run": run_info, "runs": store["runs"],
-        "criteria": {"m0": [M0_LO, M0_HI], "seed_peak": SEED_PEAK, "seed_minutes": SEED_MINUTES, "min_trades": MIN_TRADES, "min_earlier": MIN_EARLIER, "min_newest": MIN_NEWEST,
+        "updated": now_ms(), "interval_s": INTERVAL_S, "daily": daily, "daily_s": DAILY_S, "last_run": run_info, "runs": store["runs"],
+        "criteria": {"m0": [M0_LO, M0_HI], "seed_m0": [SEED_M0_LO, SEED_M0_HI], "seed_peak": SEED_PEAK, "seed_minutes": SEED_MINUTES, "min_trades": MIN_TRADES, "min_mean": MIN_MEAN, "min_earlier": MIN_EARLIER, "min_newest": MIN_NEWEST,
                      "forward_min": FORWARD_MIN, "exits": {k: list(v) for k, v in EXITS.items()}},
         "seeds": [{"symbol": D.tok["symbol"][i], "mint": D.tok["mint"][i], "graduated_ts": int(D.gts[i]), "peak": float(np.nanmax(D.H[i, :SEED_MINUTES]) * 1e9),
                    "dex": f"https://dexscreener.com/solana/{pool.get(D.tok['mint'][i]) or D.tok['mint'][i]}"} for i in sample],
@@ -368,11 +483,18 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", default="data")
     ap.add_argument("--db", default=None)
+    ap.add_argument("--force", action="store_true", help="run the daily discovery now")
     a = ap.parse_args()
     db_path = a.db or os.path.join(a.data, "pump.db")
     if not os.path.exists(db_path):
         sys.exit(f"no database at {db_path}")
-    run(a.data, db_path)
+    force = a.force
+    try:        # the page's Run now (data/jobs/patterns_run.json) also runs the daily discovery, once per click
+        asked = os.path.getmtime(os.path.join(a.data, "jobs", "patterns_run.json")) * 1000
+        force = force or asked > ((read_json(os.path.join(a.data, "settings", "patterns.json"), {}).get("daily") or {}).get("ts") or 0)
+    except OSError:
+        pass
+    run(a.data, db_path, force=force)
 
 
 if __name__ == "__main__":

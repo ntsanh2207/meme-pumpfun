@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Backtest "buy a pump.fun token 10-30 minutes after it graduates" on the collected candles.
 
-Reads pump.db (written by collector.py), searches entry minute, entry conditions,
+Reads pump.db (written by watch.py's archive loop; by collector.py before 25 Oct 2026), searches entry minute, entry conditions,
 take-profit, stop-loss and time-stop, and writes:
   - report.json            : what the web app's Report tab shows
   - backtest_* tables      : every run, its rule ranking and the picked rule's trades,
@@ -28,11 +28,11 @@ import numpy as np
 import rules as rulebook
 
 MIN = 60000
-T = 296                      # minutes of post-graduation bars kept by the collector
+T = 121                      # minutes of post-graduation bars kept (0 to 120: two hours; 296 before 25 Oct 2026, older coins still hold more)
 ENTRIES = [5, 8, 10, 15, 20, 30]   # minutes after graduation
 TPS = [0.25, 0.4, 0.6, 1.0, 1.5, 2.5, 4.0]
 SLS = [0.15, 0.20, 0.30, 0.40, 0.50]
-HOLDS = [30, 60, 120, 240]
+HOLDS = [30, 60, 90]      # (120 and 240 before the bars were cut to two hours; an entry of 30 plus 90 ends at the last bar)
 FEE = 0.0135                 # per side: PumpSwap's top fee tier (1.25%) plus priority fee/tip
 SL_SLIP = 0.03               # extra slippage when a stop fires into a falling market
 STAKE_SOL = 0.1              # SOL per trade; turned into USD with the SOL price for price impact
@@ -50,7 +50,7 @@ CHECKED = 4000               # best-ranked rule sets checked in detail
 MIN_CHECK_TRADES = 10        # trades a rule must make in the checking part
 MIN_DAY_SHARE = 0.5          # share of days with trades that must end in profit (ranking + checking parts)
 PASS_TEST_TRADES = 20        # test trades needed for a "pass"
-SEARCH_SKIP = {"hour_utc", "mins_since_creation", "pattern_cross_now"}   # features rules may use but the search does not try (the last is mins_to_grad plus the entry minute: the same cuts)
+SEARCH_SKIP = {"hour_utc", "mins_since_creation"}   # features rules may use but the search does not try (the last is mins_to_grad plus the entry minute: the same cuts)
 # conditions measured at an earlier minute (added 21 Oct 2026): the search also tries each feature as it was AT_BACK minutes before the
 # entry (never before minute 5), as Strategy B20 does by hand. They are combined with the best single entry-minute conditions
 # (TOP_SINGLES) and may be the third condition of the best pairs, so the number of rule sets grows by about a third, not several times
@@ -92,7 +92,7 @@ def load(db):
     dev = ("(SELECT CASE WHEN f.is_dev_buy = 1 THEN f.amount_sol ELSE 0 END FROM first_trades f "
            "WHERE f.mint = k.mint)") if has_ft else "NULL"
     # classic 85 SOL curves only: their pool depth at graduation is known, which the
-    # price-impact model needs. candles_done = 1 means bars reach ~5 hours past graduation.
+    # price-impact model needs. candles_done = 1 means bars reach T minutes past graduation (~5 hours for older coins).
     rows = db.execute(
         f"""SELECT k.mint, k.symbol, k.name, k.graduated_ts / 60000 * 60000, k.raw, {dev},
                    k.created_ts
@@ -312,6 +312,35 @@ def shape_features(tok, arr, vol, entry, p0, span, vol5):
     return out
 
 
+_PATTERN_VIEW = (None, None)
+
+
+def pattern_features(arr, vol, entry):
+    """One flag per pattern added to the Lab (rulebook.PATTERNS): 1 where the pattern's trigger minute was the minute before the entry minute
+    (patterns.chosen_minutes: the first minute the pattern fired). The coins' first 14 minutes are kept in a small view; a big frame (the backtest,
+    which asks at every entry minute) keeps it, a one-coin frame of the live watch builds its own (threads each have their own frame)."""
+    global _PATTERN_VIEW
+    pats = rulebook.PATTERNS
+    if not pats:
+        return {}
+    import patterns
+    close = arr["close"]
+    view = _PATTERN_VIEW
+    if close.shape[0] > 1000 and view[0] is close:
+        D = view[1]
+    else:
+        D = patterns.Lean(arr, vol)
+        if close.shape[0] > 1000:
+            _PATTERN_VIEW = (close, D)
+    out = {}
+    for pid, p in pats.items():
+        try:
+            out["pattern:" + pid] = (D.chosen(p["spec"]) == entry - 1).astype(np.float64)
+        except (KeyError, ValueError, TypeError):
+            out["pattern:" + pid] = np.zeros(close.shape[0])
+    return out
+
+
 def features(tok, arr, vol, trd, entry):
     """Everything here is known at the moment of entry."""
     c = arr["close"].astype(np.float64)
@@ -351,7 +380,7 @@ def features(tok, arr, vol, trd, entry):
             "has_telegram": tok["has_telegram"],
             **holder_features(tok, entry),
             **shape_features(tok, arr, vol, entry, p0, span, vol5),
-            "pattern_cross_now": pattern_cross_now(arr, entry),
+            **pattern_features(arr, vol, entry),
         }
 
 
@@ -375,7 +404,7 @@ CREATE TABLE IF NOT EXISTS sec_windows (       -- 1-second windows already fetch
 # 2. the highs of minutes 1 and 2 are not above the level; 3. no minute before the crossing has a low under CROSS_FLOOR_MCAP;
 # 4. no minute from 1 to the one before the crossing closed above the level; 5. minute m-1 closed below the level and minute m
 # closes at or above it, m from CROSS_FIRST to CROSS_LAST. The market-cap limits are in US dollars (every coin has 1e9 tokens: market cap
-# = price x SUPPLY). crossing.py watches live graduates with the same functions; c, lo and hi are 1-D arrays by minute after the graduation minute.
+# = price x SUPPLY). The Crossing monitor that watched live graduates with these functions was removed on 24 Oct 2026; Pattern Discover (the `cross` family) still uses them. c, lo and hi are 1-D arrays by minute after the graduation minute.
 CROSS_FIRST, CROSS_LAST = 3, 12      # (2 until 21 Oct 2026; the dip rules (CROSS_DIP, CROSS_BELOW 0.97, CROSS_LOWHIGH) were dropped the same day)
 CROSS_FLOOR_MCAP, CROSS_PRE_MCAP, CROSS_START_MCAP, SUPPLY = 15000.0, 50000.0, 35000.0, 1e9
 
@@ -411,24 +440,6 @@ def crossing_minute(c, lo, p0, hi=None):
     return -1
 
 
-# The "pattern" flag of a crossing (21-22 Oct 2026, from four charted coins that kept rising): minute 0 closed at 72% to 90% of its own high (the
-# level) and each of minutes 1 to 4 closed at most 93% of the level with a high not above it, a body of at most 25% of the level and a low not under
-# PATTERN_LOW_MCAP. It needs minutes 1 to 4 closed before the crossing, so a crossing in minute 5 or later. 36 of 152 crossings matched it; bought at
-# the crossing close with PATTERN_EXIT it averaged +9.1% (won 75%; earlier 70% +3.8%, newest 30% +13.9%, without the best 3 +7.1%, bootstrap -2.3% to +20.1%); at +30% the 1-3 s delay replay gave +8% to +13.5%. Found on the same coins.
-PATTERN_EXIT = (0.35, 0.50, 10)      # take profit, stop loss, minutes held of the pattern strategy (+25% to +40% was a plateau)
-PATTERN_LOW_MCAP = 25000.0
-
-
-def cross_pattern(c, hi, lo, op, p0, m):
-    """The crossing in minute m matches the pattern (see above). c, hi, lo, op = the bars' closes, highs, lows and opens; p0 = the level."""
-    if m < 5 or not np.isfinite(p0) or p0 <= 0:
-        return False
-    cc, hh, ll, oo = c[1:5], hi[1:5], lo[1:5], op[1:5]
-    if not np.isfinite([c[0], *cc, *hh, *ll, *oo]).all():
-        return False
-    return bool(0.72 <= c[0] / p0 <= 0.90 and cc.max() / p0 <= 0.93 and hh.max() <= p0 and np.abs(cc - oo).max() <= 0.25 * p0 and ll.min() >= PATTERN_LOW_MCAP / SUPPLY)
-
-
 _CROSS_CACHE = {}
 
 
@@ -451,31 +462,17 @@ def first_crossings(arr):
     return cm
 
 
-def pattern_cross_now(arr, entry):
-    """1 for a coin whose first crossing was the minute before the entry minute (the last whole minute) and matches the pattern, else 0.
-    A crossing needs minute 5 or later to match, so entry minutes 6 to 13 are the ones that can see one."""
-    n = arr["close"].shape[0]
-    out = np.zeros(n)
-    m = entry - 1
-    if not 5 <= m <= CROSS_LAST:
-        return out
-    c, lo, hi, op = (arr[k] for k in ("close", "low", "high", "open"))
-    for i in np.flatnonzero(first_crossings(arr) == m):
-        out[i] = float(cross_pattern(c[i].astype(np.float64), hi[i].astype(np.float64), lo[i].astype(np.float64), op[i].astype(np.float64), float(hi[i, 0]), m))
-    return out
-
-
 def sec_bars(db, mint, pool, to_ms):
     """1-second bars of the 300 seconds before to_ms, fetched once from pump.fun and kept in
     pump.db. A second without a trade has no bar. None when pump.fun could not be reached."""
     if not db.execute("SELECT 1 FROM sec_windows WHERE mint = ? AND to_ms = ?", (mint, to_ms)).fetchone():
-        import collector    # only this replay talks to pump.fun
+        import pumpapi    # only this replay talks to pump.fun
         params = {"res": "1s", "count": SEC_WINDOW, "to": to_ms}
         if pool:
             params["pool"] = pool
         time.sleep(2.5)     # this resolution is refused when asked for quickly; what fails is asked again next run
         try:
-            r = collector.get(f"/candles/{collector.CHAIN}/{mint}", params, retries=6) or {}
+            r = pumpapi.get(f"/candles/{pumpapi.CHAIN}/{mint}", params, retries=6) or {}
         except RuntimeError:
             return None
         bars = r.get("candles") or []
@@ -1121,6 +1118,14 @@ def write_history(db, path, user_rules):
     search = next((r for r in runs if r["kind"] == "search"), None)
     if search:
         current.append(search["run_id"])
+    # the features saved with each trade (about 1.3 KB a row, 700 MB for 1,100 runs by 25 Oct 2026) are only read for the current runs,
+    # for the CSV exports below; the older runs keep every trade's result (history.json and "over time" use those)
+    if current:
+        try:
+            db.execute("UPDATE backtest_trades SET features = NULL WHERE features IS NOT NULL AND run_id NOT IN (%s)" % ",".join("?" * len(current)), current)
+            db.commit()
+        except sqlite3.Error as e:
+            print(f"  ! old runs' features not cleared: {e!r}", flush=True)
     trades = {}
     by_id = {r["run_id"]: r for r in runs}
     study = {}
@@ -1233,7 +1238,7 @@ def main():
     # 1. what the price does after graduation, with no rules at all
     g = arr["p_grad"]
     after = []
-    for m in (5, 10, 15, 20, 30, 60, 120, 240):
+    for m in (5, 10, 15, 20, 30, 60, 120):
         r = arr["close"][:, m] / g - 1
         after.append({"minute": m, "median": np.nanmedian(r), "share_up": np.nanmean(r > 0),
                       "share_down_90": np.nanmean(r <= -0.9)})
@@ -1248,7 +1253,7 @@ def main():
     for e in ENTRIES:
         ok = np.isfinite(net_return(arr, trd, e, np.ones(n)))
         crashes.append({"entry": e, **{f"within_{w}": float(crash_bar[ok, e:e + w].any(axis=1).mean())
-                                       for w in (30, 60, 240)}})
+                                       for w in (30, 60, 120)}})
     report["market"] = {"after_graduation": after, "tradable": tradable, "crashes": crashes}
     report["early"] = early_window(tok, arr, vol, trd)
 
@@ -1314,7 +1319,7 @@ def main():
             x = f[name]
             # known for nearly every coin at this entry minute: else a rule would quietly keep only the coins that have it;
             # the hour of day wraps around midnight, so a single cut on it is not a rule worth searching for
-            if name not in usable or name in SEARCH_SKIP or np.isfinite(x[base_ok]).mean() < 0.98:
+            if name not in usable or name in SEARCH_SKIP or name.startswith("pattern:") or np.isfinite(x[base_ok]).mean() < 0.98:
                 continue
             if kind == "flag":
                 rules.append(((name, "=", 1.0, None), x == 1))

@@ -14,6 +14,7 @@ import json
 import os
 import re
 import tempfile
+import threading
 
 # name -> (plain-language label, kind). Values are stored in native units:
 # pct as a fraction (0.25 = 25%), usd in dollars, sol in SOL, min in minutes, num as a count.
@@ -63,14 +64,76 @@ FEATURES = {
     "red_minutes_5m": ("Minutes that closed below their open in the last 5", "num"),
     "vol_trend_5m": ("Volume of the last 5 minutes against the 5 before", "pct"),
     "mins_since_creation": ("Minutes since the token was created", "min"),
-    # the Crossing page's pattern strategy as one condition (22 Oct 2026): the coin's first crossing (analyze.crossing_minute) was the minute
-    # before the entry minute and matches analyze.cross_pattern. Meant for a rule with entry_to (6 to 13); the search does not try it
-    "pattern_cross_now": ("A crossing that matches the pattern closed in the last minute", "flag"),
 }
 
-# entry + hold may not pass the price history kept after each graduation (295 minutes)
-LIMITS = {"max_rules": 40, "max_conditions": 8, "entry": [5, 240], "max_entry_span": 20, "hold": [5, 240],
-          "max_entry_plus_hold": 295, "tp": [0.05, 10.0], "sl": [0.05, 0.95], "be": [0.05, 10.0], "be_stop": [0.0, 9.0]}
+# Patterns added to the Lab from the Pattern Discover page (23 Oct 2026): settings/lab_patterns.json holds {id: {"name", "spec"}}; each becomes a flag
+# feature "pattern:<id>" (1 = the pattern fired in the last whole minute: analyze.pattern_features). load() reads the file first, so every
+# process that loads the saved rules knows the features.
+# Patterns that ship with the code (Strategies H and H+ use them): always known, never written to lab_patterns.json
+BUILTIN_PATTERNS = {
+    "quiet5k70": {"name": "Quiet start, bars within $5K, closes at least 70% of the level", "spec": {
+        "family": "quiet", "Q": 3, "m0_close": [30000.0, 60000.0], "m0": [0.72, 0.92], "close_max": 0.93, "high_max": 1.0, "body_max": 0.25,
+        "low_min": 25000.0, "vol_ratio": 0.75, "range_max": 5000.0, "close_min": 0.70}},
+    # Pattern Discover's "Jump >=35%, 5 quiet minutes (range <=25%), from below" (found 22 Oct 2026; patterns.chosen_minutes family 'jump'): minute 0 closes
+    # $35K-$50K; the mean candle range of 5 quiet minutes is at most 25%, then the first minute (6 to 12) that closes at least 35% above the previous
+    # close while that close was still below the high of minute 0. Strategy I trades its trigger minute + 1
+    "jump35": {"name": "Jump of 35% after 5 quiet minutes, from below the level", "spec": {
+        "family": "jump", "m0": None, "Q": 5, "range_max": 0.25, "jump_min": 0.35, "from_below": True, "exit": "B"}},
+}
+PATTERNS = {}
+_patterns_lock = threading.Lock()
+_SPEC_NUMBERS = {"cross": ("Q", "close_max", "high_max", "body_max", "low_min"), "jump": ("Q", "range_max", "jump_min")}
+
+
+def _spec_ok(spec):
+    nums = _SPEC_NUMBERS.get(spec.get("family"))
+    return bool(nums) and spec.get("exit") in ("A", "B", "C") and spec.get("Q") in (3, 4, 5) and all(
+        isinstance(spec.get(k), (int, float)) and not isinstance(spec.get(k), bool) for k in nums)
+
+
+def load_patterns(settings_dir):
+    """Reads settings/lab_patterns.json into PATTERNS and the `pattern:<id>` features. A missing file means no patterns; an unreadable one leaves what was
+    loaded before. Safe to call from several threads: the new table is built aside and swapped in, and a feature is deleted only when its pattern is gone."""
+    global PATTERNS
+    try:
+        if settings_dir is None:
+            raise FileNotFoundError
+        with open(os.path.join(settings_dir, "lab_patterns.json"), encoding="utf-8") as f:
+            doc = json.load(f)
+        if not isinstance(doc, dict):
+            raise ValueError
+    except FileNotFoundError:
+        doc = {}
+    except (OSError, ValueError):
+        return PATTERNS
+    with _patterns_lock:
+        new = {k: dict(v) for k, v in BUILTIN_PATTERNS.items()}
+        for pid, p in doc.items():
+            if isinstance(p, dict) and isinstance(p.get("spec"), dict) and re.fullmatch(r"[0-9a-f]{10}", str(pid)) and _spec_ok(p["spec"]):
+                new[pid] = {"name": str(p.get("name", pid))[:80], "spec": p["spec"]}
+        for pid, p in new.items():
+            FEATURES["pattern:" + pid] = (f"Pattern fired in the last minute: {p['name']}", "flag")
+        for k in [k for k in list(FEATURES) if k.startswith("pattern:") and k[8:] not in new]:
+            FEATURES.pop(k, None)
+        PATTERNS = new
+    return PATTERNS
+
+
+load_patterns(None)         # (the built-in patterns' features exist as soon as this module is imported)
+
+
+def save_patterns(settings_dir, doc):
+    doc = {k: v for k, v in doc.items() if k not in BUILTIN_PATTERNS}
+    fd, tmp = tempfile.mkstemp(dir=settings_dir, prefix="lab_patterns.", suffix=".tmp")
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        json.dump(doc, f, indent=1)
+    os.chmod(tmp, 0o644)
+    os.replace(tmp, os.path.join(settings_dir, "lab_patterns.json"))
+
+
+# entry + hold may not pass the price history kept after each graduation (120 minutes; 295 before 25 Oct 2026)
+LIMITS = {"max_rules": 40, "max_conditions": 8, "entry": [4, 115], "max_entry_span": 20, "hold": [5, 116],
+          "max_entry_plus_hold": 120, "tp": [0.05, 10.0], "sl": [0.05, 0.95], "be": [0.05, 10.0], "be_stop": [0.0, 9.0]}
 
 PRESETS = [
     {"id": "momentum-near-high", "name": "Momentum near the high", "enabled": True, "entry": 20,
@@ -155,78 +218,6 @@ CLUSTERS = [
 # backtests with them. They live here, not in the settings, so editing rules in the web app
 # never removes them.
 WATCH_EXTRA = [
-    {"id": "strategy-a", "name": "Strategy A: creator out, X and website (15 min)",
-     "enabled": True, "entry": 15,
-     "conditions": [{"feature": "dev_pct_at_grad", "op": "<=", "value": 0.0},
-                    # pump.fun often shows the creator's share as 0% before it has counted it, then
-                    # 20-40% minutes later: the latest reading before buying must say 0% too
-                    {"feature": "dev_pct_last", "op": "<=", "value": 0.0},
-                    {"feature": "has_twitter", "op": "=", "value": 1.0},
-                    {"feature": "has_website", "op": "=", "value": 1.0},
-                    {"feature": "avg_trade_usd_5m", "op": ">=", "value": 30.0},
-                    {"feature": "mcap_usd", "op": ">=", "value": 20000.0},
-                    {"feature": "ret_since_grad", "op": ">=", "value": -0.5}],
-     "tp": 0.4, "sl": 0.3, "hold": 15},
-    {"id": "strategy-b", "name": "Strategy B: heavy volume, few trades (15 min)",
-     "enabled": True, "entry": 15,
-     "conditions": [{"feature": "vol_usd_last_5m", "op": ">=", "value": 33700.0},
-                    {"feature": "trades_total", "op": "<=", "value": 2805.0},
-                    # the volume above is also met by a rug pull's own dump; this keeps those out
-                    {"feature": "ret_since_grad", "op": ">=", "value": -0.5}],
-     # held up to 30 minutes since 19 Oct 2026 (was 240): on 5,315 coins the 30-minute hold did better on both the
-     # older (+3.6% a trade) and the newest coins (+4.3%)
-     "tp": 1.0, "sl": 0.5, "hold": 30},
-    # found by the research of 19 Oct 2026 (picked on the older 70% of 5,314 coins, +5% a trade on the newest 30%,
-    # about 0% without its 3 best trades): paper only until the live record says otherwise
-    {"id": "strategy-c", "name": "Strategy C: late momentum (8 min)",
-     "enabled": True, "entry": 8,
-     "conditions": [{"feature": "ret_since_grad", "op": ">=", "value": 3.0},
-                    {"feature": "vol_usd_last_5m", "op": ">=", "value": 40000.0}],
-     "tp": 0.6, "sl": 0.5, "hold": 30},
-    # Strategy C narrowed by the deeper research of 19 Oct 2026: an X link, not graduated 18:00-23:59 UTC, held up to
-    # 60 minutes. These filters were tried on the newest coins too, so only live paper results can confirm them.
-    {"id": "strategy-c-plus", "name": "Strategy C+: late momentum, X link, daytime (8 min)",
-     "enabled": True, "entry": 8,
-     "conditions": [{"feature": "ret_since_grad", "op": ">=", "value": 3.0},
-                    {"feature": "vol_usd_last_5m", "op": ">=", "value": 40000.0},
-                    {"feature": "has_twitter", "op": "=", "value": 1.0},
-                    {"feature": "hour_utc", "op": "<=", "value": 17.0}],
-     "tp": 0.6, "sl": 0.5, "hold": 60},
-    # the user's rule of 19 Oct 2026: Strategy A's coins with 16%+ of the supply in bundled wallets. Backtested on only
-    # 5 trades (+49% a trade, all on the newest coins: the creator and bundler readings exist only since 16 Oct), so it
-    # is paper only until the live record has a few dozen trades
-    {"id": "strategy-d", "name": "Strategy D: creator out, X, web, bundled 16%+ (15 min)",
-     "enabled": True, "entry": 15,
-     "conditions": [{"feature": "dev_pct_at_grad", "op": "<=", "value": 0.0},
-                    {"feature": "has_twitter", "op": "=", "value": 1.0},
-                    {"feature": "has_website", "op": "=", "value": 1.0},
-                    {"feature": "avg_trade_usd_5m", "op": ">=", "value": 34.0},
-                    {"feature": "mcap_usd", "op": ">=", "value": 20000.0},
-                    {"feature": "ret_since_grad", "op": ">=", "value": -0.5},
-                    {"feature": "bundlers_pct", "op": ">=", "value": 0.16}],
-     "tp": 1.0, "sl": 0.4, "hold": 15},
-    # found on 19 Oct 2026 by studying Strategy B's trades (all coins seen, so the newest 30% is not an unseen test):
-    # the coins Strategy B passes at minute 15, bought 5 minutes later if the price held steady (0 to +20%) meanwhile.
-    # Backtest: 21 trades, +24% a trade. Paper only until the live record agrees. (Until 19 Oct 2026 it measured B's
-    # conditions at minute 20 instead, which also bought coins Strategy B never passed.)
-    {"id": "strategy-b20", "name": "Strategy B20: Strategy B, then a steady price (20 min)",
-     "enabled": True, "entry": 20,
-     "conditions": [{"feature": "vol_usd_last_5m", "op": ">=", "value": 33700.0, "at": 15},
-                    {"feature": "trades_total", "op": "<=", "value": 2805.0, "at": 15},
-                    {"feature": "ret_since_grad", "op": ">=", "value": -0.5, "at": 15},
-                    {"feature": "ret_last_5m", "op": ">=", "value": 0.0},
-                    {"feature": "ret_last_5m", "op": "<=", "value": 0.2}],
-     "tp": 1.0, "sl": 0.5, "hold": 30},
-    # Strategy B with the same steady-price condition at 15 minutes (same study): 33 trades, +24% a trade, 9 stop
-    # losses, and a 1 s delay costs it about 8 points a trade. Paper only, to compare with B and B20 live
-    {"id": "strategy-b-plus", "name": "Strategy B+: heavy volume, steady price (15 min)",
-     "enabled": True, "entry": 15,
-     "conditions": [{"feature": "vol_usd_last_5m", "op": ">=", "value": 33700.0},
-                    {"feature": "trades_total", "op": "<=", "value": 2805.0},
-                    {"feature": "ret_since_grad", "op": ">=", "value": -0.5},
-                    {"feature": "ret_last_5m", "op": ">=", "value": 0.0},
-                    {"feature": "ret_last_5m", "op": "<=", "value": 0.2}],
-     "tp": 1.0, "sl": 0.5, "hold": 30},
     # The first version of Strategy B20 (19 Oct 2026), kept as its own strategy: Strategy B's three conditions measured at
     # 20 minutes (not at 15), plus a steady price (0 to +20%) over the last 5 minutes. It is NOT a subset of Strategy B: it
     # also buys coins whose volume only reached the threshold by minute 20. Backtest: 17 trades, +46% a trade, no stop loss,
@@ -242,16 +233,6 @@ WATCH_EXTRA = [
      # 20 Oct 2026: once the price is 50% above the entry the stop moves up to entry +10%. Backtest (20 trades): +36.3% against
      # +35.9% without it (a stop at the entry price: +40.4%; at +20%: +28.3%); a trigger at +30% would cost 12 points a trade
      "be": 0.5, "be_stop": 0.1},
-    # found on 19 Oct 2026 with the strategy-mining skill from Strategy C's trades (all coins seen): C's coins whose
-    # price held steady (0 to +20%) over the last 5 minutes. Backtest: 29 trades, +27.5% a trade (newest 30%: +25.5%),
-    # 4 stop losses; a 1-3 s delay costs about 5 points. Paper only until the live record agrees
-    {"id": "strategy-c-steady", "name": "Strategy C-steady: late momentum, steady price (8 min)",
-     "enabled": True, "entry": 8,
-     "conditions": [{"feature": "ret_since_grad", "op": ">=", "value": 3.0},
-                    {"feature": "vol_usd_last_5m", "op": ">=", "value": 40000.0},
-                    {"feature": "ret_last_5m", "op": ">=", "value": 0.0},
-                    {"feature": "ret_last_5m", "op": "<=", "value": 0.2}],
-     "tp": 0.6, "sl": 0.5, "hold": 30},
     # found on 20 Oct 2026 with the strategy-mining skill, from a plain base rule (buy at 20 min if the volume of the last 5 minutes is at
     # least $23.5K and the trades since graduation at most 2,969: 112 trades, +9.0% a trade). Added to it: the coin graduated within 5
     # minutes of its creation (78 trades, +28.1%; a 1-3 s delay costs about 8 points) and it is not more than 70% below its high (the
@@ -266,34 +247,48 @@ WATCH_EXTRA = [
                     {"feature": "mins_to_grad", "op": "<=", "value": 5.0},
                     {"feature": "drawdown_from_high", "op": ">=", "value": -0.7}],
      "tp": 1.0, "sl": 0.4, "hold": 60},
-    # found on 21 Oct 2026 with the strategy-mining skill, from a rule the user gave (buy at 10 min if the price change since graduation is
-    # at least -94%, the average trade size over the last 5 minutes at least $33.92 and the coin has a Telegram link; +100% / -50% / 30 min:
-    # 178 trades, +11.6% a trade, newest 30% -1.6%). Added in two rounds (about 470 candidates tried): the market cap at least $90K
-    # (123 trades, +18.5%) and the price at least 5% below its high so far (100 trades). Backtest: 100 trades, +25.8% a trade, 63% won
-    # (earlier 70% +26.9%, newest 30% +21.6%, without the best 3 +23.6%, bootstrap range +10.8% to +40.0%), 9 of 11 days positive; thresholds
-    # moved by a quarter stay at +21% to +26%; a 1-3 s delay costs 7-9 points (about +20% a trade). Weak spot: entry minutes 8, 9 and 11
-    # are negative on the newest 30%, so it needs minute 10. The filters were chosen on the same 10 days they are measured on and the
-    # newest 30% is only 21 trades. Paper only until 20-30 live trades agree
-    {"id": "strategy-f", "name": "Strategy F: Telegram, market cap, off its high (10 min)",
+    {"id": "strategy-h-plus", "name": "Strategy H+: quiet start, small bars, closes >= 70%",
+     "enabled": True, "entry": 4,
+     "conditions": [{"feature": "pattern:quiet5k70", "op": "=", "value": 1.0}],
+     "tp": 1.0, "sl": 0.5, "hold": 30},
+    # 23 Oct 2026, the strategy-mining skill on the Pattern Discover pattern 'jump35' (base: buy at the first of minutes 7 to 13 after the jump, +100% / -40% / 30
+    # min: 60 trades +15.7%, earlier 70% +16.1%, newest 30% +15.2%, without the best 3 +11.6%). Round 1 tried 178 one-condition filters (57 beat the base by 5
+    # points, 40 of them held on the newest 30%); chosen: the price has not fallen more than 3.3% under the graduation price (ret_since_grad >= -0.033).
+    # Backtest: 47 trades, +29.5% a trade, 62% won (earlier 70% +37.7%, newest 30% +21.0%, without the best 3 +25.1%, bootstrap +12% to +47%), 10 of 13 days
+    # positive; the threshold from -15% to +10% stays at +24% to +30%; the entry range 7-10 +35.5%, but starting at minute 8 the newest 30% falls to +0.7%; a
+    # 60-minute hold +35.2%, +150% target +16.6%. A second round added range_5m <= 25% (34 trades +38.1%), not adopted: fewer trades. About 340 candidates were
+    # tried on the same 13 days they are measured on and the 1-3 s delay replay cannot run on a range rule (stops cost about -60%), so expect less. Paper only
+    {"id": "strategy-i", "name": "Strategy I: jump after 5 quiet minutes, not under grad price",
+     "enabled": True, "entry": 7, "entry_to": 13,
+     "conditions": [{"feature": "pattern:jump35", "op": "=", "value": 1.0},
+                    {"feature": "ret_since_grad", "op": ">=", "value": -0.033}],
+     "tp": 1.0, "sl": 0.4, "hold": 30},
+    # 24 Oct 2026, the strategy-mining skill on Strategy F (8,523 coins: 134 trades, +18.6%, but earlier 70% +27.2% and newest 30% -3.2%: the edge had faded). Round 1 tried
+    # 320 one-condition filters (79 beat F by 5 points on the earlier 70%, 36 of those held on the newest 30%); chosen: the price rose at least 13.4% over the last 5 minutes.
+    # F+ = F plus that: 72 trades, +32.0% a trade, 68% won (earlier 70% +39.3%, newest 30% +17.4%, without the best 3 +29.3%, bootstrap +15% to +48%; the threshold
+    # x0.75 / x1.25 stays +30% to +34%; entry 12 is -2.0%, 10 and 11 are fine). Round 2 tried 206 more: the price at minute 5 had not already pumped (price change since
+    # graduation at minute 5 at most +226%, a condition measured at minute 5, the exact form). F++ = F+ plus that: 54 trades, +43.5%, 76% won (earlier 70% +45.8%,
+    # newest 30% +38.1%, without the best 3 +40.5%, bootstrap +24% to +61%; the cap from +170% to +283% stays +41% to +48%). About 526 filters were tried on the same
+    # 14 days, the 1-3 s delay replay was not run (1-second bars exist for about a week only) and stops lose about -85% when they gap. Paper only
+    {"id": "strategy-f-momentum", "name": "Strategy F+: F with momentum (10 min)",
      "enabled": True, "entry": 10,
      "conditions": [{"feature": "ret_since_grad", "op": ">=", "value": -0.94},
                     {"feature": "avg_trade_usd_5m", "op": ">=", "value": 33.92},
-                    {"feature": "has_telegram", "op": ">=", "value": 1.0},
+                    {"feature": "has_telegram", "op": "=", "value": 1.0},
                     {"feature": "mcap_usd", "op": ">=", "value": 90000.0},
-                    {"feature": "drawdown_from_high", "op": "<=", "value": -0.05}],
+                    {"feature": "drawdown_from_high", "op": "<=", "value": -0.05},
+                    {"feature": "ret_last_5m", "op": ">=", "value": 0.1337}],
      "tp": 1.0, "sl": 0.5, "hold": 30},
-    # added 22 Oct 2026: the Crossing page's pattern strategy as a Lab rule. A coin that crosses (analyze.cross_at: its close goes back above the
-    # high of its graduation minute after closing below it, with no low under $15K, the highs of minutes 1 and 2 not above the level and no
-    # close above it before) AND matches the pattern (analyze.cross_pattern: minute 0 closed at 72-90% of its high; minutes 1-4 each closed at
-    # most 93% of the level with a high not above it, a body of at most 25% of it and a low not under $25K) is bought at the close of the
-    # crossing minute, which is minute 5 to 12, so the entry is minute 6 to 13 (entry_to: the first minute at which the condition holds).
-    # Backtest on the saved coins (36 pattern crossings): +9.1% a trade at this exit, 75% won (earlier 70% +3.8%, newest 30% +13.9%, without the
-    # best 3 +7.1%, bootstrap -2.3% to +20.1%); at +30% the 1-3 s delay replay gave +8% to +13.5%. The pattern was drawn from four coins that kept
-    # rising and the exit chosen on the same coins, so only this record can confirm it. Paper only until 20 live trades agree
-    {"id": "strategy-g", "name": "Strategy G: pattern crossing (buy at minute 6 to 13)",
-     "enabled": True, "entry": 6, "entry_to": 13,
-     "conditions": [{"feature": "pattern_cross_now", "op": "=", "value": 1.0}],
-     "tp": 0.35, "sl": 0.5, "hold": 10},
+    {"id": "strategy-f-momentum-5", "name": "Strategy F++: F+ and not pumped by minute 5 (10 min)",
+     "enabled": True, "entry": 10,
+     "conditions": [{"feature": "ret_since_grad", "op": ">=", "value": -0.94},
+                    {"feature": "avg_trade_usd_5m", "op": ">=", "value": 33.92},
+                    {"feature": "has_telegram", "op": "=", "value": 1.0},
+                    {"feature": "mcap_usd", "op": ">=", "value": 90000.0},
+                    {"feature": "drawdown_from_high", "op": "<=", "value": -0.05},
+                    {"feature": "ret_last_5m", "op": ">=", "value": 0.1337},
+                    {"feature": "ret_since_grad", "op": "<=", "value": 2.261, "at": 5}],
+     "tp": 1.0, "sl": 0.5, "hold": 30},
 ]
 
 # Every rule the system runs shows on the Lab page. analyze.py writes strategies/<id>.json (its backtest) and watch.py writes
@@ -430,9 +425,14 @@ def validate(rules):
 
 def load(settings_dir):
     """The saved rules, or the starter rules when nothing has been saved yet."""
+    load_patterns(settings_dir)
     try:
         with open(os.path.join(settings_dir, "rules.json"), encoding="utf-8") as f:
-            return validate(json.load(f))
+            saved = json.load(f)
+        if isinstance(saved, list):     # a rule that uses a pattern the Lab does not know (its file is gone) is left out; the others stay
+            saved = [r for r in saved if not (isinstance(r, dict) and isinstance(r.get("conditions"), list) and any(
+                isinstance(c, dict) and str(c.get("feature", "")).startswith("pattern:") and c.get("feature") not in FEATURES for c in r["conditions"]))]
+        return validate(saved)
     except (OSError, ValueError):
         return validate(PRESETS)
 

@@ -36,19 +36,7 @@ def public(cfg):
     token, chat = cfg.get("token") or "", str(cfg.get("chat_id") or "")
     out = {"configured": bool(token and chat), "enabled": bool(cfg.get("enabled")),
            "token_hint": "…" + token[-4:] if token else "", "chat_id": chat}
-    if isinstance(cfg.get("events"), dict):
-        out["events"] = events(cfg)
     return out
-
-
-EVENT_DEFAULTS = {"watching": "armed", "confirmed": True, "trades": True}      # the Crossing page's alerts: what to send (watching: off, armed or all)
-
-
-def events(cfg):
-    """Which Crossing alerts are on; a setting file without `events` (the main bot) sends everything it always did."""
-    ev = cfg.get("events") if isinstance(cfg.get("events"), dict) else {}
-    return {"watching": ev.get("watching") if ev.get("watching") in ("off", "armed", "all") else EVENT_DEFAULTS["watching"],
-            "confirmed": ev.get("confirmed", True) is not False, "trades": ev.get("trades", True) is not False}
 
 
 def update(settings_dir, new):
@@ -63,13 +51,6 @@ def update(settings_dir, new):
     if chat and not CHAT.fullmatch(chat):
         raise ValueError("The user ID must be a number (for example 123456789), or @channelname.")
     cfg2 = {"token": token, "chat_id": chat, "enabled": bool(new.get("enabled")) and bool(token and chat)}
-    if isinstance(new.get("events"), dict):      # the Crossing page also saves which alerts it wants
-        ev = new["events"]
-        if ev.get("watching") not in ("off", "armed", "all") or not isinstance(ev.get("confirmed"), bool) or not isinstance(ev.get("trades"), bool):
-            raise ValueError("Choose what to be told about.")
-        cfg2["events"] = {"watching": ev["watching"], "confirmed": ev["confirmed"], "trades": ev["trades"]}
-    elif isinstance(cfg.get("events"), dict):
-        cfg2["events"] = cfg["events"]
     cfg = cfg2
     fd, tmp = tempfile.mkstemp(dir=settings_dir, prefix="telegram.", suffix=".tmp")
     with os.fdopen(fd, "w", encoding="utf-8") as f:

@@ -68,7 +68,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--db", default="data/pump.db")
     args = ap.parse_args()
-    db = sqlite3.connect(args.db, timeout=600)   # the collector holds the write lock for minutes
+    db = sqlite3.connect(args.db, timeout=600)   # another writer may hold the lock for minutes
     db.executescript(SCHEMA)
     mints = [r[0] for r in db.execute(
         "SELECT mint FROM tokens WHERE mint NOT IN (SELECT mint FROM first_trades) "

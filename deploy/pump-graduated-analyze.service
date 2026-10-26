@@ -3,6 +3,8 @@ Description=Backtest the post-graduation strategy and refresh the report
 After=network-online.target
 
 [Service]
+# one math thread: the search stays inside its memory limit on this shared host
+Environment=OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1
 Type=oneshot
 User=pumpgrad
 WorkingDirectory=/opt/pump-graduated
